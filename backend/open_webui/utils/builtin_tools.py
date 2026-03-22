@@ -1018,7 +1018,7 @@ def get_builtin_tools(
             "callable": add_memory,
             "spec": _tool_spec(
                 "add_memory",
-                "Add a memory for the current user.",
+                "Save a durable user memory such as preferences, profile facts, likes/dislikes, or recurring personal context.",
                 {
                     "type": "object",
                     "properties": {
@@ -1034,7 +1034,7 @@ def get_builtin_tools(
             "callable": search_memories,
             "spec": _tool_spec(
                 "search_memories",
-                "Search the user's memories.",
+                "Search durable user memories such as preferences, profile facts, and recurring personal context.",
                 {
                     "type": "object",
                     "properties": {
@@ -1120,7 +1120,7 @@ def get_builtin_tools(
                 "callable": add_note,
                 "spec": _tool_spec(
                     "add_note",
-                    "Write a note for the current user.",
+                    "Write a titled user note for note-taking or longer saved content, not for simple personal preferences or profile memories.",
                     {
                         "type": "object",
                         "properties": {
@@ -1137,7 +1137,7 @@ def get_builtin_tools(
                 "callable": search_notes,
                 "spec": _tool_spec(
                     "search_notes",
-                    "Search the user's notes.",
+                    "Search the user's saved notes and note-like content.",
                     {
                         "type": "object",
                         "properties": {

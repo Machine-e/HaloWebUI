@@ -1,5 +1,34 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 
+const parseResponsePayload = async (res: Response) => {
+	const text = await res.text();
+
+	if (!text) {
+		return null;
+	}
+
+	try {
+		return JSON.parse(text);
+	} catch {
+		return text;
+	}
+};
+
+const getErrorDetail = (error: unknown, fallback: string) => {
+	if (typeof error === 'string' && error.trim()) {
+		return error;
+	}
+
+	if (error && typeof error === 'object' && 'detail' in error) {
+		const detail = (error as { detail?: unknown }).detail;
+		if (typeof detail === 'string' && detail.trim()) {
+			return detail;
+		}
+	}
+
+	return fallback;
+};
+
 export const getMemories = async (token: string) => {
 	let error = null;
 
@@ -12,11 +41,12 @@ export const getMemories = async (token: string) => {
 		}
 	})
 		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
+			const payload = await parseResponsePayload(res);
+			if (!res.ok) throw payload ?? { detail: 'Failed to load memories' };
+			return payload;
 		})
 		.catch((err) => {
-			error = err.detail;
+			error = getErrorDetail(err, 'Failed to load memories');
 			console.log(err);
 			return null;
 		});
@@ -43,11 +73,12 @@ export const addNewMemory = async (token: string, content: string) => {
 		})
 	})
 		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
+			const payload = await parseResponsePayload(res);
+			if (!res.ok) throw payload ?? { detail: 'Failed to add memory' };
+			return payload;
 		})
 		.catch((err) => {
-			error = err.detail;
+			error = getErrorDetail(err, 'Failed to add memory');
 			console.log(err);
 			return null;
 		});
@@ -74,11 +105,12 @@ export const updateMemoryById = async (token: string, id: string, content: strin
 		})
 	})
 		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
+			const payload = await parseResponsePayload(res);
+			if (!res.ok) throw payload ?? { detail: 'Failed to update memory' };
+			return payload;
 		})
 		.catch((err) => {
-			error = err.detail;
+			error = getErrorDetail(err, 'Failed to update memory');
 			console.log(err);
 			return null;
 		});
@@ -105,11 +137,12 @@ export const queryMemory = async (token: string, content: string) => {
 		})
 	})
 		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
+			const payload = await parseResponsePayload(res);
+			if (!res.ok) throw payload ?? { detail: 'Memory query failed' };
+			return payload;
 		})
 		.catch((err) => {
-			error = err.detail;
+			error = getErrorDetail(err, 'Memory query failed');
 			console.log(err);
 			return null;
 		});
@@ -133,14 +166,12 @@ export const deleteMemoryById = async (token: string, id: string) => {
 		}
 	})
 		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
-		})
-		.then((json) => {
-			return json;
+			const payload = await parseResponsePayload(res);
+			if (!res.ok) throw payload ?? { detail: 'Failed to delete memory' };
+			return payload;
 		})
 		.catch((err) => {
-			error = err.detail;
+			error = getErrorDetail(err, 'Failed to delete memory');
 
 			console.log(err);
 			return null;
@@ -165,14 +196,12 @@ export const deleteMemoriesByUserId = async (token: string) => {
 		}
 	})
 		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
-		})
-		.then((json) => {
-			return json;
+			const payload = await parseResponsePayload(res);
+			if (!res.ok) throw payload ?? { detail: 'Failed to clear memories' };
+			return payload;
 		})
 		.catch((err) => {
-			error = err.detail;
+			error = getErrorDetail(err, 'Failed to clear memories');
 
 			console.log(err);
 			return null;

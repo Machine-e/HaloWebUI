@@ -1837,13 +1837,16 @@
 								return null;
 							});
 							if (res) {
-								if (res.documents[0].length > 0) {
-									userContext = res.documents[0].reduce((acc, doc, index) => {
-										const createdAtTimestamp = res.metadatas[0][index].created_at;
-										const createdAtDate = new Date(createdAtTimestamp * 1000)
-											.toISOString()
-											.split('T')[0];
-										return `${acc}${index + 1}. [${createdAtDate}]. ${doc}\n`;
+								const memoryDocuments = res?.documents?.[0] ?? [];
+								const memoryMetadatas = res?.metadatas?.[0] ?? [];
+
+								if (memoryDocuments.length > 0) {
+									userContext = memoryDocuments.reduce((acc, doc, index) => {
+										const createdAtTimestamp = memoryMetadatas[index]?.created_at;
+										const createdAtDate = createdAtTimestamp
+											? new Date(createdAtTimestamp * 1000).toISOString().split('T')[0]
+											: null;
+										return `${acc}${index + 1}.${createdAtDate ? ` [${createdAtDate}].` : ''} ${doc}\n`;
 									}, '');
 								}
 
@@ -2008,6 +2011,7 @@
 				tool_servers: $toolServers,
 
 				features: {
+					memory: $settings?.memory ?? false,
 					image_generation:
 						$config?.features?.enable_image_generation &&
 						($user?.role === 'admin' || $user?.permissions?.features?.image_generation)

@@ -15,6 +15,15 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 router = APIRouter()
 
 
+def _empty_memory_search_result() -> dict:
+    return {
+        "ids": [[]],
+        "documents": [[]],
+        "metadatas": [[]],
+        "distances": [[]],
+    }
+
+
 @router.get("/ef")
 async def get_embeddings(request: Request):
     return {"result": request.app.state.EMBEDDING_FUNCTION("hello world")}
@@ -82,12 +91,22 @@ class QueryMemoryForm(BaseModel):
 async def query_memory(
     request: Request, form_data: QueryMemoryForm, user=Depends(get_verified_user)
 ):
-    results = VECTOR_DB_CLIENT.search(
-        collection_name=f"user-memory-{user.id}",
-        vectors=[request.app.state.EMBEDDING_FUNCTION(form_data.content, user=user)],
-        limit=form_data.k,
-    )
+    try:
+        results = VECTOR_DB_CLIENT.search(
+            collection_name=f"user-memory-{user.id}",
+            vectors=[request.app.state.EMBEDDING_FUNCTION(form_data.content, user=user)],
+            limit=form_data.k,
+        )
+    except Exception as e:
+        log.exception("Memory query failed for user %s: %s", user.id, e)
+        return _empty_memory_search_result()
 
+    if results is None:
+        return _empty_memory_search_result()
+    if hasattr(results, "model_dump"):
+        return results.model_dump()
+    if hasattr(results, "dict"):
+        return results.dict()
     return results
 
 

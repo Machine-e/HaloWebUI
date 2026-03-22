@@ -1951,6 +1951,14 @@ async def process_chat_payload(request, form_data, user, metadata, model):
             # block to reduce these failures.
             try:
                 tool_names = sorted(list(tools_dict.keys()))
+                memory_note_guidance = ""
+                if "add_memory" in tool_names and "add_note" in tool_names:
+                    memory_note_guidance = (
+                        "MEMORY_VS_NOTE_GUIDANCE:\n"
+                        "- Use add_memory/search_memories for stable user preferences, personal facts, likes/dislikes, and recurring context.\n"
+                        "- Use add_note/search_notes for note-taking, longer saved content, or when the user explicitly asks to save a note.\n"
+                        "\n"
+                    )
                 # Keep it short; the full schemas are already passed via `tools`.
                 native_tool_rules = (
                     '<native_tool_rules v="1">\n'
@@ -1962,7 +1970,8 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                     "- For tools with no parameters, use an empty JSON object: {}.\n"
                     "- For tools with parameters, arguments must be a JSON object matching the tool schema.\n"
                     "\n"
-                    "ALLOWED_TOOL_NAMES:\n"
+                    + memory_note_guidance
+                    + "ALLOWED_TOOL_NAMES:\n"
                     + "\n".join([f"- {n}" for n in tool_names])
                     + "\n</native_tool_rules>"
                 )

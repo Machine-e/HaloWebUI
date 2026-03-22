@@ -48,8 +48,12 @@
 
 	const bc = new BroadcastChannel('active-tab-channel');
 	const PYODIDE_DISABLED_MESSAGE = 'Pyodide is disabled in this build.';
+	const CHAT_COMPLETION_NOTIFICATION_TTL = 60 * 1000;
 
 	let loaded = false;
+	let currentSocket = null;
+	let unsubscribeUser = null;
+	const notifiedChatCompletions = new Map();
 
 	const BREAKPOINT = 768;
 
@@ -63,7 +67,102 @@
 		return 'system';
 	};
 
+	const handleSocketConnectError = (err) => {
+		console.log('connect_error', err);
+	};
+
+	const handleSocketConnect = () => {
+		console.log('connected', currentSocket?.id);
+	};
+
+	const handleSocketReconnectAttempt = (attempt) => {
+		console.log('reconnect_attempt', attempt);
+	};
+
+	const handleSocketReconnectFailed = () => {
+		console.log('reconnect_failed');
+	};
+
+	const handleSocketDisconnect = (reason, details) => {
+		console.log(`Socket ${currentSocket?.id} disconnected due to ${reason}`);
+		if (details) {
+			console.log('Additional details:', details);
+		}
+	};
+
+	const handleSocketUserList = (data) => {
+		console.log('user-list', data);
+		activeUserIds.set(data.user_ids);
+	};
+
+	const handleSocketUsage = (data) => {
+		console.log('usage', data);
+		USAGE_POOL.set(data['models']);
+	};
+
+	const detachSocketEventHandlers = (socketInstance) => {
+		socketInstance?.off('chat-events', chatEventHandler);
+		socketInstance?.off('channel-events', channelEventHandler);
+		socketInstance?.off('connect_error', handleSocketConnectError);
+		socketInstance?.off('connect', handleSocketConnect);
+		socketInstance?.off('reconnect_attempt', handleSocketReconnectAttempt);
+		socketInstance?.off('reconnect_failed', handleSocketReconnectFailed);
+		socketInstance?.off('disconnect', handleSocketDisconnect);
+		socketInstance?.off('user-list', handleSocketUserList);
+		socketInstance?.off('usage', handleSocketUsage);
+	};
+
+	const attachSocketEventHandlers = (socketInstance) => {
+		if (!socketInstance) {
+			return;
+		}
+
+		socketInstance.off('chat-events', chatEventHandler);
+		socketInstance.off('channel-events', channelEventHandler);
+
+		if ($user) {
+			socketInstance.on('chat-events', chatEventHandler);
+			socketInstance.on('channel-events', channelEventHandler);
+		}
+	};
+
+	const teardownSocket = (socketInstance) => {
+		if (!socketInstance) {
+			return;
+		}
+
+		detachSocketEventHandlers(socketInstance);
+		socketInstance.disconnect();
+
+		if (currentSocket === socketInstance) {
+			currentSocket = null;
+		}
+
+		if ($socket === socketInstance) {
+			socket.set(null);
+		}
+	};
+
+	const shouldShowChatCompletionNotification = (event, data) => {
+		const now = Date.now();
+		for (const [key, timestamp] of notifiedChatCompletions) {
+			if (now - timestamp > CHAT_COMPLETION_NOTIFICATION_TTL) {
+				notifiedChatCompletions.delete(key);
+			}
+		}
+
+		const notificationKey = `${event.chat_id}:${event.message_id ?? data?.title ?? 'unknown'}`;
+		if (notifiedChatCompletions.has(notificationKey)) {
+			return false;
+		}
+
+		notifiedChatCompletions.set(notificationKey, now);
+		return true;
+	};
+
 	const setupSocket = async (enableWebsocket) => {
+		teardownSocket(currentSocket ?? $socket);
+
 		const _socket = io(`${WEBUI_BASE_URL}` || undefined, {
 			reconnection: true,
 			reconnectionDelay: 1000,
@@ -74,40 +173,17 @@
 			auth: { token: localStorage.token }
 		});
 
-		await socket.set(_socket);
+		currentSocket = _socket;
+		socket.set(_socket);
 
-		_socket.on('connect_error', (err) => {
-			console.log('connect_error', err);
-		});
-
-		_socket.on('connect', () => {
-			console.log('connected', _socket.id);
-		});
-
-		_socket.on('reconnect_attempt', (attempt) => {
-			console.log('reconnect_attempt', attempt);
-		});
-
-		_socket.on('reconnect_failed', () => {
-			console.log('reconnect_failed');
-		});
-
-		_socket.on('disconnect', (reason, details) => {
-			console.log(`Socket ${_socket.id} disconnected due to ${reason}`);
-			if (details) {
-				console.log('Additional details:', details);
-			}
-		});
-
-		_socket.on('user-list', (data) => {
-			console.log('user-list', data);
-			activeUserIds.set(data.user_ids);
-		});
-
-		_socket.on('usage', (data) => {
-			console.log('usage', data);
-			USAGE_POOL.set(data['models']);
-		});
+		_socket.on('connect_error', handleSocketConnectError);
+		_socket.on('connect', handleSocketConnect);
+		_socket.on('reconnect_attempt', handleSocketReconnectAttempt);
+		_socket.on('reconnect_failed', handleSocketReconnectFailed);
+		_socket.on('disconnect', handleSocketDisconnect);
+		_socket.on('user-list', handleSocketUserList);
+		_socket.on('usage', handleSocketUsage);
+		attachSocketEventHandlers(_socket);
 	};
 
 	const executePythonAsWorker = async (id, code, cb) => {
@@ -278,6 +354,10 @@
 				const { done, content, title } = data;
 
 				if (done) {
+					if (!shouldShowChatCompletionNotification(event, data)) {
+						return;
+					}
+
 					if ($isLastActiveTab) {
 						if ($settings?.notificationEnabled ?? false) {
 							new Notification(`${title} | ${APP_NAME}`, {
@@ -452,16 +532,12 @@
 		};
 		window.addEventListener('resize', onResize);
 
-		user.subscribe((value) => {
+		unsubscribeUser = user.subscribe((value) => {
 			if (value) {
-				$socket?.off('chat-events', chatEventHandler);
-				$socket?.off('channel-events', channelEventHandler);
-
-				$socket?.on('chat-events', chatEventHandler);
-				$socket?.on('channel-events', channelEventHandler);
+				attachSocketEventHandlers(currentSocket);
 			} else {
-				$socket?.off('chat-events', chatEventHandler);
-				$socket?.off('channel-events', channelEventHandler);
+				currentSocket?.off('chat-events', chatEventHandler);
+				currentSocket?.off('channel-events', channelEventHandler);
 			}
 		});
 
@@ -535,6 +611,12 @@
 		loaded = true;
 
 		return () => {
+			unsubscribeUser?.();
+			unsubscribeUser = null;
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+			bc.onmessage = null;
+			bc.close();
+			teardownSocket(currentSocket);
 			window.removeEventListener('resize', onResize);
 		};
 	});
