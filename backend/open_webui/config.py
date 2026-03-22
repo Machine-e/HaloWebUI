@@ -194,7 +194,92 @@ def get_config():
         return config_entry.data if config_entry else DEFAULT_CONFIG
 
 
+WEB_SEARCH_NUMERIC_CONFIG_DEFAULTS = {
+    "rag.web.search.result_count": 3,
+    "rag.web.search.concurrent_requests": 10,
+    "rag.web.loader.playwright_timeout": 10000,
+    "rag.web.loader.firecrawl_timeout": 30,
+}
+
+
+def _get_config_parent(config: dict, config_path: str) -> tuple[Optional[dict], Optional[str]]:
+    path_parts = config_path.split(".")
+    cur_config = config
+    for key in path_parts[:-1]:
+        if not isinstance(cur_config, dict) or key not in cur_config:
+            return None, None
+        cur_config = cur_config[key]
+
+    if not isinstance(cur_config, dict):
+        return None, None
+
+    return cur_config, path_parts[-1]
+
+
+def _normalize_int_config_value(value, default_value: int) -> tuple[int, bool]:
+    if isinstance(value, bool):
+        return default_value, True
+
+    if isinstance(value, int):
+        return value, False
+
+    if isinstance(value, str):
+        stripped_value = value.strip()
+        if stripped_value:
+            try:
+                return int(stripped_value), True
+            except ValueError:
+                pass
+
+    return default_value, True
+
+
+def _summarize_config_value(value) -> str:
+    if isinstance(value, str):
+        if len(value) > 64:
+            return repr(value[:61] + "...")
+        return repr(value)
+
+    return repr(value)
+
+
+def _repair_web_search_numeric_config(config):
+    if not isinstance(config, dict):
+        return config
+
+    repaired = False
+
+    for config_path, default_value in WEB_SEARCH_NUMERIC_CONFIG_DEFAULTS.items():
+        parent_config, key = _get_config_parent(config, config_path)
+        if parent_config is None or key not in parent_config:
+            continue
+
+        original_value = parent_config[key]
+        normalized_value, should_update = _normalize_int_config_value(
+            original_value, default_value
+        )
+
+        if not should_update:
+            continue
+
+        parent_config[key] = normalized_value
+        repaired = True
+        log.warning(
+            "Normalized persistent config '%s' from %s (%s) to %s",
+            config_path,
+            _summarize_config_value(original_value),
+            type(original_value).__name__,
+            normalized_value,
+        )
+
+    if repaired:
+        save_to_db(config)
+
+    return config
+
+
 CONFIG_DATA = get_config()
+CONFIG_DATA = _repair_web_search_numeric_config(CONFIG_DATA)
 
 
 def get_config_value(config_path: str):

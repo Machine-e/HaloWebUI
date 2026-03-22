@@ -91,6 +91,126 @@
 	let enableSearchQueryGeneration = true;
 	let enableRetrievalQueryGeneration = true;
 
+	const NUMERIC_FIELD_DEFAULTS = {
+		WEB_SEARCH_RESULT_COUNT: 3,
+		WEB_SEARCH_CONCURRENT_REQUESTS: 10,
+		PLAYWRIGHT_TIMEOUT: 10000,
+		FIRECRAWL_TIMEOUT: 30
+	} as const;
+
+	type NumericFieldName = keyof typeof NUMERIC_FIELD_DEFAULTS;
+	type ValidationDetailItem = {
+		loc?: unknown;
+		msg?: unknown;
+	};
+
+	const NUMERIC_FIELD_LABELS: Record<NumericFieldName, string> = {
+		WEB_SEARCH_RESULT_COUNT: '搜索结果数量',
+		WEB_SEARCH_CONCURRENT_REQUESTS: '并发请求数',
+		PLAYWRIGHT_TIMEOUT: 'Playwright 超时',
+		FIRECRAWL_TIMEOUT: 'Firecrawl 超时'
+	};
+
+	const parseNumericValue = (value: unknown) => {
+		if (typeof value === 'number' && Number.isInteger(value)) {
+			return value;
+		}
+
+		if (typeof value === 'string') {
+			const trimmed = value.trim();
+			if (!trimmed) return null;
+
+			const parsed = Number(trimmed);
+			if (Number.isInteger(parsed)) {
+				return parsed;
+			}
+		}
+
+		return null;
+	};
+
+	const getNumericFieldSection = (field: NumericFieldName) =>
+		field === 'PLAYWRIGHT_TIMEOUT' || field === 'FIRECRAWL_TIMEOUT' ? 'loader' : 'webSearch';
+
+	const getSavedNumericValue = (field: NumericFieldName) =>
+		initialSnapshot?.[getNumericFieldSection(field)]?.[field];
+
+	const normalizeNumericField = (
+		field: NumericFieldName,
+		value: unknown,
+		fallbackValue: unknown = undefined
+	) => {
+		const parsedValue = parseNumericValue(value);
+		if (parsedValue !== null) {
+			return parsedValue;
+		}
+
+		const parsedFallback = parseNumericValue(fallbackValue);
+		if (parsedFallback !== null) {
+			return parsedFallback;
+		}
+
+		return NUMERIC_FIELD_DEFAULTS[field];
+	};
+
+	const normalizeNumericWebConfig = (config: Record<string, any>, useSavedFallbacks = false) => {
+		for (const field of Object.keys(NUMERIC_FIELD_DEFAULTS) as NumericFieldName[]) {
+			config[field] = normalizeNumericField(
+				field,
+				config[field],
+				useSavedFallbacks ? getSavedNumericValue(field) : undefined
+			);
+		}
+
+		return config;
+	};
+
+	const syncLocalWebConfigFromPayload = (payloadWeb: Record<string, any>) => {
+		for (const field of Object.keys(NUMERIC_FIELD_DEFAULTS) as NumericFieldName[]) {
+			webConfig[field] = payloadWeb[field];
+		}
+
+		webConfig.WEB_SEARCH_DOMAIN_FILTER_LIST = listToCsv(payloadWeb.WEB_SEARCH_DOMAIN_FILTER_LIST);
+		webConfig.YOUTUBE_LOADER_LANGUAGE = listToCsv(payloadWeb.YOUTUBE_LOADER_LANGUAGE);
+		webConfig.YOUTUBE_LOADER_TRANSLATION = payloadWeb.YOUTUBE_LOADER_TRANSLATION || '';
+		youtubeLanguage = Array.isArray(payloadWeb.YOUTUBE_LOADER_LANGUAGE)
+			? payloadWeb.YOUTUBE_LOADER_LANGUAGE[0] ?? ''
+			: '';
+		youtubeTranslation = payloadWeb.YOUTUBE_LOADER_TRANSLATION || '';
+		webConfig = webConfig;
+	};
+
+	const formatValidationError = (detail: unknown) => {
+		if (typeof detail === 'string' && detail.trim()) {
+			return detail;
+		}
+
+		if (!Array.isArray(detail)) {
+			return null;
+		}
+
+		const firstItem =
+			detail.find((item) => {
+				const candidate = item as ValidationDetailItem;
+				return Array.isArray(candidate?.loc);
+			}) ?? detail[0];
+		const candidate = firstItem as ValidationDetailItem;
+		const loc = Array.isArray(candidate?.loc) ? candidate.loc : [];
+		const field =
+			loc[0] === 'body' && loc[1] === 'web' && typeof loc[2] === 'string' ? loc[2] : null;
+		const message = typeof candidate?.msg === 'string' ? candidate.msg : null;
+
+		if (field && field in NUMERIC_FIELD_LABELS && message) {
+			return `${NUMERIC_FIELD_LABELS[field as NumericFieldName]}: ${message}`;
+		}
+
+		if (field && message) {
+			return `${field}: ${message}`;
+		}
+
+		return message;
+	};
+
 	const getDefaultWebSearchModeFallback = (): WebSearchMode => {
 		if (webConfig?.ENABLE_WEB_SEARCH && webConfig?.ENABLE_NATIVE_WEB_SEARCH) return 'halo';
 		if (webConfig?.ENABLE_WEB_SEARCH) return 'halo';
@@ -245,6 +365,7 @@
 					webConfig.DEFAULT_WEB_SEARCH_MODE,
 					'halo'
 				);
+				normalizeNumericWebConfig(webConfig);
 				webConfig.WEB_SEARCH_DOMAIN_FILTER_LIST = listToCsv(webConfig.WEB_SEARCH_DOMAIN_FILTER_LIST);
 				webConfig.YOUTUBE_LOADER_LANGUAGE = listToCsv(webConfig.YOUTUBE_LOADER_LANGUAGE);
 				const langArray = csvToList(webConfig.YOUTUBE_LOADER_LANGUAGE);
@@ -279,33 +400,33 @@
 		webConfig.YOUTUBE_LOADER_TRANSLATION = youtubeTranslation;
 
 		// Use a copy so the UI stays as CSV strings even if the request fails.
-		const payloadWeb = { ...webConfig };
+		const payloadWeb = normalizeNumericWebConfig({ ...webConfig }, true);
 		payloadWeb.WEB_SEARCH_DOMAIN_FILTER_LIST = csvToList(payloadWeb.WEB_SEARCH_DOMAIN_FILTER_LIST);
 		payloadWeb.YOUTUBE_LOADER_LANGUAGE = youtubeLanguage ? [youtubeLanguage] : [];
 
 		try {
-			const [res] = await Promise.all([
-				updateRAGConfig(localStorage.token, {
-					web: payloadWeb
-				}),
-				updateTaskConfig(localStorage.token, {
-					ENABLE_SEARCH_QUERY_GENERATION: enableSearchQueryGeneration,
-					ENABLE_RETRIEVAL_QUERY_GENERATION: enableRetrievalQueryGeneration
-				})
-			]);
+			await updateRAGConfig(localStorage.token, {
+				web: payloadWeb
+			});
 
-			if (!res) {
-				toast.error($i18n.t('Failed to update settings'));
-				return false;
-			}
-
-			webConfig.WEB_SEARCH_DOMAIN_FILTER_LIST = listToCsv(payloadWeb.WEB_SEARCH_DOMAIN_FILTER_LIST);
-			webConfig.YOUTUBE_LOADER_LANGUAGE = listToCsv(payloadWeb.YOUTUBE_LOADER_LANGUAGE);
+			syncLocalWebConfigFromPayload(payloadWeb);
 			initialSnapshot = cloneSettingsSnapshot(buildSnapshot());
-			return true;
 		} catch (error) {
 			console.error('Failed to update web search config', error);
-			toast.error($i18n.t('Failed to update settings'));
+			toast.error(formatValidationError(error) ?? $i18n.t('Failed to update settings'));
+			return false;
+		}
+
+		try {
+			await updateTaskConfig(localStorage.token, {
+				ENABLE_SEARCH_QUERY_GENERATION: enableSearchQueryGeneration,
+				ENABLE_RETRIEVAL_QUERY_GENERATION: enableRetrievalQueryGeneration
+			});
+			return true;
+		} catch (error) {
+			console.error('Failed to update task config', error);
+			await loadConfig();
+			toast.warning($i18n.t('联网搜索配置已保存，但查询生成开关未更新'));
 			return false;
 		}
 	};
@@ -863,6 +984,7 @@
 											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('Search Result Count')}</div>
 											<input
 												class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+												type="number"
 												placeholder={$i18n.t('Search Result Count')}
 												bind:value={webConfig.WEB_SEARCH_RESULT_COUNT}
 												required
@@ -874,6 +996,7 @@
 											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('Concurrent Requests')}</div>
 											<input
 												class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+												type="number"
 												placeholder={$i18n.t('Concurrent Requests')}
 												bind:value={webConfig.WEB_SEARCH_CONCURRENT_REQUESTS}
 												required
@@ -1013,6 +1136,7 @@
 										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('Playwright Timeout (ms)')}</div>
 										<input
 											class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+											type="number"
 											placeholder={$i18n.t('Enter Playwright Timeout')}
 											bind:value={webConfig.PLAYWRIGHT_TIMEOUT}
 											autocomplete="off"

@@ -37,6 +37,8 @@ from fastapi import (
     applications,
     BackgroundTasks,
 )
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 
 from fastapi.openapi.docs import get_swagger_ui_html
 
@@ -554,6 +556,20 @@ app = FastAPI(
     redoc_url=None,
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def log_request_validation_error(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    first_error = errors[0] if errors else {}
+    log.warning(
+        "Request validation failed: %s %s first_error=%s errors=%s",
+        request.method,
+        request.url.path,
+        first_error,
+        errors,
+    )
+    return await request_validation_exception_handler(request, exc)
 
 oauth_manager = OAuthManager(app)
 
