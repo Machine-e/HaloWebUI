@@ -16,6 +16,7 @@
 	} from '$lib/stores';
 	import FloatingButtons from '../ContentRenderer/FloatingButtons.svelte';
 	import { createMessagesList } from '$lib/utils';
+	import { getCitationEntries } from '$lib/utils/citations';
 
 	export let id;
 	export let content;
@@ -175,37 +176,41 @@
 		? `max-height: ${MAX_CONTENT_HEIGHT}px; overflow: hidden;`
 		: ''}
 >
-	<Markdown
-		{id}
-		content={content || ''}
-		{model}
-		{save}
-		sourceIds={(sources ?? []).reduce((acc, s) => {
-			let ids = [];
-			s.document.forEach((document, index) => {
-				if (model?.info?.meta?.capabilities?.citations == false) {
-					ids.push('N/A');
-					return ids;
+		<Markdown
+			{id}
+			content={content || ''}
+			{model}
+			{save}
+			sourceIds={(sources ?? []).reduce((acc, s) => {
+				if (!s || typeof s !== 'object') {
+					return acc;
 				}
 
-				const metadata = s.metadata?.[index];
-				const id = metadata?.source ?? 'N/A';
+				let ids = [];
+				getCitationEntries(s).forEach(({ metadata }) => {
+					if (model?.info?.meta?.capabilities?.citations == false) {
+						ids.push('N/A');
+						return;
+					}
 
-				if (metadata?.name) {
-					ids.push(metadata.name);
-					return ids;
-				}
+					const id = metadata?.source ?? 'N/A';
 
-				if (id.startsWith('http://') || id.startsWith('https://')) {
-					ids.push(id);
-				} else {
-					ids.push(s?.source?.name ?? id);
-				}
+					if (metadata?.name) {
+						ids.push(metadata.name);
+						return;
+					}
 
-				return ids;
-			});
+					if (
+						typeof id === 'string' &&
+						(id.startsWith('http://') || id.startsWith('https://'))
+					) {
+						ids.push(id);
+					} else {
+						ids.push(s?.source?.name ?? id);
+					}
+				});
 
-			acc = [...acc, ...ids];
+				acc = [...acc, ...ids];
 
 			// remove duplicates
 			return acc.filter((item, index) => acc.indexOf(item) === index);

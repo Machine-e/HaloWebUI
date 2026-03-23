@@ -4,6 +4,7 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 	import { settings } from '$lib/stores';
+	import { getCitationEntries } from '$lib/utils/citations';
 	import { decodeString, getTextFragmentUrl } from '$lib/utils/marked/citation-extension';
 	import Markdown from './Markdown.svelte';
 
@@ -34,12 +35,12 @@
 	}
 
 	$: if (citation) {
-		mergedDocuments = citation.document?.map((c, i) => {
+		mergedDocuments = getCitationEntries(citation).map(({ document, metadata, distance }) => {
 			return {
 				source: citation.source,
-				document: c,
-				metadata: citation.metadata?.[i],
-				distance: citation.distances?.[i]
+				document: typeof document === 'string' ? document : `${document ?? ''}`,
+				metadata,
+				distance
 			};
 		});
 		if (mergedDocuments.every((doc) => doc.distance !== undefined)) {
@@ -47,6 +48,8 @@
 				(a, b) => (b.distance ?? Infinity) - (a.distance ?? Infinity)
 			);
 		}
+	} else {
+		mergedDocuments = [];
 	}
 
 	function getSourceUrl(document: any): string {
