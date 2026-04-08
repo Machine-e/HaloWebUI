@@ -415,6 +415,9 @@
 		return Object.keys(payload).length > 0 ? payload : undefined;
 	};
 
+	const supportsToolValvesContext = (id: string | null | undefined): id is string =>
+		Boolean(id) && !String(id).startsWith('mcp:') && !String(id).startsWith('server:');
+
 	$: currentValvesContext = (() => {
 		const activeModelId =
 			atSelectedModel?.id ??
@@ -429,10 +432,11 @@
 			}
 		}
 
-		if (selectedToolIds.length > 0) {
+		const preferredToolId = selectedToolIds.find((id) => supportsToolValvesContext(id));
+		if (preferredToolId) {
 			return {
 				tab: 'tools' as const,
-				id: selectedToolIds[0]
+				id: preferredToolId
 			};
 		}
 

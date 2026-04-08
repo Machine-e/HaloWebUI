@@ -40,6 +40,18 @@
 	let debounceTimer;
 	let lastAppliedPreferredKey = '';
 
+	const supportsToolUserValves = (id: string | null | undefined): id is string =>
+		Boolean(id) && !String(id).startsWith('mcp:') && !String(id).startsWith('server:');
+
+	$: availableToolOptions = (($tools ?? []) as any[])
+		.filter((tool) => supportsToolUserValves(tool?.id))
+		.map((tool) => ({ value: tool.id, label: tool.name }));
+
+	$: availableFunctionOptions = (($functions ?? []) as any[]).map((func) => ({
+		value: func.id,
+		label: func.name
+	}));
+
 	const debounceSubmitHandler = async () => {
 		if (debounceTimer) {
 			clearTimeout(debounceTimer);
@@ -52,6 +64,12 @@
 	};
 
 	const getUserValves = async () => {
+		if (tab === 'tools' && !supportsToolUserValves(selectedId)) {
+			valves = {};
+			valvesSpec = null;
+			return;
+		}
+
 		loading = true;
 		if (tab === 'tools') {
 			valves = await getToolUserValvesById(localStorage.token, selectedId);
@@ -74,6 +92,10 @@
 	};
 
 	const submitHandler = async () => {
+		if (tab === 'tools' && !supportsToolUserValves(selectedId)) {
+			return;
+		}
+
 		if (valvesSpec) {
 			// Convert string to array
 			for (const property in valvesSpec.properties) {
@@ -157,6 +179,12 @@
 			return;
 		}
 
+		if (context.tab === 'tools' && !supportsToolUserValves(context.id)) {
+			lastAppliedPreferredKey = nextKey;
+			selectedId = '';
+			return;
+		}
+
 		lastAppliedPreferredKey = nextKey;
 		if (tab !== context.tab) {
 			tab = context.tab;
@@ -190,17 +218,15 @@
 					</div>
 
 					<div class="flex-1">
-						<HaloSelect
-							bind:value={selectedId}
-							on:change={async () => {
-								await tick();
-							}}
-							options={tab === 'tools'
-								? ($tools ?? []).map((tool) => ({ value: tool.id, label: tool.name }))
-								: ($functions ?? []).map((func) => ({ value: func.id, label: func.name }))}
-							placeholder={tab === 'tools' ? $i18n.t('Select a tool') : $i18n.t('Select a function')}
-							className="w-full text-xs"
-						/>
+							<HaloSelect
+								bind:value={selectedId}
+								on:change={async () => {
+									await tick();
+								}}
+								options={tab === 'tools' ? availableToolOptions : availableFunctionOptions}
+								placeholder={tab === 'tools' ? $i18n.t('Select a tool') : $i18n.t('Select a function')}
+								className="w-full text-xs"
+							/>
 					</div>
 				</div>
 			</div>
