@@ -25,6 +25,15 @@
 		usage?: boolean;
 		citations?: boolean;
 	} = {};
+
+	const getCapabilityState = (capability: string) => Boolean(capabilities?.[capability]);
+
+	const updateCapability = (capability: string, nextState: boolean) => {
+		capabilities = {
+			...capabilities,
+			[capability]: nextState
+		};
+	};
 </script>
 
 <div>
@@ -36,7 +45,10 @@
 					<span class="text-sm cursor-help">{$i18n.t(labelKeys[capability] ?? capability)}</span>
 				</Tooltip>
 				<Switch
-					bind:state={capabilities[capability]}
+					state={getCapabilityState(capability)}
+					on:change={(e) => {
+						updateCapability(capability, e.detail);
+					}}
 				/>
 			</div>
 		{/each}

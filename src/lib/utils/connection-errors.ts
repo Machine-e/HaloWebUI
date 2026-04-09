@@ -8,6 +8,19 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 const PROVIDER_PREFIX_RE = /^(OpenAI|Gemini|Anthropic|Ollama):\s*/;
 const INVALID_API_KEY_RE =
 	/invalid_api_key|Incorrect API key provided|invalid api key|authentication failed|unauthorized/i;
+const RESPONSES_API_ERROR_RE = /responses api|\/responses/i;
+const HTTP_STATUS_RES = [
+	/Responses API upstream error \((\d{3})\)/i,
+	/\bHTTP\s*(\d{3})\b/i,
+	/\bstatus\s*[:=]\s*(\d{3})\b/i
+];
+const INVALID_PARAM_RES = [
+	/Invalid ['"]([^'"]+)['"]/i,
+	/Unknown parameter:\s*['"]([^'"]+)['"]/i,
+	/['"]param['"]\s*:\s*['"]([^'"]+)['"]/i
+];
+const MIN_VALUE_RE =
+	/Expected a value >=\s*([0-9]+(?:\.[0-9]+)?)\s*,?\s*but got\s*([0-9]+(?:\.[0-9]+)?)/i;
 
 const getRawErrorText = (error: unknown): string =>
 	error instanceof Error ? error.message : typeof error === 'string' ? error : `${error ?? ''}`;
@@ -35,6 +48,33 @@ const normalizeWhitespace = (text: string): string =>
 		.replace(/\s+/g, ' ')
 		.trim();
 
+const extractStatusCode = (text: string): number | null => {
+	for (const pattern of HTTP_STATUS_RES) {
+		const match = text.match(pattern);
+		if (!match) continue;
+		const status = Number(match[1]);
+		if (Number.isFinite(status) && status >= 400) return status;
+	}
+	return null;
+};
+
+const extractInvalidParam = (text: string): string | null => {
+	for (const pattern of INVALID_PARAM_RES) {
+		const match = text.match(pattern);
+		if (match?.[1]) return match[1];
+	}
+	return null;
+};
+
+const extractMinValueRange = (text: string): { expected: string; actual: string } | null => {
+	const match = text.match(MIN_VALUE_RE);
+	if (!match) return null;
+	return {
+		expected: match[1],
+		actual: match[2]
+	};
+};
+
 export const formatConnectionErrorToast = (
 	error: unknown,
 	t: Translate
@@ -46,6 +86,7 @@ export const formatConnectionErrorToast = (
 	const simplifiedDetail = normalizeWhitespace(
 		extractPayloadMessage(stripTransportWrappers(providerStripped))
 	);
+	const localizedSimpleDetail = localizeKnownFragments(simplifiedDetail, t);
 
 	if (INVALID_API_KEY_RE.test(providerStripped)) {
 		return {
@@ -54,7 +95,34 @@ export const formatConnectionErrorToast = (
 		};
 	}
 
-	const localizedSimpleDetail = localizeKnownFragments(simplifiedDetail, t);
+	if (RESPONSES_API_ERROR_RE.test(providerStripped)) {
+		const status = extractStatusCode(providerStripped) ?? extractStatusCode(simplifiedDetail);
+		const param = extractInvalidParam(providerStripped) ?? extractInvalidParam(simplifiedDetail);
+		const minValue = extractMinValueRange(providerStripped) ?? extractMinValueRange(simplifiedDetail);
+
+		if (param) {
+			return {
+				title: `${providerPrefix}${t('error.title.responses_api_invalid_parameter', { param })}`,
+				description: minValue
+					? t('error.body.responses_api_min_value', {
+							param,
+							expected: minValue.expected,
+							actual: minValue.actual
+						})
+					: t('error.suggestion.check_responses_api_compat')
+			};
+		}
+
+		return {
+			title: `${providerPrefix}${
+				status
+					? t('error.title.responses_api_request_failed_with_status', { status })
+					: t('error.title.responses_api_request_failed')
+			}`,
+			description: localizedSimpleDetail !== simplifiedDetail ? localizedSimpleDetail : undefined
+		};
+	}
+
 	if (
 		localizedSimpleDetail === t('URL is required') ||
 		localizedSimpleDetail === t('Network Problem') ||

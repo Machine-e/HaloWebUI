@@ -40,13 +40,22 @@ def apply_model_system_prompt_to_body(
 
 # inplace function: form_data is modified
 def apply_model_params_to_body(
-    params: dict, form_data: dict, mappings: dict[str, Callable]
+    params: dict,
+    form_data: dict,
+    mappings: dict[str, Callable],
+    preserve_existing_keys: Optional[set[str]] = None,
 ) -> dict:
     if not params:
         return form_data
 
     for key, cast_func in mappings.items():
         if (value := params.get(key)) is not None:
+            if (
+                preserve_existing_keys
+                and key in preserve_existing_keys
+                and form_data.get(key) is not None
+            ):
+                continue
             form_data[key] = cast_func(value)
 
     return form_data
@@ -65,7 +74,12 @@ def apply_model_params_to_body_openai(params: dict, form_data: dict) -> dict:
         "logit_bias": lambda x: x,
         "response_format": dict,
     }
-    return apply_model_params_to_body(params, form_data, mappings)
+    return apply_model_params_to_body(
+        params,
+        form_data,
+        mappings,
+        preserve_existing_keys={"reasoning_effort"},
+    )
 
 
 def apply_model_params_to_body_ollama(params: dict, form_data: dict) -> dict:

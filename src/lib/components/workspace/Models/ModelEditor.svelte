@@ -235,13 +235,77 @@
 	let builtinToolConfig: Record<string, boolean> = {};
 	$: canManageAcl = !edit || $user?.role === 'admin' || model?.user_id === $user?.id;
 
+	const DEFAULT_REASONING_EFFORT_VALUE = '__default__';
+
+	const normalizeReasoningEffortValue = (value: unknown): string | null => {
+		if (value === null || value === undefined) {
+			return null;
+		}
+
+		const normalized = String(value).trim().toLowerCase();
+		return normalized === '' ? null : normalized;
+	};
+
+	const normalizeEditorParams = (value: Record<string, any> | null | undefined = {}) => {
+		const next = {
+			system: '',
+			...cloneSettingsSnapshot(value ?? {})
+		};
+
+		next.stop = next?.stop
+			? (typeof next.stop === 'string' ? next.stop.split(',') : (next?.stop ?? [])).join(',')
+			: null;
+
+		return next;
+	};
+
+	$: reasoningEffortSelectOptions = [
+		{ value: DEFAULT_REASONING_EFFORT_VALUE, label: $i18n.t('Default') },
+		{ value: 'none', label: $i18n.t('Off') },
+		{ value: 'low', label: 'Low' },
+		{ value: 'medium', label: 'Medium' },
+		{ value: 'high', label: 'High' },
+		{ value: 'xhigh', label: 'XHigh' },
+		{ value: 'max', label: 'Max' }
+	];
+
+	$: reasoningEffortSelectValue =
+		normalizeReasoningEffortValue(params?.reasoning_effort) ?? DEFAULT_REASONING_EFFORT_VALUE;
+
+	const updateReasoningEffort = (nextValue: string | null | undefined) => {
+		const normalized = normalizeReasoningEffortValue(nextValue);
+		params = {
+			...params,
+			reasoning_effort:
+				normalized === null || normalized === DEFAULT_REASONING_EFFORT_VALUE ? null : normalized
+		};
+	};
+
+	const buildDraftModelInfo = () => ({
+		...cloneSettingsSnapshot(info),
+		id,
+		name,
+		access_control: cloneSettingsSnapshot(accessControl),
+		meta: {
+			...cloneSettingsSnapshot(info?.meta ?? {}),
+			capabilities: cloneSettingsSnapshot(capabilities)
+		},
+		params: normalizeEditorParams(params)
+	});
+
+	const buildCapabilitiesSnapshot = () =>
+		Object.keys(capabilities ?? {}).reduce<Record<string, boolean>>((acc, key) => {
+			acc[key] = Boolean(capabilities[key]);
+			return acc;
+		}, {});
+
 	// Dirty tracking
 	const buildSnapshot = () => ({
 		name,
 		id,
-		info: cloneSettingsSnapshot(info),
-		params: cloneSettingsSnapshot(params),
-		capabilities: cloneSettingsSnapshot(capabilities),
+		info: buildDraftModelInfo(),
+		params: normalizeEditorParams(params),
+		capabilities: buildCapabilitiesSnapshot(),
 		knowledge: cloneSettingsSnapshot(knowledge),
 		toolIds: cloneSettingsSnapshot(toolIds),
 		skillIds: cloneSettingsSnapshot(skillIds),
@@ -339,8 +403,7 @@
 		loading = true;
 		saving = true;
 
-		info.id = id;
-		info.name = name;
+		const modelInfo = buildDraftModelInfo();
 
 		if (id.trim() === '') {
 			toast.error('Model ID is required.');
@@ -356,7 +419,7 @@
 			return;
 		}
 
-		if (preset && !info.base_model_id) {
+		if (preset && !modelInfo.base_model_id) {
 			toast.error($i18n.t('Please select a base model before saving this assistant.'));
 			selectedTab = 'profile';
 			loading = false;
@@ -364,69 +427,69 @@
 			return;
 		}
 
-		info.access_control = accessControl;
-		info.meta.capabilities = capabilities;
-
 		if (Object.keys(builtinToolConfig).length > 0) {
-			info.meta.builtin_tool_config = builtinToolConfig;
+			modelInfo.meta.builtin_tool_config = builtinToolConfig;
 		} else {
-			delete info.meta.builtin_tool_config;
+			delete modelInfo.meta.builtin_tool_config;
 		}
 
 		if (enableDescription) {
-			info.meta.description = info.meta.description.trim() === '' ? null : info.meta.description;
+			modelInfo.meta.description =
+				(modelInfo.meta.description ?? '').trim() === '' ? null : modelInfo.meta.description;
 		} else {
-			info.meta.description = null;
+			modelInfo.meta.description = null;
 		}
 
 		if (knowledge.length > 0) {
-			info.meta.knowledge = knowledge;
+			modelInfo.meta.knowledge = knowledge;
 		} else {
-			if (info.meta.knowledge) {
-				delete info.meta.knowledge;
+			if (modelInfo.meta.knowledge) {
+				delete modelInfo.meta.knowledge;
 			}
 		}
 
 		if (toolIds.length > 0) {
-			info.meta.toolIds = toolIds;
+			modelInfo.meta.toolIds = toolIds;
 		} else {
-			if (info.meta.toolIds) {
-				delete info.meta.toolIds;
+			if (modelInfo.meta.toolIds) {
+				delete modelInfo.meta.toolIds;
 			}
 		}
 
 		if (skillIds.length > 0) {
-			info.meta.skillIds = skillIds;
+			modelInfo.meta.skillIds = skillIds;
 		} else {
-			if (info.meta.skillIds) {
-				delete info.meta.skillIds;
+			if (modelInfo.meta.skillIds) {
+				delete modelInfo.meta.skillIds;
 			}
 		}
 
 		if (filterIds.length > 0) {
-			info.meta.filterIds = filterIds;
+			modelInfo.meta.filterIds = filterIds;
 		} else {
-			if (info.meta.filterIds) {
-				delete info.meta.filterIds;
+			if (modelInfo.meta.filterIds) {
+				delete modelInfo.meta.filterIds;
 			}
 		}
 
 		if (actionIds.length > 0) {
-			info.meta.actionIds = actionIds;
+			modelInfo.meta.actionIds = actionIds;
 		} else {
-			if (info.meta.actionIds) {
-				delete info.meta.actionIds;
+			if (modelInfo.meta.actionIds) {
+				delete modelInfo.meta.actionIds;
 			}
 		}
 
-		info.params.stop = params.stop ? params.stop.split(',').filter((s) => s.trim()) : null;
-		Object.keys(info.params).forEach((key) => {
-			if (info.params[key] === '' || info.params[key] === null) {
-				delete info.params[key];
+		modelInfo.params.stop = modelInfo.params.stop
+			? modelInfo.params.stop.split(',').filter((s) => s.trim())
+			: null;
+		Object.keys(modelInfo.params).forEach((key) => {
+			if (modelInfo.params[key] === '' || modelInfo.params[key] === null) {
+				delete modelInfo.params[key];
 			}
 		});
 
-		const saved = await onSubmit(info);
+		const saved = await onSubmit(modelInfo);
 		if (!saved) {
 			loading = false;
 			saving = false;
@@ -481,12 +544,7 @@
 				}
 			}
 
-			params = { ...params, ...model?.params };
-			params.stop = params?.stop
-				? (typeof params.stop === 'string' ? params.stop.split(',') : (params?.stop ?? [])).join(
-						','
-					)
-				: null;
+			params = normalizeEditorParams(model?.params);
 
 			toolIds = model?.meta?.toolIds ?? [];
 			skillIds = model?.meta?.skillIds ?? [];
@@ -861,7 +919,25 @@
 										"Enter the model's default system prompt here\ne.g.) You are a professional AI assistant. Provide clear, accurate, and concise responses based on the user's needs."
 									)}
 									rows={4}
-									bind:value={info.params.system}
+									bind:value={params.system}
+								/>
+							</div>
+
+							<div class="glass-item p-4">
+								<div class="text-sm font-medium mb-2">{$i18n.t('Thinking intensity')}</div>
+								<div class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+									{$i18n.t(
+										'Constrains effort on reasoning for reasoning models. Only applicable to reasoning models from specific providers that support reasoning effort.'
+									)}
+								</div>
+								<HaloSelect
+									value={reasoningEffortSelectValue}
+									options={reasoningEffortSelectOptions}
+									placeholder={$i18n.t('Enter reasoning effort')}
+									className="w-full"
+									on:change={(e) => {
+										updateReasoningEffort(e.detail.value);
+									}}
 								/>
 							</div>
 
@@ -886,16 +962,13 @@
 								</button>
 
 								{#if showAdvanced}
-									<div class="mt-3 pt-3 border-t border-gray-200/40 dark:border-gray-700/30">
-										<AdvancedParams
-											admin={true}
-											bind:params
-											on:change={(e) => {
-												info.params = { ...info.params, ...params };
-											}}
-										/>
-									</div>
-								{/if}
+										<div class="mt-3 pt-3 border-t border-gray-200/40 dark:border-gray-700/30">
+											<AdvancedParams
+												admin={true}
+												bind:params
+											/>
+										</div>
+									{/if}
 							</div>
 
 							<!-- Prompt Suggestions -->
@@ -1038,7 +1111,7 @@
 										<textarea
 											class="glass-input w-full px-3.5 py-2 text-xs font-mono resize-none"
 											rows="10"
-											value={JSON.stringify(info, null, 2)}
+											value={JSON.stringify(buildDraftModelInfo(), null, 2)}
 											disabled
 											readonly
 										/>

@@ -6,7 +6,7 @@
 
 	const i18n = getContext('i18n') as Writable<i18nType>;
 
-	import { verifyOpenAIConnection } from '$lib/apis/openai';
+	import { healthCheckOpenAIConnection, verifyOpenAIConnection } from '$lib/apis/openai';
 	import { verifyOllamaConnection } from '$lib/apis/ollama';
 	import { verifyGeminiConnection } from '$lib/apis/gemini';
 	import { verifyAnthropicConnection } from '$lib/apis/anthropic';
@@ -19,6 +19,9 @@
 	import Tags from './common/Tags.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
+	import ArrowPath from '$lib/components/icons/ArrowPath.svelte';
+	import Bolt from '$lib/components/icons/Bolt.svelte';
+	import Check from '$lib/components/icons/Check.svelte';
 	import Textarea from './common/Textarea.svelte';
 	import CollapsibleSection from '$lib/components/common/CollapsibleSection.svelte';
 	import ModelSelectorModal from '$lib/components/common/ModelSelectorModal.svelte';
@@ -178,7 +181,19 @@
 		prevModelManagementOpen = null;
 	}
 
+	type ModelHealthState = {
+		status: 'idle' | 'testing' | 'success' | 'error';
+		responseTimeMs?: number;
+		detail?: string;
+	};
+
+	const BATCH_HEALTH_CHECK_DELAY_MS = 300;
+
 	let loading = false;
+	let batchHealthChecking = false;
+	let batchHealthProgress = { current: 0, total: 0 };
+	let modelHealthStates: Record<string, ModelHealthState> = {};
+	let modelHealthContextKey = '';
 	let showModelSelector = false;
 	let showNoModelsConfirm = false;
 
@@ -304,10 +319,13 @@
 		!ollama &&
 		(inputUrl || '').trim().replace(/\/+$/, '').endsWith(OPENAI_CHAT_COMPLETIONS_SUFFIX);
 
-	const showConnectionErrorToast = (error: unknown) => {
-		const { title, description } = formatConnectionErrorToast(error, (key, options) =>
+	const describeConnectionErrorToast = (error: unknown) =>
+		formatConnectionErrorToast(error, (key, options) =>
 			$i18n.t(key, options)
 		);
+
+	const showConnectionErrorToast = (error: unknown) => {
+		const { title, description } = describeConnectionErrorToast(error);
 
 		toast.error(title, {
 			...(description ? { description } : {}),
@@ -436,6 +454,82 @@
 		nativeFileInputsEnabled = getDefaultNativeFileInputsEnabled();
 	}
 
+	const parseHeadersInput = (): Record<string, string> | null | undefined => {
+		if (!headers) return undefined;
+
+		try {
+			const parsed = JSON.parse(headers);
+			if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
+				throw new Error('Headers must be a valid JSON object');
+			}
+
+			headers = JSON.stringify(parsed, null, 2);
+			return parsed as Record<string, string>;
+		} catch (error) {
+			toast.error($i18n.t('Headers must be a valid JSON object'));
+			return null;
+		}
+	};
+
+	const getOpenAIConnectionConfig = (parsedHeaders?: Record<string, string>) => ({
+		...(direct && preserveEmptyPrefixId
+			? { prefix_id: '' }
+			: prefixId.trim()
+				? { prefix_id: prefixId.trim() }
+				: {}),
+		force_mode: isForceMode,
+		auth_type,
+		...(azure ? { azure: true } : {}),
+		...(apiVersion ? { api_version: apiVersion } : {}),
+		...(parsedHeaders ? { headers: parsedHeaders } : {}),
+		...(!ollama && !gemini && !anthropic && !isForceMode && useResponsesApi
+			? {
+					use_responses_api: true,
+					responses_api_exclude_patterns: responsesApiExcludePatterns
+						.map((p) => p.name)
+						.filter((p) => p.trim())
+				}
+			: {}),
+		...(!ollama && !direct && !gemini && !anthropic && !azure && !isForceMode && useResponsesApi
+			? {
+					native_file_inputs_enabled: nativeFileInputsEnabled
+				}
+			: {})
+	});
+
+	const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+	const updateModelHealthState = (modelId: string, nextState: ModelHealthState) => {
+		modelHealthStates = {
+			...modelHealthStates,
+			[modelId]: nextState
+		};
+	};
+
+	const getModelHealthState = (modelId: string): ModelHealthState =>
+		modelHealthStates[modelId] ?? { status: 'idle' };
+
+	const getModelNameTooltip = (modelId: string) => modelId;
+
+	const getModelHealthActionTooltip = (modelId: string) => {
+		const state = getModelHealthState(modelId);
+		if (state.status === 'testing') {
+			return $i18n.t('Testing model...');
+		}
+		return $i18n.t('Test Model');
+	};
+
+	const buildOpenAIHealthCheckPayload = () => {
+		const parsedOpenAIHeaders = parseHeadersInput();
+		if (headers && parsedOpenAIHeaders === null) return null;
+
+		return {
+			url: normalizedUrl,
+			key,
+			config: getOpenAIConnectionConfig(parsedOpenAIHeaders ?? undefined)
+		};
+	};
+
 	const verifyOllamaHandler = async () => {
 		const verifyUrl = normalizedUrl;
 
@@ -453,22 +547,8 @@
 
 	const verifyOpenAIHandler = async () => {
 		const verifyUrl = normalizedUrl;
-
-		let _headers = null;
-
-		if (headers) {
-			try {
-				_headers = JSON.parse(headers);
-				if (typeof _headers !== 'object' || Array.isArray(_headers)) {
-					_headers = null;
-					throw new Error('Headers must be a valid JSON object');
-				}
-				headers = JSON.stringify(_headers, null, 2);
-			} catch (error) {
-				toast.error($i18n.t('Headers must be a valid JSON object'));
-				return;
-			}
-		}
+		const parsedOpenAIHeaders = parseHeadersInput();
+		if (headers && parsedOpenAIHeaders === null) return;
 
 		const res = await verifyOpenAIConnection(
 			localStorage.token,
@@ -476,13 +556,7 @@
 				url: verifyUrl,
 				key,
 				purpose: 'connection',
-				config: {
-					force_mode: isForceMode,
-					auth_type,
-					azure: azure,
-					...(apiVersion ? { api_version: apiVersion } : {}),
-					...(_headers ? { headers: _headers } : {})
-				}
+				config: getOpenAIConnectionConfig(parsedOpenAIHeaders ?? undefined)
 			},
 			direct
 		).catch((error) => {
@@ -493,6 +567,160 @@
 			toast.success($i18n.t('Server connection verified'));
 		}
 	};
+
+	const runModelHealthCheck = async (
+		modelId: string,
+		options: {
+			silentToast?: boolean;
+			healthCheckPayload?: ReturnType<typeof buildOpenAIHealthCheckPayload>;
+		} = {}
+	) => {
+		if (!modelId || direct || ollama || gemini || anthropic) return false;
+
+		const payload = options.healthCheckPayload ?? buildOpenAIHealthCheckPayload();
+		if (!payload) return false;
+
+		updateModelHealthState(modelId, { status: 'testing' });
+
+		try {
+			const result = await healthCheckOpenAIConnection(localStorage.token, {
+				...payload,
+				model: modelId
+			});
+
+			updateModelHealthState(modelId, {
+				status: 'success',
+				responseTimeMs: result?.response_time_ms ?? 0
+			});
+
+			if (!options.silentToast) {
+				toast.success(
+					$i18n.t('Model test passed: {{model}} ({{time}}ms)', {
+						model: result?.model ?? modelId,
+						time: result?.response_time_ms ?? 0
+					})
+				);
+			}
+
+			return true;
+		} catch (error) {
+			const { title, description } = describeConnectionErrorToast(error);
+			updateModelHealthState(modelId, {
+				status: 'error',
+				detail: description ? `${title} ${description}` : title
+			});
+
+			if (!options.silentToast) {
+				toast.error(title, {
+					...(description ? { description } : {}),
+					duration: description ? 6000 : 4000
+				});
+			}
+
+			return false;
+		}
+	};
+
+	const runBatchHealthCheck = async () => {
+		if (modelIds.length === 0 || batchHealthChecking || direct || ollama || gemini || anthropic) {
+			return;
+		}
+
+		const sharedPayload = buildOpenAIHealthCheckPayload();
+		if (!sharedPayload) return;
+
+		batchHealthChecking = true;
+		batchHealthProgress = { current: 0, total: modelIds.length };
+
+		if (modelIds.length > 5) {
+			toast.info($i18n.t('Selected model batch tests run sequentially to reduce rate-limit risk.'), {
+				duration: 4000
+			});
+		}
+
+		let passed = 0;
+		const failed: string[] = [];
+
+		try {
+			for (const [index, modelId] of modelIds.entries()) {
+				batchHealthProgress = { current: index + 1, total: modelIds.length };
+				const ok = await runModelHealthCheck(modelId, {
+					silentToast: true,
+					healthCheckPayload: sharedPayload
+				});
+
+				if (ok) {
+					passed += 1;
+				} else {
+					failed.push(modelId);
+				}
+
+				if (index < modelIds.length - 1) {
+					await sleep(BATCH_HEALTH_CHECK_DELAY_MS);
+				}
+			}
+		} finally {
+			batchHealthChecking = false;
+			batchHealthProgress = { current: 0, total: 0 };
+		}
+
+		if (failed.length === 0) {
+			toast.success(
+				$i18n.t('Batch model test passed: {{passed}}/{{total}}', {
+					passed,
+					total: modelIds.length
+				})
+			);
+		} else if (passed > 0) {
+			toast.warning(
+				$i18n.t('Batch model test finished: {{passed}}/{{total}} passed', {
+					passed,
+					total: modelIds.length
+				}),
+				{
+					description: failed.join(', '),
+					duration: 6000
+				}
+			);
+		} else {
+			toast.error($i18n.t('Batch model test failed for all selected models'), {
+				description: failed.join(', '),
+				duration: 6000
+			});
+		}
+	};
+
+	$: {
+		const allowedModels = new Set(modelIds);
+		const filteredStates = Object.fromEntries(
+			Object.entries(modelHealthStates).filter(([modelId]) => allowedModels.has(modelId))
+		);
+		if (Object.keys(filteredStates).length !== Object.keys(modelHealthStates).length) {
+			modelHealthStates = filteredStates;
+		}
+	}
+
+	$: {
+		const nextContextKey = JSON.stringify({
+			url: normalizedUrl,
+			key,
+			auth_type,
+			azure,
+			apiVersion,
+			headers,
+			isForceMode,
+			useResponsesApi,
+			modelIds
+		});
+
+		if (modelHealthContextKey && modelHealthContextKey !== nextContextKey) {
+			modelHealthStates = {};
+			batchHealthChecking = false;
+			batchHealthProgress = { current: 0, total: 0 };
+		}
+
+		modelHealthContextKey = nextContextKey;
+	}
 
 	const verifyGeminiHandler = async () => {
 		const verifyUrl = normalizedUrl;
@@ -766,6 +994,11 @@
 	};
 
 	const init = () => {
+		batchHealthChecking = false;
+		batchHealthProgress = { current: 0, total: 0 };
+		modelHealthStates = {};
+		modelHealthContextKey = '';
+
 		if (connection) {
 			const shouldRestoreForceMode =
 				connection.config?.force_mode === true || isLegacyForceModeUrl(connection.url);
@@ -1156,30 +1389,84 @@
 										>
 									{/if}
 								</div>
-								<button
-									type="button"
-									class="px-3 py-1.5 text-sm font-medium bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition"
-									on:click={() => (showModelSelector = true)}
-								>
-									{$i18n.t('Manage Models')}
-								</button>
+								<div class="flex items-center gap-2">
+									{#if !ollama && !gemini && !anthropic && !direct}
+										<Tooltip
+											content={modelIds.length === 0
+												? $i18n.t('Please add models in Model Management')
+												: $i18n.t('Sequentially test selected models')}
+										>
+											<button
+												type="button"
+												class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+												on:click={runBatchHealthCheck}
+												disabled={batchHealthChecking || modelIds.length === 0}
+											>
+												{#if batchHealthChecking}
+													<Spinner className="size-3.5" />
+													<span>
+														{$i18n.t('Testing selected models: {{current}}/{{total}}', batchHealthProgress)}
+													</span>
+												{:else}
+													<ArrowPath className="size-3.5" />
+													<span>{$i18n.t('Test Selected')}</span>
+												{/if}
+											</button>
+										</Tooltip>
+									{/if}
+									<button
+										type="button"
+										class="px-3 py-1.5 text-sm font-medium bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition"
+										on:click={() => (showModelSelector = true)}
+									>
+										{$i18n.t('Manage Models')}
+									</button>
+								</div>
 							</div>
 
 							{#if modelIds.length > 0}
 								<div class="flex flex-wrap gap-1.5">
-									{#each modelIds.slice(0, 5) as modelId}
-										<span
-											class="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded-md truncate max-w-32"
+									{#each modelIds as modelId}
+										{@const state = getModelHealthState(modelId)}
+										<div
+											class="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs max-w-44 {state.status === 'success'
+												? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300'
+												: state.status === 'error'
+													? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-300'
+													: 'border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'}"
 										>
-											{modelId}
-										</span>
+											<Tooltip content={getModelNameTooltip(modelId)}>
+												<span class="truncate max-w-28">{modelId}</span>
+											</Tooltip>
+											{#if !ollama && !gemini && !anthropic && !direct}
+												<Tooltip content={getModelHealthActionTooltip(modelId)}>
+													<button
+														type="button"
+														class="inline-flex items-center justify-center rounded p-0.5 hover:bg-black/5 dark:hover:bg-white/10 transition disabled:opacity-50 disabled:cursor-not-allowed"
+														on:click={() => runModelHealthCheck(modelId)}
+														disabled={batchHealthChecking || state.status === 'testing'}
+														aria-label={$i18n.t('Test this model')}
+													>
+														{#if state.status === 'testing'}
+															<Spinner className="size-3" />
+														{:else if state.status === 'success'}
+															<Check className="size-3 text-emerald-600 dark:text-emerald-400" />
+														{:else if state.status === 'error'}
+															<XMark className="size-3 text-rose-600 dark:text-rose-400" />
+														{:else}
+															<Bolt className="size-3 text-gray-500 dark:text-gray-400" />
+														{/if}
+													</button>
+												</Tooltip>
+											{/if}
+										</div>
 									{/each}
-									{#if modelIds.length > 5}
-										<span class="px-2 py-1 text-xs text-gray-500">
-											{$i18n.t('+{{count}} more', { count: modelIds.length - 5 })}
-										</span>
-									{/if}
 								</div>
+								{#if !ollama && !gemini && !anthropic && !direct}
+									<div class="text-xs text-gray-400">
+										{$i18n.t('Single model tests use the chip action. Batch tests run sequentially to reduce rate-limit risk.')}
+									</div>
+								{/if}
 							{:else if azure}
 								<div class="text-xs text-amber-600 dark:text-amber-400">
 									{$i18n.t('Deployment names are required for Azure OpenAI')}

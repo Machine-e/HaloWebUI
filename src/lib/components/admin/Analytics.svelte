@@ -62,12 +62,11 @@
 	};
 
 	let days = 30;
-	let daysStr = '30';
-	$: days = parseInt(daysStr) || 30;
 	let activeTab: 'overview' | 'models' | 'users' = 'overview';
 	let modelStats: any[] = [];
 	let userStats: any[] = [];
 	let dailyStats: any[] = [];
+	let loadDataRequestId = 0;
 
 	let expandedModel: string | null = null;
 	let modelDailyStats: any[] = [];
@@ -273,20 +272,36 @@
 		}
 	};
 
-	const loadData = async () => {
+	const loadData = async (requestedDays: number = days) => {
+		const nextDays = Number(requestedDays) || 30;
+		const requestId = ++loadDataRequestId;
 		try {
-			[modelStats, userStats, dailyStats] = await Promise.all([
-				getModelUsageStats(localStorage.token, days),
-				getUserActivityStats(localStorage.token, days),
-				getDailyStats(localStorage.token, days)
+			const [nextModelStats, nextUserStats, nextDailyStats] = await Promise.all([
+				getModelUsageStats(localStorage.token, nextDays),
+				getUserActivityStats(localStorage.token, nextDays),
+				getDailyStats(localStorage.token, nextDays)
 			]);
+
+			if (requestId !== loadDataRequestId) return;
+
+			days = nextDays;
+			modelStats = nextModelStats;
+			userStats = nextUserStats;
+			dailyStats = nextDailyStats;
 			expandedModel = null;
 			modelDailyStats = [];
 			hoveredModelDay = null;
 			selectedModelIds = [];
 		} catch (err) {
+			if (requestId !== loadDataRequestId) return;
 			toast.error(`${err}`);
 		}
+	};
+
+	const handleDaysChange = async (event: CustomEvent<{ value: string }>) => {
+		const nextDays = parseInt(event.detail.value, 10) || 30;
+		days = nextDays;
+		await loadData(nextDays);
 	};
 
 	const toggleModelExpand = async (modelName: string) => {
@@ -390,14 +405,14 @@
 										{$i18n.t(activeTabMeta.label)}
 									</div>
 									<HaloSelect
-										bind:value={daysStr}
+										value={String(days)}
 										options={[
 											{ value: '7', label: `7 ${$i18n.t('days')}` },
 											{ value: '30', label: `30 ${$i18n.t('days')}` },
 											{ value: '90', label: `90 ${$i18n.t('days')}` },
 											{ value: '365', label: `365 ${$i18n.t('days')}` }
 										]}
-										on:change={loadData}
+										on:change={handleDaysChange}
 									/>
 								</div>
 								<p class="mt-1 text-xs text-gray-400 dark:text-gray-500">

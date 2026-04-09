@@ -295,9 +295,7 @@
 				</div>
 			</div>
 
-			<div
-				class="text-base font-normal @md:max-w-3xl w-full pt-2 pb-3 {atSelectedModel ? 'mt-2' : ''}"
-			>
+			<div class="mx-auto w-full max-w-4xl pt-2 pb-3 text-base font-normal {atSelectedModel ? 'mt-2' : ''}">
 				<MessageInput
 					{history}
 					{selectedModels}
@@ -330,7 +328,7 @@
 		</div>
 	</div>
 	{#if !activeAssistant && onActivateAssistant && ($settings?.showFeaturedAssistantsOnHome ?? true)}
-		<div class="mx-auto mt-1 w-full max-w-4xl px-2" in:fade={{ duration: 160, delay: 120 }}>
+		<div class="mx-auto mt-1 w-full max-w-4xl px-2.5" in:fade={{ duration: 160, delay: 120 }}>
 			<div class="rounded-3xl border border-gray-200/60 bg-white/65 p-3 text-left shadow-sm backdrop-blur-xl dark:border-gray-700/30 dark:bg-white/[0.03]">
 				<div class="flex items-center justify-between gap-3 px-1">
 					<div class="text-xs font-medium text-gray-500 dark:text-gray-400">精选助手</div>
@@ -479,8 +477,11 @@
 			</div>
 		</div>
 	{/if}
-	<div class="mx-auto max-w-3xl font-primary" in:fade={{ duration: 200, delay: 200 }}>
-		<div class="mx-4">
+	<div
+		class="mx-auto w-full max-w-4xl px-2.5 font-primary {!activeAssistant && onActivateAssistant && ($settings?.showFeaturedAssistantsOnHome ?? true) ? 'mt-4' : 'mt-2'}"
+		in:fade={{ duration: 200, delay: 200 }}
+	>
+		<div>
 			<Suggestions
 				suggestionPrompts={atSelectedModel?.info?.meta?.suggestion_prompts ??
 					models[selectedModelIdx]?.info?.meta?.suggestion_prompts ??

@@ -1766,6 +1766,42 @@ class ResponsesVerificationForm(BaseModel):
     model: Optional[str] = None
 
 
+class HealthCheckForm(BaseModel):
+    url: str
+    key: str = ""
+    config: Optional[dict] = None
+    model: Optional[str] = None
+
+
+async def _discover_openai_probe_model(
+    *,
+    session: aiohttp.ClientSession,
+    url: str,
+    headers: dict,
+    api_config: Optional[dict],
+) -> Optional[str]:
+    models_url = _get_openai_models_url(url, api_config)
+
+    try:
+        async with session.get(models_url, headers=headers) as response:
+            body = await _safe_read_upstream_body(response)
+            if response.status != 200:
+                return None
+
+            normalized = _normalize_openai_models_response(body)
+            items = normalized.get("data") if isinstance(normalized, dict) else None
+            if not isinstance(items, list) or not items:
+                return None
+
+            first = items[0]
+            if isinstance(first, dict):
+                return first.get("id") or first.get("name")
+    except Exception:
+        return None
+
+    return None
+
+
 @router.post("/verify")
 async def verify_connection(
     form_data: ConnectionVerificationForm, user=Depends(get_verified_user)
@@ -1827,6 +1863,173 @@ async def verify_connection(
             log.exception(f"Unexpected error: {e}")
             error_detail = f"Unexpected error: {str(e)}"
             raise HTTPException(status_code=500, detail=error_detail)
+
+
+@router.post("/health_check")
+async def health_check_connection(
+    form_data: HealthCheckForm, user=Depends(get_verified_user)
+):
+    url = (form_data.url or "").rstrip("/")
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    key = form_data.key or ""
+    api_config = form_data.config or {}
+    headers = _build_upstream_headers(url, key, api_config, user=user)
+
+    timeout = aiohttp.ClientTimeout(total=15)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
+            chosen_model = form_data.model or await _discover_openai_probe_model(
+                session=session,
+                url=url,
+                headers=headers,
+                api_config=api_config,
+            )
+
+            if not chosen_model:
+                chosen_model = "gpt-4o-mini"
+
+            prefix_id = api_config.get("prefix_id", None)
+            if prefix_id and isinstance(chosen_model, str):
+                prefix = f"{prefix_id}."
+                if chosen_model.startswith(prefix):
+                    chosen_model = chosen_model[len(prefix) :]
+
+            use_responses_api = _should_use_responses_api(
+                url, api_config, chosen_model, native_web_search=False
+            )
+
+            probe_payload = {
+                "model": chosen_model,
+                "messages": [{"role": "user", "content": "Hi"}],
+                "stream": False,
+                # OpenAI Responses API can reject extremely small max_output_tokens values
+                # (e.g. official OpenAI currently requires >=16). Keep chat probes at 1 token
+                # but use a small safe floor for Responses API health checks.
+                "max_tokens": 16 if use_responses_api else 1,
+            }
+
+            request_url = (
+                f"{url}/responses"
+                if use_responses_api
+                else _get_openai_chat_completions_url(url, api_config)
+            )
+
+            auto_reasoning_summary_applied = False
+            if use_responses_api:
+                payload_dict = convert_chat_completions_to_responses_payload(
+                    probe_payload,
+                    default_reasoning_summary=_get_default_responses_reasoning_summary(
+                        api_config
+                    ),
+                )
+                auto_reasoning_summary_applied = bool(
+                    isinstance(payload_dict.get("reasoning"), dict)
+                    and payload_dict["reasoning"].get("summary")
+                )
+                request_attempts = [(request_url, payload_dict)]
+            else:
+                payload_dict = dict(probe_payload)
+
+                is_o1_o3 = payload_dict["model"].lower().startswith(("o1", "o3-"))
+                if is_o1_o3:
+                    payload_dict = openai_o1_o3_handler(payload_dict)
+                elif "api.openai.com" not in url and "max_completion_tokens" in payload_dict:
+                    payload_dict["max_tokens"] = payload_dict["max_completion_tokens"]
+                    del payload_dict["max_completion_tokens"]
+
+                if "max_tokens" in payload_dict and "max_completion_tokens" in payload_dict:
+                    del payload_dict["max_tokens"]
+
+                request_attempts = _build_chat_completion_request_attempts(
+                    url=url,
+                    api_config=api_config,
+                    model_id=payload_dict.get("model"),
+                    payload_dict=payload_dict,
+                )
+
+            async def _post_once(target_url: str, payload: dict):
+                async with session.post(
+                    target_url,
+                    headers=headers,
+                    data=json.dumps(payload, ensure_ascii=False, default=str),
+                ) as response:
+                    body = await _safe_read_upstream_body(response)
+                    return response.status, body
+
+            started_at = time.monotonic()
+            attempt_idx = 0
+            request_url, payload_dict = request_attempts[attempt_idx]
+            status, response_body = await _post_once(request_url, payload_dict)
+
+            if not use_responses_api:
+                if (
+                    status >= 400
+                    and attempt_idx + 1 < len(request_attempts)
+                    and _looks_like_chat_completions_endpoint_unsupported(
+                        status, response_body
+                    )
+                ):
+                    attempt_idx += 1
+                    request_url, payload_dict = request_attempts[attempt_idx]
+                    status, response_body = await _post_once(request_url, payload_dict)
+
+                if status >= 400:
+                    raise HTTPException(
+                        status_code=status,
+                        detail=_extract_upstream_error_detail(status, response_body),
+                    )
+            else:
+                if (
+                    status >= 400
+                    and auto_reasoning_summary_applied
+                    and _looks_like_reasoning_summary_incompatible(
+                        status, response_body
+                    )
+                ):
+                    next_payload_dict, removed = _strip_reasoning_summary_from_payload(
+                        payload_dict
+                    )
+                    if removed:
+                        payload_dict = next_payload_dict
+                        status, response_body = await _post_once(
+                            request_url, payload_dict
+                        )
+
+                if status >= 400:
+                    raise HTTPException(
+                        status_code=status,
+                        detail=_format_responses_upstream_error(
+                            request_url=request_url,
+                            status=status,
+                            body=response_body,
+                        ),
+                    )
+
+            if not isinstance(response_body, dict):
+                raise HTTPException(
+                    status_code=502,
+                    detail="Invalid response from upstream model health check",
+                )
+
+            elapsed_ms = max(1, int((time.monotonic() - started_at) * 1000))
+            return {
+                "ok": True,
+                "model": chosen_model,
+                "response_time_ms": elapsed_ms,
+            }
+    except HTTPException:
+        raise
+    except aiohttp.ClientError as e:
+        log.exception(f"Client error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=build_error_detail(e),
+        )
+    except Exception as e:
+        log.exception(f"Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
 @router.post("/verify_responses")

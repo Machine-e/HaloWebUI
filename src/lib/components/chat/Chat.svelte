@@ -203,6 +203,39 @@
 	}
 	const getModelById = (id: string): Model | undefined => modelsMap.get(id);
 
+	const normalizeReasoningEffortValue = (value: unknown): string | null => {
+		if (value === null || value === undefined) {
+			return null;
+		}
+
+		const normalized = String(value).trim().toLowerCase();
+		return normalized === '' ? null : normalized;
+	};
+
+	const normalizeThinkingTokenValue = (value: unknown): number | null => {
+		if (value === null || value === undefined || value === '') {
+			return null;
+		}
+
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+	};
+
+	const getResolvedSelectedModelIds = () =>
+		selectedModelIds.filter((id): id is string => typeof id === 'string' && id.trim() !== '');
+
+	const getSingleSelectedReasoningModel = (): Model | null => {
+		const ids = getResolvedSelectedModelIds();
+		if (ids.length !== 1) {
+			return null;
+		}
+
+		return getModelById(ids[0]) ?? null;
+	};
+
+	const getModelDefaultReasoningEffort = (model: Model | null | undefined): string | null =>
+		normalizeReasoningEffortValue((model as any)?.info?.params?.reasoning_effort ?? null);
+
 	// J-3-01: Reactive flag to avoid calling createMessagesList just for emptiness check in template
 	let hasMessages = false;
 	$: hasMessages = history.currentId !== null;
@@ -229,6 +262,82 @@
 	// 用缓存值打断 reactive 级联：正向同步更新缓存 → 反向 onChange 检测到缓存一致则跳过
 	let _lastSyncedEffort: string | null = null;
 	let _lastSyncedTokens: number | null = null;
+	let reasoningSelectionTrackingReady = false;
+	let lastReasoningSelectionKey = '';
+
+	const syncReasoningUiState = (effort: unknown, tokens: unknown) => {
+		const normalizedEffort = normalizeReasoningEffortValue(effort);
+		const normalizedTokens = normalizeThinkingTokenValue(tokens);
+
+		_lastSyncedEffort = normalizedEffort;
+		_lastSyncedTokens = normalizedTokens;
+
+		if (reasoningEffort !== normalizedEffort) {
+			reasoningEffort = normalizedEffort;
+		}
+
+		if (maxThinkingTokens !== normalizedTokens) {
+			maxThinkingTokens = normalizedTokens;
+		}
+	};
+
+	const syncReasoningParamsState = (effort: unknown, tokens: unknown) => {
+		const normalizedEffort = normalizeReasoningEffortValue(effort);
+		const normalizedTokens = normalizeThinkingTokenValue(tokens);
+		const currentEffort = normalizeReasoningEffortValue(params?.reasoning_effort ?? null);
+		const currentTokens = normalizeThinkingTokenValue(params?.max_thinking_tokens ?? null);
+
+		if (currentEffort === normalizedEffort && currentTokens === normalizedTokens) {
+			return;
+		}
+
+		params = {
+			...params,
+			reasoning_effort: normalizedEffort,
+			max_thinking_tokens: normalizedTokens
+		};
+	};
+
+	const setSharedReasoningState = ({
+		effort,
+		tokens,
+		syncParams = true
+	}: {
+		effort: unknown;
+		tokens: unknown;
+		syncParams?: boolean;
+	}) => {
+		syncReasoningUiState(effort, tokens);
+
+		if (syncParams) {
+			syncReasoningParamsState(effort, tokens);
+		}
+	};
+
+	const applyReasoningSelectionDefaults = () => {
+		const ids = getResolvedSelectedModelIds();
+		const singleModel = getSingleSelectedReasoningModel();
+
+		if (ids.length !== 1 || !singleModel) {
+			setSharedReasoningState({ effort: null, tokens: null });
+			return;
+		}
+
+		setSharedReasoningState({
+			effort: getModelDefaultReasoningEffort(singleModel),
+			tokens: null
+		});
+	};
+
+	const resetReasoningSelectionTracking = () => {
+		reasoningSelectionTrackingReady = false;
+		lastReasoningSelectionKey = '';
+	};
+
+	const initializeReasoningSelectionTracking = () => {
+		lastReasoningSelectionKey = getResolvedSelectedModelIds().join('|');
+		reasoningSelectionTrackingReady = true;
+	};
 
 	const activateAssistant = (value: Record<string, unknown> | ChatAssistantSnapshot | null) => {
 		const assistant = toChatAssistantSnapshot(value as Record<string, unknown> | null);
@@ -756,27 +865,42 @@
 
 	// 正向同步: Controls(params) → ThinkingControl(reasoningEffort/maxThinkingTokens)
 	$: {
-		const re = params?.reasoning_effort ?? null;
-		const mt = params?.max_thinking_tokens ?? null;
-		if (re !== _lastSyncedEffort || mt !== _lastSyncedTokens) {
-			_lastSyncedEffort = re;
-			_lastSyncedTokens = mt;
-			if (re && re !== 'none' && re !== reasoningEffort) {
-				reasoningEffort = re;
-				maxThinkingTokens = null;
-			} else if (mt !== null && mt > 0 && mt !== maxThinkingTokens) {
-				maxThinkingTokens = mt;
-				reasoningEffort = null;
-			} else if (!re && (mt === null || mt === 0)) {
-				reasoningEffort = re === 'none' ? 'none' : null;
-				maxThinkingTokens = mt === 0 ? 0 : null;
+		const paramEffort = normalizeReasoningEffortValue(params?.reasoning_effort ?? null);
+		const paramTokens = normalizeThinkingTokenValue(params?.max_thinking_tokens ?? null);
+		const resolvedModelIds = getResolvedSelectedModelIds();
+		const singleModel = getSingleSelectedReasoningModel();
+		const defaultEffort = getModelDefaultReasoningEffort(singleModel);
+		const hasSingleModelSelection = resolvedModelIds.length === 1 && !!singleModel;
+
+		if (resolvedModelIds.length !== 1) {
+			if (paramEffort !== null || paramTokens !== null) {
+				setSharedReasoningState({ effort: null, tokens: null });
+			} else {
+				syncReasoningUiState(null, null);
 			}
+		} else if (hasSingleModelSelection && defaultEffort !== null && paramEffort === null && paramTokens === null) {
+			setSharedReasoningState({ effort: defaultEffort, tokens: null });
+		} else if (paramTokens !== null && paramTokens > 0) {
+			setSharedReasoningState({ effort: null, tokens: paramTokens, syncParams: false });
+		} else {
+			syncReasoningUiState(paramEffort, paramTokens);
+		}
+	}
+
+	$: {
+		const selectionKey = getResolvedSelectedModelIds().join('|');
+		if (!reasoningSelectionTrackingReady) {
+			lastReasoningSelectionKey = selectionKey;
+		} else if (selectionKey !== lastReasoningSelectionKey) {
+			lastReasoningSelectionKey = selectionKey;
+			applyReasoningSelectionDefaults();
 		}
 	}
 
 	$: if (chatIdProp) {
 		(async () => {
 			loading = true;
+			resetReasoningSelectionTracking();
 
 			prompt = '';
 			files = [];
@@ -806,6 +930,7 @@
 				window.setTimeout(() => scrollToBottom(), 0);
 				const chatInput = document.getElementById('chat-input');
 				chatInput?.focus();
+				initializeReasoningSelectionTracking();
 			} else {
 				await goto('/');
 			}
@@ -1424,6 +1549,7 @@
 	const initNewChat = async (options: { fresh?: boolean } = {}) => {
 		const fresh = options.fresh ?? false;
 		freshChatActive = fresh;
+		resetReasoningSelectionTracking();
 
 		if ($page.url.searchParams.get('models')) {
 			selectedModels = $page.url.searchParams.get('models')?.split(',');
@@ -1658,6 +1784,7 @@
 
 		const chatInput = document.getElementById('chat-input');
 		setTimeout(() => chatInput?.focus(), 0);
+		initializeReasoningSelectionTracking();
 
 		if (fresh && $page.url.searchParams.get('fresh-chat') === 'true') {
 			const url = new URL($page.url);
@@ -3606,10 +3733,10 @@
 								{createMessagePair}
 								onChange={(input) => {
 									// 反向同步: ThinkingControl → Controls(params)
-									const newRE = input.reasoningEffort ?? null;
-									const newMT = input.maxThinkingTokens ?? null;
-									const oldRE = params?.reasoning_effort ?? null;
-									const oldMT = params?.max_thinking_tokens ?? null;
+									const newRE = normalizeReasoningEffortValue(input.reasoningEffort ?? null);
+									const newMT = normalizeThinkingTokenValue(input.maxThinkingTokens ?? null);
+									const oldRE = normalizeReasoningEffortValue(params?.reasoning_effort ?? null);
+									const oldMT = normalizeThinkingTokenValue(params?.max_thinking_tokens ?? null);
 									if (newRE !== oldRE || newMT !== oldMT) {
 										const finalMT = newRE ? null : newMT;
 										_lastSyncedEffort = newRE;
@@ -3624,8 +3751,8 @@
 										{ webSearchMode: input.webSearchMode },
 										getPreferredDefaultWebSearchMode()
 									);
-									reasoningEffort = input.reasoningEffort ?? null;
-									maxThinkingTokens = input.maxThinkingTokens ?? null;
+									reasoningEffort = newRE;
+									maxThinkingTokens = newMT;
 									persistChatSessionState();
 
 									if (input.prompt) {
