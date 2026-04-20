@@ -301,8 +301,8 @@
 	>
 		<Tooltip
 			content={tr(
-				'限制每次发送给模型的最近历史消息条数（不含系统提示词）。可节省 Token 消耗并避免旧消息污染当前话题。默认发送全部历史。',
-				'Limit how many recent history messages are sent to the model (system prompt excluded). Saves tokens and prevents older context from polluting the current topic. Default sends all.'
+				'限制每次发送给模型的最近非系统消息条数，当前输入也算 1 条，待生成回复不计入。可节省 Token 消耗并避免旧消息污染当前话题。默认发送全部历史。',
+				'Limit how many recent non-system messages are sent to the model. The current input counts as 1, and the pending assistant reply does not count. Saves tokens and prevents older context from polluting the current topic. Default sends all history.'
 			)}
 			placement="top-start"
 			className="inline-tooltip"

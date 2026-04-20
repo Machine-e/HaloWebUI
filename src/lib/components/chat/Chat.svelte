@@ -4025,9 +4025,30 @@
 		if (typeof maxHistoryMessages === 'number' && maxHistoryMessages > 0) {
 			const hasSystem = messages[0]?.role === 'system';
 			const systemMsg = hasSystem ? messages[0] : null;
-			const historyOnly = hasSystem ? messages.slice(1) : messages;
+			const historyOnly = (hasSystem ? messages.slice(1) : messages).filter(
+				(message, idx, arr) =>
+					!(
+						idx === arr.length - 1 &&
+						message?.id === responseMessageId &&
+						message?.role === 'assistant' &&
+						!`${message?.content ?? ''}`.trim()
+					)
+			);
 			const truncated = historyOnly.slice(-maxHistoryMessages);
-			messages = systemMsg ? [systemMsg, ...truncated] : truncated;
+			const fallbackUserMessage = historyOnly.findLast((message) => message?.role === 'user');
+			const limitedHistory =
+				truncated.some((message) => message?.role === 'user')
+					? truncated
+					: fallbackUserMessage
+						? [
+								...(truncated.some((message) => message?.id === fallbackUserMessage.id)
+									? []
+									: [fallbackUserMessage]),
+								...truncated
+							]
+						: truncated;
+
+			messages = systemMsg ? [systemMsg, ...limitedHistory] : limitedHistory;
 		}
 
 		const requestSkillIds = collectRequestSkillIds(messages);
