@@ -664,6 +664,7 @@ async def responses_events_to_chat_completions_sse(
     saw_tool_calls = False
     saw_content = False
     saw_text_content = False
+    saw_reasoning_content = False
     reasoning_delta_seen: set[str] = set()
 
     def _tool_state(stable_id: str, idx: int) -> Dict[str, Any]:
@@ -849,6 +850,7 @@ async def responses_events_to_chat_completions_sse(
                     _reasoning_event_key(event, _reasoning_event_family(event_type))
                 )
                 saw_content = True
+                saw_reasoning_content = True
                 yield f"data: {json.dumps(make_chunk(reasoning_content=delta_text), ensure_ascii=False)}\n\n"
             continue
 
@@ -867,6 +869,7 @@ async def responses_events_to_chat_completions_sse(
             reasoning_text = _extract_reasoning_event_text(event)
             if reasoning_text:
                 saw_content = True
+                saw_reasoning_content = True
                 yield f"data: {json.dumps(make_chunk(reasoning_content=reasoning_text), ensure_ascii=False)}\n\n"
             continue
 
@@ -958,23 +961,24 @@ async def responses_events_to_chat_completions_sse(
                         yield f"data: {json.dumps(make_chunk(tool_calls=tool_calls), ensure_ascii=False)}\n\n"
                     continue
 
-                # Reasoning output item: extract summary text from item.summary array.
+                # Reasoning output item: extract any human-readable reasoning text
+                # the upstream includes on the item itself.
                 if item_type == "reasoning" and event_type in ("response.output_item.done", "response.output_item.added"):
-                    log.info("[RESPONSES SSE] reasoning item: type=%s summary=%s FULL_ITEM=%s", item_type, json.dumps(item.get("summary"), ensure_ascii=False, default=str)[:500], json.dumps(item, ensure_ascii=False, default=str)[:2000])
-                    summary = item.get("summary")
-                    if isinstance(summary, list) and summary:
-                        parts = []
-                        for s in summary:
-                            if isinstance(s, dict):
-                                t = s.get("text") or ""
-                                if t:
-                                    parts.append(t)
-                            elif isinstance(s, str) and s:
-                                parts.append(s)
-                        reasoning_text = "\n".join(parts)
-                        if reasoning_text:
-                            saw_content = True
-                            yield f"data: {json.dumps(make_chunk(reasoning_content=reasoning_text), ensure_ascii=False)}\n\n"
+                    reasoning_text = _stringify_reasoning_content(
+                        item.get("summary") or item.get("content") or item
+                    )
+                    log.info(
+                        "[RESPONSES SSE] reasoning item: type=%s summary_len=%d content_len=%d has_encrypted=%s FULL_ITEM=%s",
+                        item_type,
+                        len(_stringify_reasoning_content(item.get("summary"))),
+                        len(_stringify_reasoning_content(item.get("content"))),
+                        bool(item.get("encrypted_content")),
+                        json.dumps(item, ensure_ascii=False, default=str)[:2000],
+                    )
+                    if reasoning_text:
+                        saw_content = True
+                        saw_reasoning_content = True
+                        yield f"data: {json.dumps(make_chunk(reasoning_content=reasoning_text), ensure_ascii=False)}\n\n"
                     continue
 
                 if item_type == "message" and not saw_text_content and event_type == "response.output_item.done":
@@ -997,13 +1001,32 @@ async def responses_events_to_chat_completions_sse(
 
         if event_type in ("response.completed", "response.done"):
             # Diagnostic: log output items in the final response
+            completed_reasoning_texts: List[str] = []
             if isinstance(event.get("response"), dict):
                 resp_obj = event["response"]
                 output_items = resp_obj.get("output", [])
                 if isinstance(output_items, list):
                     for oi_idx, oi in enumerate(output_items):
                         if isinstance(oi, dict) and oi.get("type") == "reasoning":
-                            log.info("[RESPONSES SSE] FINAL reasoning output[%d]: %s", oi_idx, json.dumps(oi, ensure_ascii=False, default=str)[:3000])
+                            reasoning_text = _stringify_reasoning_content(
+                                oi.get("summary") or oi.get("content") or oi
+                            )
+                            if reasoning_text:
+                                completed_reasoning_texts.append(reasoning_text)
+                            log.info(
+                                "[RESPONSES SSE] FINAL reasoning output[%d]: summary_len=%d content_len=%d has_encrypted=%s FULL_ITEM=%s",
+                                oi_idx,
+                                len(_stringify_reasoning_content(oi.get("summary"))),
+                                len(_stringify_reasoning_content(oi.get("content"))),
+                                bool(oi.get("encrypted_content")),
+                                json.dumps(oi, ensure_ascii=False, default=str)[:3000],
+                            )
+            if completed_reasoning_texts and not saw_reasoning_content:
+                reasoning_text = "\n".join(part for part in completed_reasoning_texts if part)
+                if reasoning_text:
+                    saw_content = True
+                    saw_reasoning_content = True
+                    yield f"data: {json.dumps(make_chunk(reasoning_content=reasoning_text), ensure_ascii=False)}\n\n"
             # Attach usage when available (some proxies include it here).
             usage = None
             if isinstance(event.get("response"), dict):
