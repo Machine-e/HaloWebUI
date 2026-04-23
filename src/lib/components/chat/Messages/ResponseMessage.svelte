@@ -1059,11 +1059,16 @@
 						{/if}
 
 						{#if message?.files && message.files?.filter((f) => f.type === 'image').length > 0}
-							<div class="my-1 w-full flex overflow-x-auto gap-2 flex-wrap">
+							<div class="my-1 flex overflow-x-auto gap-2 flex-wrap">
 								{#each message.files as file}
 									<div>
 										{#if file.type === 'image'}
-											<Image src={file.url} alt={message.content} />
+											<Image
+												src={file.url}
+												alt={message.content}
+												className="outline-hidden focus:outline-hidden"
+												imageClassName="rounded-lg chat-message-image"
+											/>
 										{:else}
 											<FileItem
 												item={file}

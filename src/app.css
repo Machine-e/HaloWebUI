@@ -469,6 +469,39 @@ textarea::placeholder {
 	@apply prose dark:prose-invert prose-blockquote:border-s-gray-100 prose-blockquote:dark:border-gray-800 prose-blockquote:border-s-2 prose-blockquote:not-italic prose-blockquote:font-normal prose-headings:font-semibold prose-hr:my-4 prose-hr:border-gray-100 prose-hr:dark:border-gray-800 prose-p:my-0 prose-img:my-1 prose-headings:my-1 prose-pre:my-0 prose-table:my-0 prose-blockquote:my-0 prose-ul:-my-0 prose-ol:-my-0 prose-li:-my-0 whitespace-pre-line;
 }
 
+/* 聊天消息中的图片尺寸限制 */
+.chat-message-image {
+	max-width: 480px;
+	max-height: 480px;
+	width: auto;
+	height: auto;
+	object-fit: contain;
+}
+
+/* 移动端响应式 */
+@media (max-width: 768px) {
+	.chat-message-image {
+		max-width: 320px;
+		max-height: 400px;
+	}
+}
+
+/* Markdown prose 中的图片也应用相同限制 */
+.markdown-prose img {
+	max-width: 480px !important;
+	max-height: 480px !important;
+	width: auto !important;
+	height: auto !important;
+	object-fit: contain;
+}
+
+@media (max-width: 768px) {
+	.markdown-prose img {
+		max-width: 320px !important;
+		max-height: 400px !important;
+	}
+}
+
 .markdown-prose
 	:where(h1):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
 	font-size: 1.5625rem;
