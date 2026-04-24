@@ -440,6 +440,81 @@ def test_runtime_image_models_keep_duplicate_ids_with_distinct_selection_keys(mo
     assert len({model["selection_key"] for model in models}) == 2
 
 
+def test_runtime_image_selection_key_selects_duplicate_model_connection(monkeypatch):
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                config=SimpleNamespace(
+                    IMAGE_GENERATION_ENGINE="openai",
+                    ENABLE_IMAGE_GENERATION_SHARED_KEY=False,
+                    IMAGES_OPENAI_API_BASE_URL="",
+                    IMAGES_OPENAI_API_KEY="",
+                    IMAGES_OPENAI_API_FORCE_MODE=False,
+                )
+            )
+        )
+    )
+    user = SimpleNamespace(id="user-1")
+    same_base_url = "https://relay.example.com/v1"
+
+    monkeypatch.setattr(
+        images_router.openai_router,
+        "_get_openai_user_config",
+        lambda _user: (
+            [same_base_url, same_base_url],
+            ["key-a", "key-b"],
+            {
+                "0": {"remark": "A"},
+                "1": {"remark": "B"},
+            },
+        ),
+    )
+
+    async def fake_discover(_request, _user, engine, source):
+        assert engine == "openai"
+        return [
+            images_router._build_image_model_entry(
+                model_id="gpt-image-2",
+                name="gpt-image-2",
+                generation_mode="openai_images",
+                detection_method="metadata",
+                supports_background=False,
+                supports_batch=True,
+                size_mode="exact",
+                text_output_supported=False,
+                source=source,
+            )
+        ]
+
+    monkeypatch.setattr(images_router, "_discover_image_models_for_source", fake_discover)
+
+    sources = images_router._list_image_provider_sources(
+        request,
+        user,
+        "openai",
+        context="runtime",
+        credential_source="auto",
+    )
+    selected_model = images_router._build_image_model_selection_key(
+        "gpt-image-2",
+        sources[1],
+    )
+
+    source, discovered_models = asyncio.run(
+        _select_runtime_image_provider_source(
+            request,
+            user,
+            "openai",
+            selected_model=selected_model,
+        )
+    )
+
+    assert source is not None
+    assert source["connection_index"] == 1
+    assert source["key"] == "key-b"
+    assert discovered_models[0]["id"] == "gpt-image-2"
+
+
 def test_runtime_image_models_keep_successful_sources_when_one_source_fails(monkeypatch):
     request = SimpleNamespace(
         app=SimpleNamespace(

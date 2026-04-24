@@ -1175,6 +1175,57 @@ def _build_image_model_selection_key(
     )
 
 
+def _split_image_model_selection_key(
+    value: str,
+) -> tuple[Optional[dict[str, Any]], str]:
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return None, ""
+
+    parts = raw_value.split("::", 4)
+    if len(parts) != 5:
+        return None, raw_value
+
+    provider, effective_source, connection_index, base_hash, model_id = parts
+    if not provider or not effective_source or not base_hash or not model_id:
+        return None, raw_value
+
+    return (
+        {
+            "provider": provider,
+            "effective_source": effective_source,
+            "connection_index": connection_index,
+            "base_hash": base_hash,
+        },
+        model_id,
+    )
+
+
+def _image_source_matches_selection_hint(
+    source: dict[str, Any], hint: Optional[dict[str, Any]]
+) -> bool:
+    if not hint:
+        return False
+
+    base_url = str(source.get("base_url") or "").strip()
+    base_hash = hashlib.sha1(base_url.encode("utf-8")).hexdigest()[:12] if base_url else ""
+    source_connection_index = source.get("connection_index")
+    normalized_source_connection_index = (
+        str(source_connection_index).strip()
+        if source_connection_index is not None
+        else ""
+    )
+
+    return (
+        str(source.get("provider") or "").strip() == str(hint.get("provider") or "").strip()
+        and str(source.get("effective_source") or "").strip()
+        == str(hint.get("effective_source") or "").strip()
+        and normalized_source_connection_index
+        == str(hint.get("connection_index") or "").strip()
+        and base_hash == str(hint.get("base_hash") or "").strip()
+    )
+
+
 def _build_image_model_entry(
     *,
     model_id: str,
@@ -1865,7 +1916,7 @@ async def _select_runtime_image_provider_source(
     if not candidate_sources:
         return None, None
 
-    normalized_model = str(selected_model or "").strip()
+    selection_hint, normalized_model = _split_image_model_selection_key(selected_model)
     first_success: Optional[tuple[dict[str, Any], list[dict[str, Any]]]] = None
     first_error: Optional[HTTPException] = None
 
@@ -1885,6 +1936,12 @@ async def _select_runtime_image_provider_source(
         if normalized_model:
             if any(
                 str(model.get("id") or "").strip() == normalized_model
+                and (
+                    not selection_hint
+                    or str(model.get("selection_key") or "").strip()
+                    == str(selected_model or "").strip()
+                    or _image_source_matches_selection_hint(source, selection_hint)
+                )
                 for model in discovered_models
             ):
                 return source, discovered_models
@@ -3747,6 +3804,7 @@ async def image_generations(
     selected_model = str(
         form_data.model or request.app.state.config.IMAGE_GENERATION_MODEL or ""
     ).strip()
+    _selection_hint, selected_model = _split_image_model_selection_key(selected_model)
 
     r = None
     try:

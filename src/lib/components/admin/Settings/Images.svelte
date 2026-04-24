@@ -37,8 +37,9 @@
 	let imageGenerationConfig = null;
 
 	let models = null;
+	const getImageModelOptionValue = (model) => `${model?.selection_key ?? model?.id ?? ''}`.trim();
 	$: imageModelOptions = (models ?? []).map((model) => ({
-		value: `${model?.id ?? ''}`,
+		value: getImageModelOptionValue(model),
 		label: `${model?.name || model?.id || ''}`
 	}));
 
@@ -289,13 +290,24 @@
 			return;
 		}
 
-		const availableModelIds = new Set(
+		const availableModelValues = new Set(
 			normalizedModels
-				.map((model) => `${model?.id ?? ''}`.trim())
+				.map((model) => getImageModelOptionValue(model))
 				.filter(Boolean)
 		);
 
-		if (availableModelIds.has(currentModel)) {
+		if (availableModelValues.has(currentModel)) {
+			return;
+		}
+
+		const matchingLegacyModel = normalizedModels.find(
+			(model) => `${model?.id ?? ''}`.trim() === currentModel
+		);
+		if (matchingLegacyModel) {
+			imageGenerationConfig = {
+				...imageGenerationConfig,
+				MODEL: getImageModelOptionValue(matchingLegacyModel)
+			};
 			return;
 		}
 
