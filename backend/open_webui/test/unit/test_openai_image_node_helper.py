@@ -22,85 +22,15 @@ def _make_user():
     )
 
 
-def test_build_node_openai_image_request_manifest_json():
-    manifest = images_router._build_node_openai_image_request_manifest(
-        url="https://api.openai.com/v1/images/generations",
-        headers={"Authorization": "Bearer test"},
-        request_kind="json",
-        json_body={"model": "gpt-image-2", "prompt": "cat"},
-        response_body_path="/tmp/body.json",
-    )
-
-    assert manifest["url"] == "https://api.openai.com/v1/images/generations"
-    assert manifest["request_kind"] == "json"
-    assert manifest["json_body"]["model"] == "gpt-image-2"
-    assert manifest["response_body_path"] == "/tmp/body.json"
-
-
 def test_node_openai_image_helper_does_not_require_open_as_blob():
-    helper_source = images_router.OPENAI_IMAGE_NODE_HELPER_PATH.read_text(encoding="utf-8")
+    helper_path = _BACKEND_DIR / "open_webui" / "utils" / "openai-image-fetch.mjs"
+    helper_source = helper_path.read_text(encoding="utf-8")
 
     assert "openAsBlob" not in helper_source
     assert "new Blob" in helper_source
 
 
-def test_run_node_openai_image_request_reads_structured_result(tmp_path, monkeypatch):
-    helper_path = tmp_path / "openai-image-fetch.mjs"
-    helper_path.write_text("// helper placeholder", encoding="utf-8")
-    monkeypatch.setattr(images_router, "OPENAI_IMAGE_NODE_HELPER_PATH", helper_path)
-    monkeypatch.setattr(images_router.shutil, "which", lambda name: "/usr/bin/node")
-
-    def fake_run(cmd, capture_output, text, env):
-        manifest_path = pathlib.Path(cmd[2])
-        result_path = pathlib.Path(cmd[3])
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-
-        assert manifest["request_kind"] == "multipart"
-        assert manifest["files"][0]["field_name"] == "image"
-        assert pathlib.Path(manifest["files"][0]["path"]).read_bytes() == b"png-bytes"
-
-        pathlib.Path(manifest["response_body_path"]).write_text(
-            '{"data":[{"b64_json":"aGVsbG8="}]}',
-            encoding="utf-8",
-        )
-        result_path.write_text(
-            json.dumps(
-                {
-                    "status": 200,
-                    "headers": {"content-type": "application/json"},
-                    "elapsed_ms": 123,
-                    "response_body_path": manifest["response_body_path"],
-                    "error_type": None,
-                    "error_message": None,
-                }
-            ),
-            encoding="utf-8",
-        )
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-    monkeypatch.setattr(images_router.subprocess, "run", fake_run)
-
-    result = images_router._run_node_openai_image_request(
-        url="https://api.openai.com/v1/images/edits",
-        headers={"Authorization": "Bearer test"},
-        request_kind="multipart",
-        form_fields={"model": "gpt-image-2", "prompt": "cat", "n": 1},
-        files=[
-            {
-                "field_name": "image",
-                "filename": "generated-image.png",
-                "mime": "image/png",
-                "data": b"png-bytes",
-            }
-        ],
-    )
-
-    assert result["status"] == 200
-    assert result["headers"]["content-type"] == "application/json"
-    assert result["response_body"] == '{"data":[{"b64_json":"aGVsbG8="}]}'
-
-
-def test_generate_via_openai_images_endpoint_uses_node_helper(monkeypatch):
+def test_generate_via_openai_images_endpoint_uses_native_request(monkeypatch):
     captured = {}
 
     async def fake_send(**kwargs):
@@ -119,7 +49,7 @@ def test_generate_via_openai_images_endpoint_uses_node_helper(monkeypatch):
             ),
         }
 
-    monkeypatch.setattr(images_router, "_send_openai_image_request_via_node", fake_send)
+    monkeypatch.setattr(images_router, "_send_openai_image_request", fake_send)
     monkeypatch.setattr(
         images_router,
         "upload_image",
@@ -145,6 +75,7 @@ def test_generate_via_openai_images_endpoint_uses_node_helper(monkeypatch):
 
     assert captured["request_kind"] == "json"
     assert captured["json_body"]["model"] == "gpt-image-2"
+    assert "size" not in captured["json_body"]
     assert result == [{"url": "/images/generated.png"}]
 
 
@@ -167,7 +98,7 @@ def test_generate_via_openai_images_endpoint_uses_configured_size(monkeypatch):
             ),
         }
 
-    monkeypatch.setattr(images_router, "_send_openai_image_request_via_node", fake_send)
+    monkeypatch.setattr(images_router, "_send_openai_image_request", fake_send)
     monkeypatch.setattr(
         images_router,
         "upload_image",
@@ -214,7 +145,7 @@ def test_generate_via_openai_images_endpoint_strips_connection_prefix(monkeypatc
             ),
         }
 
-    monkeypatch.setattr(images_router, "_send_openai_image_request_via_node", fake_send)
+    monkeypatch.setattr(images_router, "_send_openai_image_request", fake_send)
     monkeypatch.setattr(
         images_router,
         "upload_image",
@@ -260,7 +191,7 @@ def test_generate_via_openai_images_endpoint_strips_internal_prefix_without_conf
             ),
         }
 
-    monkeypatch.setattr(images_router, "_send_openai_image_request_via_node", fake_send)
+    monkeypatch.setattr(images_router, "_send_openai_image_request", fake_send)
     monkeypatch.setattr(
         images_router,
         "upload_image",
@@ -287,7 +218,7 @@ def test_generate_via_openai_images_endpoint_strips_internal_prefix_without_conf
     assert captured["json_body"]["model"] == "gpt-image-2"
 
 
-def test_generate_via_openai_image_edits_endpoint_uses_node_helper(monkeypatch):
+def test_generate_via_openai_image_edits_endpoint_uses_native_request(monkeypatch):
     captured = {}
 
     async def fake_send(**kwargs):
@@ -306,7 +237,7 @@ def test_generate_via_openai_image_edits_endpoint_uses_node_helper(monkeypatch):
             ),
         }
 
-    monkeypatch.setattr(images_router, "_send_openai_image_request_via_node", fake_send)
+    monkeypatch.setattr(images_router, "_send_openai_image_request", fake_send)
     monkeypatch.setattr(
         images_router,
         "upload_image",
@@ -339,6 +270,7 @@ def test_generate_via_openai_image_edits_endpoint_uses_node_helper(monkeypatch):
 
     assert captured["request_kind"] == "multipart"
     assert captured["form_fields"]["model"] == "gpt-image-2"
+    assert not any(key.lower() == "content-type" for key in captured["headers"])
     assert captured["files"][0]["field_name"] == "image"
     assert captured["files"][0]["mime"] == "image/png"
     assert captured["files"][0]["data"] == b"source"
@@ -364,7 +296,7 @@ def test_generate_via_openai_image_edits_endpoint_strips_connection_prefix(monke
             ),
         }
 
-    monkeypatch.setattr(images_router, "_send_openai_image_request_via_node", fake_send)
+    monkeypatch.setattr(images_router, "_send_openai_image_request", fake_send)
     monkeypatch.setattr(
         images_router,
         "upload_image",
