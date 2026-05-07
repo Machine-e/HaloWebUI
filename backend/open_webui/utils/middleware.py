@@ -74,6 +74,7 @@ from open_webui.utils.image_generation_options import (
     CHAT_IMAGE_GENERATION_OPTION_KEYS,
     sanitize_chat_image_generation_options,
 )
+from open_webui.utils.error_handling import build_error_detail
 
 
 from open_webui.models.users import UserModel
@@ -2895,7 +2896,21 @@ async def chat_image_generation_handler(
     await __event_emitter__(
         {
             "type": "status",
-            "data": {"description": "Generating an image", "done": False},
+            "data": {
+                "action": "image_generation",
+                "description": "Image request created",
+                "done": True,
+            },
+        }
+    )
+    await __event_emitter__(
+        {
+            "type": "status",
+            "data": {
+                "action": "image_generation",
+                "description": "Waiting for upstream image service",
+                "done": False,
+            },
         }
     )
 
@@ -2962,7 +2977,11 @@ async def chat_image_generation_handler(
         await __event_emitter__(
             {
                 "type": "status",
-                "data": {"description": "Generated an image", "done": True},
+                "data": {
+                    "action": "image_generation",
+                    "description": "Generated an image",
+                    "done": True,
+                },
             }
         )
         image_usage = next(
@@ -2992,18 +3011,34 @@ async def chat_image_generation_handler(
         }
     except Exception as e:
         log.exception(e)
+        error_detail = build_error_detail(
+            e, default="An error occurred while generating an image"
+        )
         await __event_emitter__(
             {
                 "type": "status",
                 "data": {
-                    "description": f"An error occurred while generating an image",
+                    "action": "image_generation",
+                    "description": "Image generation failed",
                     "done": True,
+                    "error": True,
+                },
+            }
+        )
+        await __event_emitter__(
+            {
+                "type": "chat:completion",
+                "data": {
+                    "done": True,
+                    "content": "",
+                    "error": {"content": error_detail},
+                    "completedAt": int(time.time()),
                 },
             }
         )
         __metadata__["local_response"] = {
             "error": {
-                "detail": str(e),
+                "detail": error_detail,
             }
         }
 

@@ -4486,6 +4486,52 @@ def _raise_openai_image_request_error(
     )
 
 
+def _parse_upstream_error_body(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+
+    text = value.strip()
+    if not text:
+        return value
+
+    try:
+        return json.loads(text)
+    except Exception:
+        return value
+
+
+def _build_openai_image_upstream_error_detail(
+    response_status: Any,
+    response_body: Any,
+    *,
+    default: str,
+    route_label: str = "",
+) -> str:
+    parsed_body = _parse_upstream_error_body(response_body)
+    try:
+        status_code = int(response_status)
+    except Exception:
+        status_code = None
+
+    body_dict = parsed_body if isinstance(parsed_body, dict) else {}
+    error_code = body_dict.get("error_code") or body_dict.get("code")
+    title = str(body_dict.get("title") or "")
+    is_cloudflare_timeout = bool(
+        status_code == 524
+        or str(error_code or "").strip() == "524"
+        or "error 524" in title.lower()
+    )
+    if is_cloudflare_timeout:
+        route = str(route_label or "").strip()
+        route_prefix = f"{route} 请求" if route else "图片请求"
+        return (
+            f"上游图片服务超时：{route_prefix}已发出，但上游 120 秒内没有返回完整结果，"
+            "被 Cloudflare 截断。请稍后重试，或切换到其他接口模式/连接。"
+        )
+
+    return build_error_detail(parsed_body, default=default)
+
+
 def _get_openai_images_edit_url(base_url: str, api_config: Optional[dict]) -> str:
     normalized_url = _normalize_base_url(base_url)
     if openai_router._is_force_mode_connection(normalized_url, api_config):
@@ -4667,9 +4713,11 @@ async def _generate_via_openai_image_edits_endpoint(
     if response_status >= 400:
         raise HTTPException(
             status_code=response_status,
-            detail=build_error_detail(
+            detail=_build_openai_image_upstream_error_detail(
+                response_status,
                 response_body_text,
                 default="Failed to edit image via upstream /images/edits",
+                route_label="edits",
             ),
         )
 
@@ -4747,9 +4795,11 @@ async def _generate_via_openai_images_endpoint(
     if response_status >= 400:
         raise HTTPException(
             status_code=response_status,
-            detail=build_error_detail(
+            detail=_build_openai_image_upstream_error_detail(
+                response_status,
                 response_body_text,
                 default="Failed to generate image via upstream /images/generations",
+                route_label="generations",
             ),
         )
 
@@ -4968,9 +5018,11 @@ async def _generate_via_openai_chat_image(
                     error_body = response.text
                     raise HTTPException(
                         status_code=response.status_code,
-                        detail=build_error_detail(
+                        detail=_build_openai_image_upstream_error_detail(
+                            response.status_code,
                             error_body,
                             default="Failed to generate image via upstream /responses",
+                            route_label="responses",
                         ),
                     )
 
@@ -5024,9 +5076,11 @@ async def _generate_via_openai_chat_image(
                         error_body = (await response.aread()).decode("utf-8", errors="replace")
                         raise HTTPException(
                             status_code=response.status_code,
-                            detail=build_error_detail(
+                            detail=_build_openai_image_upstream_error_detail(
+                                response.status_code,
                                 error_body,
                                 default="Failed to generate image via upstream chat/completions",
+                                route_label="chat",
                             ),
                         )
 

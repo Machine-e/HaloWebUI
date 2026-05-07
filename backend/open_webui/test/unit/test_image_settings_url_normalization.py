@@ -15,6 +15,7 @@ from open_webui.routers.images import _apply_image_model_regex_filter  # noqa: E
 from open_webui.routers.images import _discover_image_models  # noqa: E402
 from open_webui.routers.images import _normalize_image_provider_base_url  # noqa: E402
 from open_webui.routers.images import _generate_via_xai_images  # noqa: E402
+from open_webui.routers.images import _build_openai_image_upstream_error_detail  # noqa: E402
 from open_webui.routers.images import _resolve_image_provider_source  # noqa: E402
 from open_webui.routers.images import _resolve_openai_image_request_route  # noqa: E402
 from open_webui.routers.images import _select_runtime_image_provider_source  # noqa: E402
@@ -73,10 +74,68 @@ def test_chat_image_generation_handler_removes_legacy_size_before_generate_form(
     assert form_data.size is None
     assert form_data.image_size == "1K"
     assert form_data.aspect_ratio == "16:9"
-    assert events[0]["data"]["description"] == "Generating an image"
+    assert events[0]["data"]["description"] == "Image request created"
+    assert events[1]["data"]["description"] == "Waiting for upstream image service"
     assert metadata["local_response"]["choices"][0]["message"]["images"] == [
         {"type": "image", "url": "/api/v1/files/generated"}
     ]
+
+
+def test_chat_image_generation_handler_emits_readable_error(monkeypatch):
+    events = []
+
+    async def fake_image_generations(request, form_data, user):
+        raise HTTPException(status_code=524, detail="上游图片服务超时：edits 请求已发出")
+
+    async def fake_event_emitter(event):
+        events.append(event)
+
+    monkeypatch.setattr(middleware, "image_generations", fake_image_generations)
+
+    metadata = {"image_generation_options": {"model": "gpt-image-2"}}
+
+    asyncio.run(
+        middleware.chat_image_generation_handler(
+            request=SimpleNamespace(),
+            form_data={"messages": [{"role": "user", "content": "改一下这张图"}]},
+            extra_params={
+                "__event_emitter__": fake_event_emitter,
+                "__metadata__": metadata,
+            },
+            user=SimpleNamespace(id="user-1", role="admin"),
+        )
+    )
+
+    assert events[-2] == {
+        "type": "status",
+        "data": {
+            "action": "image_generation",
+            "description": "Image generation failed",
+            "done": True,
+            "error": True,
+        },
+    }
+    assert events[-1]["type"] == "chat:completion"
+    assert events[-1]["data"]["error"]["content"] == "上游图片服务超时：edits 请求已发出"
+    assert metadata["local_response"]["error"]["detail"] == "上游图片服务超时：edits 请求已发出"
+
+
+def test_openai_image_524_error_is_user_readable():
+    detail = _build_openai_image_upstream_error_detail(
+        524,
+        {
+            "title": "Error 524: A timeout occurred",
+            "retry_after": 120,
+            "cloudflare_error": True,
+        },
+        default="Failed to edit image via upstream /images/edits",
+        route_label="edits",
+    )
+
+    assert "edits 请求已发出" in detail
+    assert "120 秒" in detail
+    assert "Cloudflare" in detail
+    assert "title" not in detail
 
 
 def test_openai_image_settings_auto_append_v1():

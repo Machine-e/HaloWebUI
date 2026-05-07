@@ -98,7 +98,7 @@
 
 		// If all steps done or no statuses, add a "waiting" step
 		const lastVisible = visibleStatuses[visibleStatuses.length - 1];
-		if (!lastVisible || lastVisible.done !== false) {
+		if ((!lastVisible || lastVisible.done !== false) && !lastVisible?.error) {
 			result.push({
 				label: $i18n.t('Waiting for model response'),
 				completed: false
