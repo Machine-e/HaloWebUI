@@ -158,7 +158,7 @@ export const downloadDatabase = async (token: string) => {
 	}
 };
 
-export const inspectDatabaseRestore = async (token: string, file: File) => {
+export const inspectDatabaseRestore = async (token: string, file: File, signal?: AbortSignal) => {
 	let error = null;
 	const formData = new FormData();
 	formData.append('file', file);
@@ -168,7 +168,8 @@ export const inspectDatabaseRestore = async (token: string, file: File) => {
 		headers: {
 			Authorization: `Bearer ${token}`
 		},
-		body: formData
+		body: formData,
+		signal
 	})
 		.then(parseJsonResponse)
 		.catch((err) => {

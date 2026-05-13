@@ -89,6 +89,7 @@
 			has_user_table?: boolean;
 		};
 		confirmationPhrase: string;
+		confirmOverwrite: boolean;
 	};
 
 	const createInitialOperationState = (): OperationState => ({
@@ -161,11 +162,11 @@
 	let chatImportDraft: ChatImportDraft | null = null;
 	let configImportDraft: ConfigImportDraft | null = null;
 	let databaseRestoreDraft: DatabaseRestoreDraft | null = null;
-	let databaseRestoreConfirmationInput = '';
 
 	let chatImportInputElement: HTMLInputElement;
 	let configImportInputElement: HTMLInputElement;
 	let databaseRestoreInputElement: HTMLInputElement;
+	let databaseRestoreInspectionController: AbortController | null = null;
 
 	const btnNeutral =
 		'shrink-0 inline-flex items-center justify-center gap-2 h-8 px-4 text-xs font-medium rounded-lg glass-input text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/80 active:scale-[0.97] transition-all disabled:cursor-not-allowed disabled:opacity-60';
@@ -183,8 +184,7 @@
 		'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium';
 	const modeButtonBase =
 		'inline-flex items-center justify-center h-8 rounded-lg px-3 text-xs font-medium transition-all border';
-	const replaceConfirmationInputClass =
-		'w-full rounded-lg border border-red-200/70 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-200 dark:border-red-800/40 dark:bg-gray-900/70 dark:text-gray-100 dark:focus:border-red-700 dark:focus:ring-red-900/40';
+	const DATABASE_RESTORE_INSPECT_TIMEOUT_MS = 120000;
 
 	const setOperationState = (
 		key: OperationKey,
@@ -318,7 +318,17 @@
 
 	const resetDatabaseRestoreDraft = () => {
 		databaseRestoreDraft = null;
-		databaseRestoreConfirmationInput = '';
+	};
+
+	const cancelDatabaseRestoreInspection = () => {
+		databaseRestoreInspectionController?.abort();
+		databaseRestoreInspectionController = null;
+		setOperationState(
+			'databaseRestore',
+			'warning',
+			$i18n.t('Database backup inspection cancelled.'),
+			$i18n.t('No restore has been performed.')
+		);
 	};
 
 	const handleArchivedChatsChange = async () => {
@@ -664,6 +674,14 @@
 		const file = target?.files?.[0];
 		if (!file) return;
 
+		databaseRestoreInspectionController?.abort();
+		resetDatabaseRestoreDraft();
+		const controller = new AbortController();
+		databaseRestoreInspectionController = controller;
+		const timeoutId = window.setTimeout(() => {
+			controller.abort();
+		}, DATABASE_RESTORE_INSPECT_TIMEOUT_MS);
+
 		setOperationState(
 			'databaseRestore',
 			'validating',
@@ -672,16 +690,16 @@
 		);
 
 		try {
-			const response = await inspectDatabaseRestore(localStorage.token, file);
+			const response = await inspectDatabaseRestore(localStorage.token, file, controller.signal);
 			databaseRestoreDraft = {
 				fileName: response.filename,
 				fileSize: response.size,
 				token: response.token,
 				warnings: response.warnings ?? [],
 				summary: response.summary,
-				confirmationPhrase: response.confirmation
+				confirmationPhrase: response.confirmation,
+				confirmOverwrite: false
 			};
-			databaseRestoreConfirmationInput = '';
 
 			const detail = $i18n.t('Found {{count}} tables in the backup.', {
 				count: response.summary?.table_count ?? 0
@@ -693,6 +711,18 @@
 				detail
 			);
 		} catch (error) {
+			if (controller.signal.aborted) {
+				if (databaseRestoreInspectionController !== controller) return;
+
+				setOperationState(
+					'databaseRestore',
+					'warning',
+					$i18n.t('Database backup inspection cancelled.'),
+					$i18n.t('No restore has been performed.')
+				);
+				return;
+			}
+
 			resetDatabaseRestoreDraft();
 			const detail = formatError(error, $i18n.t('Failed to inspect database backup.'));
 			setOperationState(
@@ -703,6 +733,10 @@
 			);
 			toast.error(detail);
 		} finally {
+			window.clearTimeout(timeoutId);
+			if (databaseRestoreInspectionController === controller) {
+				databaseRestoreInspectionController = null;
+			}
 			if (target) {
 				target.value = '';
 			}
@@ -712,18 +746,8 @@
 	const runDatabaseRestore = async () => {
 		if (!databaseRestoreDraft) return;
 
-		if (
-			databaseRestoreConfirmationInput.trim() !==
-			databaseRestoreDraft.confirmationPhrase
-		) {
-			setOperationState(
-				'databaseRestore',
-				'warning',
-				$i18n.t('Confirmation phrase does not match.'),
-				$i18n.t('Type `{{confirmation}}` to continue.', {
-					confirmation: databaseRestoreDraft.confirmationPhrase
-				})
-			);
+		if (!databaseRestoreDraft.confirmOverwrite) {
+			databaseRestoreDraft = { ...databaseRestoreDraft, confirmOverwrite: true };
 			return;
 		}
 
@@ -737,7 +761,7 @@
 		try {
 			await restoreDatabase(localStorage.token, {
 				token: databaseRestoreDraft.token,
-				confirmation: databaseRestoreConfirmationInput.trim()
+				confirmation: databaseRestoreDraft.confirmationPhrase
 			});
 
 			setOperationState(
@@ -1357,23 +1381,13 @@
 											</div>
 										{/if}
 
-										<div class="space-y-2">
-											<div class="text-xs font-medium text-red-700 dark:text-red-300">
-												{$i18n.t('Confirmation phrase')}
-											</div>
-											<input
-												class={replaceConfirmationInputClass}
-												type="text"
-												bind:value={databaseRestoreConfirmationInput}
-												placeholder={$i18n.t('Type `{{confirmation}}` to continue.', {
-													confirmation: databaseRestoreDraft.confirmationPhrase
-												})}
-											/>
-											<div class="text-xs text-red-600/80 dark:text-red-300/80">
-												{$i18n.t('Type `{{confirmation}}` to continue.', {
-													confirmation: databaseRestoreDraft.confirmationPhrase
-												})}
-											</div>
+										<div class="rounded-xl border border-red-200/70 bg-white/80 px-3 py-2 text-xs text-red-700 dark:border-red-800/40 dark:bg-gray-900/60 dark:text-red-300">
+											{$i18n.t('Restoring this backup will completely overwrite current system data.')}
+											{#if databaseRestoreDraft.confirmOverwrite}
+												<div class="mt-1 font-medium">
+													{$i18n.t('Click Confirm restore to continue.')}
+												</div>
+											{/if}
 										</div>
 
 										<div class="flex items-center justify-end gap-2">
@@ -1381,7 +1395,7 @@
 												{$i18n.t('Cancel')}
 											</button>
 											<button class={btnDanger} type="button" on:click={runDatabaseRestore} disabled={operationStates.databaseRestore.phase === 'running'}>
-												{$i18n.t('Start restore')}
+												{$i18n.t(databaseRestoreDraft.confirmOverwrite ? 'Confirm restore' : 'Start restore')}
 											</button>
 										</div>
 									</div>
@@ -1393,6 +1407,13 @@
 									title={operationStates.databaseRestore.title}
 									detail={operationStates.databaseRestore.detail}
 								/>
+								{#if operationStates.databaseRestore.phase === 'validating'}
+									<div class="flex justify-end">
+										<button class={btnSmall} type="button" on:click={cancelDatabaseRestoreInspection}>
+											{$i18n.t('Cancel')}
+										</button>
+									</div>
+								{/if}
 							</div>
 
 							<div class="glass-item px-4 py-3 space-y-3 md:col-span-2">
