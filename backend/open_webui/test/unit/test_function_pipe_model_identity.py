@@ -68,6 +68,47 @@ def test_manifold_pipe_models_get_connection_identity_and_display_suffix(monkeyp
     assert "Relay AGPT-4o" in model["legacy_ids"]
 
 
+def test_official_style_pipe_uses_function_name_as_connection_suffix(monkeypatch):
+    pipe = _pipe_row("official_pipe", "Official Pipe")
+
+    class OfficialPipe:
+        def pipes(self):
+            return [
+                {"id": "model_id_1", "name": "model_1"},
+                {"id": "model_id_2", "name": "model_2"},
+                {"id": "model_id_3", "name": "model_3"},
+            ]
+
+        async def pipe(self, body: dict):
+            return f"{body.get('model', '')}: Hello, World!"
+
+    monkeypatch.setattr(
+        functions_module.Functions,
+        "get_functions_by_type",
+        lambda type, active_only=False: [pipe],
+    )
+    monkeypatch.setattr(
+        functions_module,
+        "get_function_module_by_id",
+        lambda request, pipe_id: OfficialPipe(),
+    )
+
+    models = asyncio.run(get_function_models(SimpleNamespace()))
+
+    assert [model["name"] for model in models] == ["model_1", "model_2", "model_3"]
+    assert {model["connection_name"] for model in models} == {"Official Pipe"}
+    assert [model["id"] for model in models] == [
+        "official_pipe.model_id_1",
+        "official_pipe.model_id_2",
+        "official_pipe.model_id_3",
+    ]
+    assert [model["selection_id"] for model in models] == [
+        "modelref::pipe::function::id:official_pipe::model_id_1",
+        "modelref::pipe::function::id:official_pipe::model_id_2",
+        "modelref::pipe::function::id:official_pipe::model_id_3",
+    ]
+
+
 def test_duplicate_pipe_submodels_keep_unique_selection_ids_and_ambiguous_bare_name(
     monkeypatch,
 ):

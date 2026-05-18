@@ -1397,6 +1397,24 @@
 	const getSelectedModelsStorageKey = () =>
 		buildScopedStorageKey(getLegacySelectedModelsStorageKey());
 
+	const removeSessionSelectedModels = () => {
+		if (typeof window === 'undefined') {
+			return;
+		}
+		const scopedKey = getSelectedModelsStorageKey();
+		const legacyKey = getLegacySelectedModelsStorageKey();
+		sessionStorage.removeItem(scopedKey);
+		if (legacyKey !== scopedKey) {
+			sessionStorage.removeItem(legacyKey);
+		}
+	};
+
+	const getNewChatStateInheritanceEnabled = (settingsSource = $settings) =>
+		settingsSource?.newChatInheritsPreviousState ?? false;
+
+	const shouldRestoreChatSessionState = (id: string | null | undefined) =>
+		Boolean(id) || getNewChatStateInheritanceEnabled();
+
 	const safeParseStoredJson = <T,>(rawValue: string | null | undefined, fallback: T): T => {
 		if (!rawValue) {
 			return fallback;
@@ -1590,6 +1608,10 @@
 
 	const restoreChatSessionState = (id: string | null | undefined = $chatId || chatIdProp) => {
 		try {
+			if (!shouldRestoreChatSessionState(id)) {
+				return false;
+			}
+
 			const scopedKey = getChatSessionStateKey(id);
 			const legacyKey = getLegacyChatSessionStateKey(id);
 			const { value, usedLegacy } = readStorageItem(localStorage, scopedKey, legacyKey);
@@ -1715,6 +1737,19 @@
 			localStorage.removeItem(legacyKey);
 		}
 	};
+
+	const clearNewChatStateCache = () => {
+		if (typeof window === 'undefined') {
+			return;
+		}
+		removeChatSessionState('');
+		removeChatInputState('');
+		removeSessionSelectedModels();
+	};
+
+	$: if (($settings?.newChatInheritsPreviousState ?? false) === false) {
+		clearNewChatStateCache();
+	}
 
 	const migrateChatSessionState = (
 		fromId: string | null | undefined,
@@ -2060,6 +2095,10 @@
 	}
 
 	const saveSessionSelectedModels = () => {
+		if (!getNewChatStateInheritanceEnabled()) {
+			removeSessionSelectedModels();
+			return;
+		}
 		if (selectedModels.length === 0 || (selectedModels.length === 1 && selectedModels[0] === '')) {
 			return;
 		}
@@ -2078,6 +2117,7 @@
 		modelsMap.size > 0 &&
 		!chatIdProp &&
 		!freshChatActive &&
+		getNewChatStateInheritanceEnabled() &&
 		(selectedModels.length === 0 || (selectedModels.length === 1 && selectedModels[0] === ''))
 	) {
 		const scopedKey = getSelectedModelsStorageKey();
@@ -2434,25 +2474,29 @@
 		}
 
 		if (!chatIdProp) {
-			const input = readChatInputState(chatIdProp);
-			if (input) {
-				try {
-					prompt = input.prompt;
-					files = input.files;
-				} catch (e) {
-					prompt = '';
-					files = [];
-					selectedToolIds = [];
-					toolSelectionTouched = false;
-					selectedSkillIds = [];
-					skillSelectionTouched = false;
-					webSearchMode = getPreferredDefaultWebSearchMode();
-					webSearchModeSource = 'default';
-					imageGenerationEnabled = false;
-					imageGenerationOptions = {};
+			if (getNewChatStateInheritanceEnabled()) {
+				const input = readChatInputState(chatIdProp);
+				if (input) {
+					try {
+						prompt = input.prompt;
+						files = input.files;
+					} catch (e) {
+						prompt = '';
+						files = [];
+						selectedToolIds = [];
+						toolSelectionTouched = false;
+						selectedSkillIds = [];
+						skillSelectionTouched = false;
+						webSearchMode = getPreferredDefaultWebSearchMode();
+						webSearchModeSource = 'default';
+						imageGenerationEnabled = false;
+						imageGenerationOptions = {};
+					}
 				}
+				restoreChatSessionState(chatIdProp);
+			} else {
+				clearNewChatStateCache();
 			}
-			restoreChatSessionState(chatIdProp);
 			composerStateSyncReady = true;
 			webSearchSelectionSyncReady = true;
 		}
@@ -2810,6 +2854,7 @@
 
 	const initNewChat = async (options: { fresh?: boolean } = {}) => {
 		const fresh = options.fresh ?? false;
+		const inheritNewChatState = !fresh && getNewChatStateInheritanceEnabled();
 		freshChatActive = fresh;
 		composerStateSyncReady = false;
 		resetReasoningSelectionTracking();
@@ -2844,7 +2889,7 @@
 			}
 		} else if (!fresh && $selectedAssistantScene?.id) {
 			selectedModels = [$selectedAssistantScene.id];
-		} else if (!fresh) {
+		} else if (!fresh && inheritNewChatState) {
 			const scopedKey = getSelectedModelsStorageKey();
 			const legacyKey = getLegacySelectedModelsStorageKey();
 			const { value, usedLegacy } = readStorageItem(sessionStorage, scopedKey, legacyKey);
@@ -2863,7 +2908,7 @@
 			}
 		} else if ($settings?.models) {
 			selectedModels = $settings?.models;
-		} else if (fresh) {
+		} else if (fresh || !inheritNewChatState) {
 			// fresh=true but no default model configured — reset to empty so user must choose
 			selectedModels = [''];
 		}
@@ -2888,7 +2933,7 @@
 			) {
 				if (hadExplicitSelectedModels) {
 					selectedModels = [''];
-				} else if (!fresh && $models.length > 0) {
+				} else if (!fresh && inheritNewChatState && $models.length > 0) {
 					// Non-fresh: auto-select first available model as fallback
 					selectedModels = [getModelSelectionId($models[0])];
 				} else {
@@ -2934,7 +2979,7 @@
 		expandedSelectionThreadId.set(null);
 		clearResponseAnimationControllers();
 
-		if (fresh) {
+		if (fresh || !inheritNewChatState) {
 			chat = null;
 			tags = [];
 			taskIds = null;
@@ -2961,9 +3006,8 @@
 		selectedSkillIds = [];
 		skillSelectionTouched = false;
 
-		if (fresh) {
-			removeChatSessionState('');
-			removeChatInputState('');
+		if (fresh || !inheritNewChatState) {
+			clearNewChatStateCache();
 			reasoningEffort = null;
 			maxThinkingTokens = null;
 			webSearchMode = getPreferredDefaultWebSearchMode();

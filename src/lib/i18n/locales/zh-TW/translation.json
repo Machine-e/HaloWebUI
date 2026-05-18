@@ -1156,7 +1156,7 @@
 	"Tip: Update multiple variable slots consecutively by pressing the tab key in the chat input after each replacement.": "提示：在每次替換後按下對話輸入框中的 Tab 鍵，即可連續更新多個變數欄位。",
 	"Title": "標題",
 	"Title (e.g. Tell me a fun fact)": "標題（例如：告訴我一個有趣的事實）",
-	"Title Auto-Generation": "自動產生標題",
+	"Title Auto-Generation": "自動產生側邊欄標題",
 	"Title cannot be an empty string.": "標題不能是空字串。",
 	"Title Generation": "產生標題",
 	"Title Generation Prompt": "產生標題的提示詞",

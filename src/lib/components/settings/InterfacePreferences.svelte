@@ -30,6 +30,7 @@
 	import Switch from '$lib/components/common/Switch.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
+	import QuestionMarkCircle from '$lib/components/icons/QuestionMarkCircle.svelte';
 	import HaloSelect from '$lib/components/common/HaloSelect.svelte';
 	import ThemeSelector from '$lib/components/common/ThemeSelector.svelte';
 	import ManageModal from '$lib/components/chat/Settings/Personalization/ManageModal.svelte';
@@ -131,8 +132,10 @@
 	let scrollOnBranchChange = true;
 	let enableMessageQueue = true;
 	let temporaryChatByDefault = false;
+	let newChatInheritsPreviousState = false;
 	let transitionMode: ChatTransitionMode = DEFAULT_CHAT_TRANSITION_MODE;
 	let enableAutoScrollOnStreaming = true;
+	let autoGenerationRequestWarning = '';
 	let insertSuggestionPrompt = false;
 	let keepFollowUpPrompts = false;
 	let insertFollowUpPrompt = false;
@@ -147,6 +150,11 @@
 		input: boolean;
 		prompt: string;
 	}> | null = null;
+
+	$: autoGenerationRequestWarning = tr(
+		'开启后，每次对话除了生成回答，还可能额外发起一次模型请求。若这三项都开启，单次提问可能在短时间内连续触发 3-4 次请求，容易命中模型服务或上游中转站的 RPM / 频率限制，严重时可能被临时封禁。',
+		'When enabled, each chat may send one extra model request besides the main response. If all three options are enabled, one message can trigger 3-4 rapid requests, which may hit RPM or rate limits on the model service or upstream proxy and could cause a temporary block.'
+	);
 
 	// Memory
 	let enableMemory = false;
@@ -235,6 +243,7 @@
 			scrollOnBranchChange: boolean;
 			enableMessageQueue: boolean;
 			temporaryChatByDefault: boolean;
+			newChatInheritsPreviousState: boolean;
 			collapseCodeBlocks: boolean;
 			collapseHistoricalLongResponses: boolean;
 			showInlineCitations: boolean;
@@ -537,6 +546,7 @@
 			scrollOnBranchChange,
 			enableMessageQueue,
 			temporaryChatByDefault,
+			newChatInheritsPreviousState,
 			collapseCodeBlocks,
 			collapseHistoricalLongResponses,
 			showInlineCitations,
@@ -616,6 +626,7 @@
 		scrollOnBranchChange = snapshot.scrollOnBranchChange;
 		enableMessageQueue = snapshot.enableMessageQueue;
 		temporaryChatByDefault = snapshot.temporaryChatByDefault;
+		newChatInheritsPreviousState = snapshot.newChatInheritsPreviousState;
 		collapseCodeBlocks = snapshot.collapseCodeBlocks;
 		collapseHistoricalLongResponses = snapshot.collapseHistoricalLongResponses;
 		showInlineCitations = snapshot.showInlineCitations;
@@ -684,6 +695,7 @@
 		scrollOnBranchChange;
 		enableMessageQueue;
 		temporaryChatByDefault;
+		newChatInheritsPreviousState;
 		transitionMode;
 		enableAutoScrollOnStreaming;
 		collapseCodeBlocks;
@@ -983,6 +995,7 @@
 				scrollOnBranchChange,
 				enableMessageQueue,
 				temporaryChatByDefault,
+				newChatInheritsPreviousState,
 				collapseCodeBlocks,
 				collapseHistoricalLongResponses,
 				showInlineCitations,
@@ -1141,6 +1154,7 @@
 		showChatTitleInTab = $settings?.showChatTitleInTab ?? true;
 		enableMessageQueue = $settings?.enableMessageQueue ?? true;
 		temporaryChatByDefault = $settings?.temporaryChatByDefault ?? false;
+		newChatInheritsPreviousState = $settings?.newChatInheritsPreviousState ?? false;
 		transitionMode = resolveChatTransitionMode($settings);
 		enableAutoScrollOnStreaming = $settings?.enableAutoScrollOnStreaming ?? true;
 		insertSuggestionPrompt = $settings?.insertSuggestionPrompt ?? false;
@@ -2061,24 +2075,69 @@
 									</div>
 									<div class="space-y-2">
 										<div class="flex items-center justify-between glass-item px-4 py-3">
-											<div class="text-sm font-medium">
-												{$i18n.t('Title Auto-Generation')}
+											<div class="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+												<span>{$i18n.t('Title Auto-Generation')}</span>
+												<Tooltip
+													content={autoGenerationRequestWarning}
+													className="inline-flex shrink-0"
+												>
+													<button
+														type="button"
+														aria-label={tr(
+															'查看自动生成请求频率提醒',
+															'View auto-generation request rate warning'
+														)}
+														class="inline-flex size-4 items-center justify-center rounded-full text-gray-400 transition hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-300 dark:focus:ring-gray-700"
+													>
+														<QuestionMarkCircle className="size-3.5" strokeWidth="2" />
+													</button>
+												</Tooltip>
 											</div>
 											<Switch
 												bind:state={titleAutoGenerate}
 											/>
 										</div>
 										<div class="flex items-center justify-between glass-item px-4 py-3">
-											<div class="text-sm font-medium">
-												{$i18n.t('Follow-Up Auto-Generation')}
+											<div class="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+												<span>{$i18n.t('Follow-Up Auto-Generation')}</span>
+												<Tooltip
+													content={autoGenerationRequestWarning}
+													className="inline-flex shrink-0"
+												>
+													<button
+														type="button"
+														aria-label={tr(
+															'查看自动生成请求频率提醒',
+															'View auto-generation request rate warning'
+														)}
+														class="inline-flex size-4 items-center justify-center rounded-full text-gray-400 transition hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-300 dark:focus:ring-gray-700"
+													>
+														<QuestionMarkCircle className="size-3.5" strokeWidth="2" />
+													</button>
+												</Tooltip>
 											</div>
 											<Switch
 												bind:state={autoFollowUps}
 											/>
 										</div>
 										<div class="flex items-center justify-between glass-item px-4 py-3">
-											<div class="text-sm font-medium">
-												{$i18n.t('Chat Tags Auto-Generation')}
+											<div class="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+												<span>{$i18n.t('Chat Tags Auto-Generation')}</span>
+												<Tooltip
+													content={autoGenerationRequestWarning}
+													className="inline-flex shrink-0"
+												>
+													<button
+														type="button"
+														aria-label={tr(
+															'查看自动生成请求频率提醒',
+															'View auto-generation request rate warning'
+														)}
+														class="inline-flex size-4 items-center justify-center rounded-full text-gray-400 transition hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-300 dark:focus:ring-gray-700"
+													>
+														<QuestionMarkCircle className="size-3.5" strokeWidth="2" />
+													</button>
+												</Tooltip>
 											</div>
 											<Switch
 												bind:state={autoTags}
@@ -2204,6 +2263,24 @@
 											<Switch
 												bind:state={enableMessageQueue}
 											/>
+										</div>
+										<div class="glass-item px-4 py-3">
+											<div class="flex items-center justify-between gap-4">
+												<div class="min-w-0">
+													<div class="text-sm font-medium">
+														{tr('新对话继承上次对话状态', 'Inherit Previous State for New Chats')}
+													</div>
+													<p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+														{tr(
+															'开启后，点击“新对话”会沿用上一轮的模型选择、联网、图片生成、代码解释器、工具和推理设置；关闭后，新对话从默认设置开始。点击左上角 Halo WebUI 图标仍会打开完全干净的新对话。',
+															'When enabled, New Chat keeps the previous model selection, web search, image generation, code interpreter, tools, and reasoning settings. Turn it off to start from defaults. The Halo WebUI logo still opens a clean fresh chat.'
+														)}
+													</p>
+												</div>
+												<Switch
+													bind:state={newChatInheritsPreviousState}
+												/>
+											</div>
 										</div>
 										{#if $user?.role === 'admin' || $user?.permissions?.chat?.temporary}
 											<div class="flex items-center justify-between glass-item px-4 py-3">

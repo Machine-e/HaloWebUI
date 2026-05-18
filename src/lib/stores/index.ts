@@ -243,6 +243,7 @@ type Settings = {
 	enableMessageQueue?: boolean;
 	mermaidTheme?: string;
 	temporaryChatByDefault?: boolean;
+	newChatInheritsPreviousState?: boolean;
 	chatFadeStreamingText?: boolean;
 	transitionMode?: 'none' | 'fadeIn' | 'smooth';
 	enableAutoScrollOnStreaming?: boolean;

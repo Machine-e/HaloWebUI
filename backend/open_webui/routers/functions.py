@@ -36,6 +36,7 @@ def _invalidate_model_list_cache(request: Request) -> None:
     request.app.state.MODELS = {}
     invalidate_base_model_cache()
 
+
 ############################
 # GetFunctions
 ############################
@@ -325,6 +326,7 @@ async def update_function_valves_by_id(
                 form_data = {k: v for k, v in form_data.items() if v is not None}
                 valves = Valves(**form_data)
                 Functions.update_function_valves_by_id(id, valves.model_dump())
+                _invalidate_model_list_cache(request)
                 return valves.model_dump()
             except Exception as e:
                 log.exception(f"Error updating function values by id {id}: {e}")
