@@ -179,15 +179,53 @@
 		);
 	}
 
+	function hasDetailsOfType(content: string, type: string): boolean {
+		return new RegExp(`<details\\b(?=[^>]*\\btype=["']${type}["'])`, 'i').test(
+			content ?? ''
+		);
+	}
+
+	function hasActiveDetailsOfType(content: string, type: string): boolean {
+		const detailsRegex = new RegExp(
+			`<details\\b(?=[^>]*\\btype=["']${type}["'])[^>]*>`,
+			'gi'
+		);
+		let match: RegExpExecArray | null;
+
+		while ((match = detailsRegex.exec(content ?? '')) !== null) {
+			if (!/\bdone=["']?true["']?/i.test(match[0])) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	function hasRawThinkingOutput(content: string): boolean {
+		return /<(think|thinking|reasoning)\b[^>]*>/i.test(content ?? '');
+	}
+
+	function hasActiveRawThinkingOutput(content: string): boolean {
+		const openCount = (content.match(/<(think|thinking|reasoning)\b[^>]*>/gi) ?? []).length;
+		const closeCount = (content.match(/<\/(think|thinking|reasoning)>/gi) ?? []).length;
+		return openCount > closeCount;
+	}
+
+	$: messageContent = message?.content ?? '';
 	$: hasVisibleAssistantOutput = getVisibleAssistantOutput(message?.content ?? '') !== '';
 	$: visibleMessageFiles = (message?.files ?? []).filter(
 		(file) => file?.source !== 'code_interpreter' && file?.generated !== true
 	);
 	$: hasVisibleMessageFiles = messageHasVisibleFiles(message?.files);
 	$: renderableMessageError = getRenderableMessageError(message?.error, message?.files);
-	$: hasVisibleThinkingOutput =
-		/<details\b[^>]*type="reasoning"/i.test(message?.content ?? '') ||
-		/<(think|thinking|reasoning)\b[^>]*>/i.test(message?.content ?? '');
+	$: hasAnyThinkingOutput =
+		hasDetailsOfType(messageContent, 'reasoning') || hasRawThinkingOutput(messageContent);
+	$: hasActiveThinkingOutput =
+		hasActiveDetailsOfType(messageContent, 'reasoning') ||
+		hasActiveRawThinkingOutput(messageContent);
+	$: hasAnyToolCallOutput =
+		hasDetailsOfType(messageContent, 'tool_calls') || /<tool_calls\b/i.test(messageContent);
+	$: hasActiveToolCallOutput = hasActiveDetailsOfType(messageContent, 'tool_calls');
 	$: displayStatusHistory = (
 		message?.statusHistory ?? [...(message?.status ? [message?.status] : [])]
 	).filter((status) => {
@@ -201,6 +239,28 @@
 
 		return true;
 	});
+	$: hasActiveVisibleStatus = displayStatusHistory.some(
+		(status) => !status?.hidden && status?.done === false
+	);
+	$: showInitialThinkingIndicator =
+		!message.done &&
+		!message.error &&
+		!hasVisibleAssistantOutput &&
+		!hasAnyThinkingOutput &&
+		!hasAnyToolCallOutput;
+	$: showContinuationIndicator =
+		!showInitialThinkingIndicator &&
+		!message.done &&
+		!message.error &&
+		!renderableMessageError &&
+		!hasActiveThinkingOutput &&
+		!hasActiveToolCallOutput &&
+		!hasActiveVisibleStatus &&
+		(hasVisibleAssistantOutput ||
+			hasAnyThinkingOutput ||
+			hasAnyToolCallOutput ||
+			hasVisibleMessageFiles ||
+			displayStatusHistory.length > 0);
 
 	export let siblings;
 
@@ -1169,7 +1229,7 @@
 										class="w-full flex flex-col relative {!message.done ? 'streaming-fade' : ''}"
 										id="response-content-container"
 									>
-										{#if !message.done && !message.error && !hasVisibleAssistantOutput && !hasVisibleThinkingOutput}
+										{#if showInitialThinkingIndicator}
 											<!-- Keep the waiting indicator visible even before backend status steps arrive -->
 											<ThinkingIndicator
 												statusHistory={displayStatusHistory}
@@ -1241,6 +1301,19 @@
 											/>
 										{/if}
 
+										{#if showContinuationIndicator}
+											<div
+												class="status-description flex items-center gap-1.5 py-1 text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+											>
+												<Spinner className="size-3.5" />
+												<span class="shimmer">
+													{hasVisibleAssistantOutput
+														? $i18n.t('Continuing response...')
+														: $i18n.t('Waiting for model response')}
+												</span>
+											</div>
+										{/if}
+
 										{#if renderableMessageError}
 											<Error
 												content={renderableMessageError === true
@@ -1273,7 +1346,7 @@
 										aria-label={($settings?.showInlineCitations ?? true)
 											? tr('隐藏正文引用标签', 'Hide inline citations')
 											: tr('显示正文引用标签', 'Show inline citations')}
-										class="text-gray-600 dark:text-gray-300 rounded-xl bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl shadow-sm hover:bg-white/80 dark:hover:bg-gray-700/60 transition-all duration-200 flex items-center justify-center border border-gray-200/50 dark:border-gray-700/50 h-[36px] w-[36px] shrink-0"
+										class="text-gray-600 dark:text-gray-300 rounded-xl bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl hover:bg-white/80 dark:hover:bg-gray-700/60 transition-all duration-200 flex items-center justify-center border border-gray-200/50 dark:border-gray-700/50 h-[36px] w-[36px] shrink-0"
 										on:click={toggleInlineCitations}
 									>
 										{#if $settings?.showInlineCitations ?? true}
@@ -1290,7 +1363,7 @@
 								bind:this={buttonsContainerElement}
 								class="flex items-center gap-0.5 overflow-x-auto buttons text-gray-600 dark:text-gray-300 px-1.5 h-[37px] rounded-xl {isLastMessage
 									? 'visible opacity-100'
-									: 'invisible group-hover/message:visible opacity-0 group-hover/message:opacity-100'} transition-all duration-300 bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl shadow-sm border border-gray-200/50 dark:border-gray-700/50 w-fit min-w-0 max-w-full toolbar-appear"
+									: 'invisible group-hover/message:visible opacity-0 group-hover/message:opacity-100'} transition-all duration-300 bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 w-fit min-w-0 max-w-full toolbar-appear"
 							>
 								{#if siblings.length > 1}
 									<div class="flex self-center min-w-fit" dir="ltr">

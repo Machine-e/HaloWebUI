@@ -131,7 +131,7 @@
 	<!-- Pill button header -->
 	<button
 		class="text-[13px] font-medium px-3 py-1.5 h-9 rounded-xl
-			bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl shadow-sm
+			bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl
 			hover:bg-white/80 dark:hover:bg-gray-700/60 transition-all duration-200
 			flex items-center gap-1.5
 			border border-gray-200/50 dark:border-gray-700/50
@@ -146,9 +146,9 @@
 
 		<span class="translate-y-px {someExecuting ? 'shimmer' : ''}">
 			{#if someExecuting}
-				正在调用工具{totalCount}次...
+				{$i18n.t('Calling {{COUNT}} tools...', { COUNT: totalCount })}
 			{:else}
-				已调用工具{totalCount}次
+				{$i18n.t('Called {{COUNT}} tools', { COUNT: totalCount })}
 			{/if}
 		</span>
 
