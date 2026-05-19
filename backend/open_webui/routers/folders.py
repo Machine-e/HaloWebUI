@@ -49,7 +49,12 @@ async def get_folders(user=Depends(get_verified_user)):
             **folder.model_dump(),
             "items": {
                 "chats": [
-                    {"title": chat.title, "id": chat.id}
+                    {
+                        "title": chat.title,
+                        "id": chat.id,
+                        "folder_id": chat.folder_id,
+                        "assistant_id": chat.assistant_id,
+                    }
                     for chat in Chats.get_chats_by_folder_id_and_user_id(
                         folder.id, user.id
                     )

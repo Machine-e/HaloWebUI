@@ -596,6 +596,7 @@ async def get_chat_list_by_folder_id(
                 title=chat.title,
                 updated_at=chat.updated_at,
                 created_at=chat.created_at,
+                folder_id=chat.folder_id,
                 assistant_id=chat.assistant_id,
             )
             for chat in Chats.get_chats_by_folder_id_and_user_id(
@@ -624,6 +625,7 @@ async def get_chat_list_by_assistant_id(
                 title=chat.title,
                 updated_at=chat.updated_at,
                 created_at=chat.created_at,
+                folder_id=chat.folder_id,
                 assistant_id=chat.assistant_id,
             )
             for chat in Chats.get_chats_by_assistant_id_and_user_id(

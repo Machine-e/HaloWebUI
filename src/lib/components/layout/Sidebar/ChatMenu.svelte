@@ -11,11 +11,23 @@
 
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	import { Pin, PinOff, PencilLine, Copy, Archive, Share2, Download, Trash2 } from 'lucide-svelte';
+	import {
+		Pin,
+		PinOff,
+		PencilLine,
+		Copy,
+		Archive,
+		Share2,
+		Download,
+		Trash2,
+		FolderInput,
+		Check
+	} from 'lucide-svelte';
 	import {
 		getChatById,
 		getChatPinnedStatusById,
-		toggleChatPinnedStatusById
+		toggleChatPinnedStatusById,
+		updateChatFolderIdById
 	} from '$lib/apis/chats';
 	import { createMessagesList } from '$lib/utils';
 	import { downloadChatAsPDF } from '$lib/apis/utils';
@@ -32,6 +44,13 @@
 	export let onClose: Function;
 
 	export let chatId = '';
+	export let currentFolderId: string | null = null;
+	export let folderOptions: Array<{
+		id: string;
+		name: string;
+		parent_id?: string | null;
+		depth: number;
+	}> = [];
 
 	let show = false;
 	let pinned = false;
@@ -39,6 +58,26 @@
 	const pinHandler = async () => {
 		await toggleChatPinnedStatusById(localStorage.token, chatId);
 		dispatch('change');
+	};
+
+	const moveToFolder = async (folderId: string | null) => {
+		if (folderId === currentFolderId) {
+			show = false;
+			return;
+		}
+
+		const res = await updateChatFolderIdById(localStorage.token, chatId, folderId).catch((error) => {
+			toast.error(`${error}`);
+			return null;
+		});
+
+		if (res) {
+			dispatch('change');
+			show = false;
+			toast.success(
+				folderId === null ? $i18n.t('Removed from group') : $i18n.t('Moved to group')
+			);
+		}
 	};
 
 	const checkPinned = async () => {
@@ -185,6 +224,70 @@
 				<Share2 class="size-4" strokeWidth={2} />
 				<div class="flex items-center">{$i18n.t('Share')}</div>
 			</DropdownMenu.Item>
+
+			<DropdownMenu.Sub>
+				<DropdownMenu.SubTrigger
+					class="flex gap-2 items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+				>
+					<FolderInput class="size-4" strokeWidth={2} />
+					<div class="flex items-center">{$i18n.t('Move to group')}</div>
+				</DropdownMenu.SubTrigger>
+				<DropdownMenu.SubContent
+					class="select-none w-full min-w-[180px] max-w-[240px] rounded-xl p-1 z-50 bg-white dark:bg-gray-850 dark:text-white shadow-lg border border-gray-300/30 dark:border-gray-700/50"
+					transition={flyAndScale}
+					sideOffset={8}
+				>
+					{#if currentFolderId !== null}
+						<DropdownMenu.Item
+							class="flex gap-2 items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md"
+							on:click={() => {
+								moveToFolder(null);
+							}}
+						>
+							<div class="size-4 shrink-0"></div>
+							<div class="flex items-center line-clamp-1">{$i18n.t('Remove from group')}</div>
+						</DropdownMenu.Item>
+					{/if}
+
+					{#if folderOptions.length > 0}
+						{#if currentFolderId !== null}
+							<hr class="border-gray-100 dark:border-gray-800 my-1" />
+						{/if}
+						{#each folderOptions as folder (folder.id)}
+							<DropdownMenu.Item
+								class="flex gap-2 items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md {currentFolderId ===
+								folder.id
+									? 'text-gray-400 dark:text-gray-500'
+									: ''}"
+								on:click={() => {
+									moveToFolder(folder.id);
+								}}
+							>
+								<Check
+									class="size-4 shrink-0 {currentFolderId === folder.id
+										? 'opacity-100'
+										: 'opacity-0'}"
+									strokeWidth={2}
+								/>
+								<div
+									class="min-w-0 flex items-center line-clamp-1"
+									style="padding-left: {folder.depth * 0.75}rem"
+								>
+									{folder.name}
+								</div>
+							</DropdownMenu.Item>
+						{/each}
+					{:else}
+						<DropdownMenu.Item
+							class="flex gap-2 items-center px-3 py-2 text-sm text-gray-400 dark:text-gray-500 cursor-default rounded-md"
+							disabled
+						>
+							<div class="size-4 shrink-0"></div>
+							<div class="flex items-center line-clamp-1">{$i18n.t('No chat folders')}</div>
+						</DropdownMenu.Item>
+					{/if}
+				</DropdownMenu.SubContent>
+			</DropdownMenu.Sub>
 
 			<DropdownMenu.Sub>
 				<DropdownMenu.SubTrigger

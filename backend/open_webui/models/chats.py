@@ -175,6 +175,7 @@ class ChatTitleIdResponse(BaseModel):
     title: str
     updated_at: int
     created_at: int
+    folder_id: Optional[str] = None
     assistant_id: Optional[str] = None
 
 
@@ -653,18 +654,28 @@ class ChatTable:
         self,
         user_id: str,
         include_archived: bool = False,
+        include_folders: bool = False,
         skip: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> list[ChatTitleIdResponse]:
         with get_db() as db:
             query = db.query(Chat).filter_by(user_id=user_id)
+
+            if not include_folders:
+                query = query.filter_by(folder_id=None)
+
             query = query.filter(or_(Chat.pinned == False, Chat.pinned == None))
 
             if not include_archived:
                 query = query.filter_by(archived=False)
 
             query = query.order_by(Chat.updated_at.desc()).with_entities(
-                Chat.id, Chat.title, Chat.updated_at, Chat.created_at, Chat.assistant_id
+                Chat.id,
+                Chat.title,
+                Chat.updated_at,
+                Chat.created_at,
+                Chat.folder_id,
+                Chat.assistant_id,
             )
 
             if skip:
@@ -682,7 +693,8 @@ class ChatTable:
                         "title": chat[1],
                         "updated_at": chat[2],
                         "created_at": chat[3],
-                        "assistant_id": chat[4],
+                        "folder_id": chat[4],
+                        "assistant_id": chat[5],
                     }
                 )
                 for chat in all_chats

@@ -11,6 +11,7 @@
 		settings,
 		chatId,
 		tags,
+		folders as folderStore,
 		showSidebar,
 		mobile,
 		showArchivedChats,
@@ -33,12 +34,9 @@
 		getChatListByAssistantId,
 		getAllTags,
 		getChatListBySearchText,
-		getPinnedChatList,
-		toggleChatPinnedStatusById,
-		getChatById,
-		updateChatFolderIdById,
-		importChat
+		getPinnedChatList
 	} from '$lib/apis/chats';
+	import { createNewFolder, getFolders } from '$lib/apis/folders';
 	import { WEBUI_BASE_URL } from '$lib/constants';
 	import { getModels as getWorkspaceModels } from '$lib/apis/models';
 	import { getTimeRange } from '$lib/utils';
@@ -49,11 +47,11 @@
 	import ChatItem from './Sidebar/ChatItem.svelte';
 	import Spinner from '../common/Spinner.svelte';
 	import Loader from '../common/Loader.svelte';
-	import AddFilesPlaceholder from '../AddFilesPlaceholder.svelte';
 	import SearchInput from './Sidebar/SearchInput.svelte';
 	import Folder from '../common/Folder.svelte';
 	import Plus from '../icons/Plus.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
+	import Folders from './Sidebar/Folders.svelte';
 	import { getChannels, createNewChannel } from '$lib/apis/channels';
 	import ChannelModal from './Sidebar/ChannelModal.svelte';
 	import ChannelItem from './Sidebar/ChannelItem.svelte';
@@ -62,6 +60,24 @@
 	import ArchiveBox from '../icons/ArchiveBox.svelte';
 
 	type SidebarStyle = 'flat' | 'card';
+	type SidebarFolder = {
+		id: string;
+		name: string;
+		parent_id?: string | null;
+		updated_at: number;
+		childrenIds?: string[];
+		new?: boolean;
+		items?: {
+			chats?: Array<{ id: string; title: string; assistant_id?: string | null }>;
+		};
+		[key: string]: any;
+	};
+	type SidebarFolderOption = {
+		id: string;
+		name: string;
+		parent_id?: string | null;
+		depth: number;
+	};
 	const SIDEBAR_STYLE_QUERY_KEY = 'sidebarStyle';
 
 	const normalizeSidebarStyle = (style: string | null): SidebarStyle | null => {
@@ -113,6 +129,7 @@
 	let showDropdown = false;
 	let showPinnedChat = browser ? localStorage?.showPinnedChat !== 'false' : true;
 	let showAssistantSection = browser ? localStorage?.showAssistantSection !== 'false' : true;
+	let showFolderSection = browser ? localStorage?.showFolderSection !== 'false' : true;
 
 	let showCreateChannel = false;
 
@@ -120,6 +137,9 @@
 	let chatListLoading = false;
 	let allChatsLoaded = false;
 	let assistantScenes = [];
+	let folders: Record<string, SidebarFolder> = {};
+	let folderOptions: SidebarFolderOption[] = [];
+	let newFolderId: string | null = null;
 
 	const isAssistantSceneModel = (model) => {
 		const baseModelId = model?.base_model_id ?? model?.info?.base_model_id ?? null;
@@ -167,10 +187,121 @@
 		await channels.set(await getChannels(localStorage.token));
 	};
 
+	const buildFolderOptions = (sourceFolders: Record<string, SidebarFolder>) => {
+		const result: SidebarFolderOption[] = [];
+		const childrenByParent = new Map<string | null, SidebarFolder[]>();
+
+		for (const folder of Object.values(sourceFolders)) {
+			if (!folder?.id || !folder?.name) {
+				continue;
+			}
+			const parentId = folder.parent_id ?? null;
+			childrenByParent.set(parentId, [...(childrenByParent.get(parentId) ?? []), folder]);
+		}
+
+		for (const children of childrenByParent.values()) {
+			children.sort((a, b) =>
+				a.name.localeCompare(b.name, undefined, {
+					numeric: true,
+					sensitivity: 'base'
+				})
+			);
+		}
+
+		const append = (parentId: string | null, depth: number) => {
+			for (const folder of childrenByParent.get(parentId) ?? []) {
+				result.push({
+					id: folder.id,
+					name: folder.name,
+					parent_id: folder.parent_id ?? null,
+					depth
+				});
+				append(folder.id, depth + 1);
+			}
+		};
+
+		append(null, 0);
+		return result;
+	};
+
+	const initFolders = async () => {
+		const folderList = await getFolders(localStorage.token).catch((error) => {
+			toast.error(`${error}`);
+			return [];
+		});
+
+		await folderStore.set(folderList.sort((a, b) => b.updated_at - a.updated_at));
+
+		const nextFolders: Record<string, SidebarFolder> = {};
+		for (const folder of folderList) {
+			nextFolders[folder.id] = {
+				...(nextFolders[folder.id] || {}),
+				...folder
+			};
+
+			if (newFolderId && folder.id === newFolderId) {
+				nextFolders[folder.id].new = true;
+				newFolderId = null;
+			}
+		}
+
+		for (const folder of folderList) {
+			if (!folder.parent_id) {
+				continue;
+			}
+
+			if (!nextFolders[folder.parent_id]) {
+				continue;
+			}
+
+			nextFolders[folder.parent_id].childrenIds = nextFolders[folder.parent_id].childrenIds
+				? [...nextFolders[folder.parent_id].childrenIds, folder.id]
+				: [folder.id];
+		}
+
+		folders = nextFolders;
+		folderOptions = buildFolderOptions(nextFolders);
+	};
+
+	const createFolder = async (name = 'New chat folder') => {
+		name = name.trim();
+		if (name === '') {
+			toast.error($i18n.t('Folder name cannot be empty.'));
+			return;
+		}
+
+		const rootFolders = Object.values(folders).filter((folder) => folder.parent_id === null);
+		if (rootFolders.find((folder) => folder.name.toLowerCase() === name.toLowerCase())) {
+			let i = 1;
+			while (
+				rootFolders.find((folder) => folder.name.toLowerCase() === `${name} ${i}`.toLowerCase())
+			) {
+				i++;
+			}
+
+			name = `${name} ${i}`;
+		}
+
+		const res = await createNewFolder(localStorage.token, name).catch((error) => {
+			toast.error(`${error}`);
+			return null;
+		});
+
+		if (res) {
+			newFolderId = res.id;
+			showFolderSection = true;
+			localStorage.setItem('showFolderSection', 'true');
+			await initFolders();
+		}
+	};
+
 	const initChatList = async () => {
 		// Reset pagination variables
 		tags.set(await getAllTags(localStorage.token));
 		pinnedChats.set(await getPinnedChatList(localStorage.token));
+		if (!search) {
+			await initFolders();
+		}
 
 		currentChatPage.set(1);
 		allChatsLoaded = false;
@@ -305,38 +436,6 @@
 		}
 	}
 
-	const importChatHandler = async (items, pinned = false, folderId = null) => {
-		console.log('importChatHandler', items, pinned, folderId);
-		for (const item of items) {
-			console.log(item);
-			if (item.chat) {
-				await importChat(localStorage.token, item.chat, item?.meta ?? {}, pinned, folderId);
-			}
-		}
-
-		initChatList();
-	};
-
-	const inputFilesHandler = async (files) => {
-		console.log(files);
-
-		for (const file of files) {
-			const reader = new FileReader();
-			reader.onload = async (e) => {
-				const content = e.target.result;
-
-				try {
-					const chatItems = JSON.parse(content);
-					importChatHandler(chatItems);
-				} catch {
-					toast.error($i18n.t(`Invalid file format.`));
-				}
-			};
-
-			reader.readAsText(file);
-		}
-	};
-
 	const tagEventHandler = async (type, tagName, chatId) => {
 		console.log(type, tagName, chatId);
 		if (type === 'delete') {
@@ -344,40 +443,6 @@
 		} else if (type === 'add') {
 			initChatList();
 		}
-	};
-
-	let draggedOver = false;
-
-	const onDragOver = (e) => {
-		e.preventDefault();
-
-		// Check if a file is being draggedOver.
-		if (e.dataTransfer?.types?.includes('Files')) {
-			draggedOver = true;
-		} else {
-			draggedOver = false;
-		}
-	};
-
-	const onDragLeave = () => {
-		draggedOver = false;
-	};
-
-	const onDrop = async (e) => {
-		e.preventDefault();
-		console.log(e); // Log the drop event
-
-		// Perform file drop check and handle it accordingly
-		if (e.dataTransfer?.files) {
-			const inputFiles = Array.from(e.dataTransfer?.files);
-
-			if (inputFiles && inputFiles.length > 0) {
-				console.log(inputFiles); // Log the dropped files
-				inputFilesHandler(inputFiles); // Handle the dropped files
-			}
-		}
-
-		draggedOver = false; // Reset draggedOver status after drop
 	};
 
 	let touchstart;
@@ -430,6 +495,9 @@
 		showAssistantSection = localStorage?.showAssistantSection
 			? localStorage.showAssistantSection === 'true'
 			: true;
+		showFolderSection = localStorage?.showFolderSection
+			? localStorage.showFolderSection === 'true'
+			: true;
 
 		mobile.subscribe((value) => {
 			if ($showSidebar && value) {
@@ -481,11 +549,6 @@
 		window.addEventListener('focus', onFocus);
 		window.addEventListener('blur-sm', onBlur);
 
-		const dropZone = document.getElementById('sidebar');
-
-		dropZone?.addEventListener('dragover', onDragOver);
-		dropZone?.addEventListener('drop', onDrop);
-		dropZone?.addEventListener('dragleave', onDragLeave);
 	});
 
 	onDestroy(() => {
@@ -498,11 +561,6 @@
 		window.removeEventListener('focus', onFocus);
 		window.removeEventListener('blur-sm', onBlur);
 
-		const dropZone = document.getElementById('sidebar');
-
-		dropZone?.removeEventListener('dragover', onDragOver);
-		dropZone?.removeEventListener('drop', onDrop);
-		dropZone?.removeEventListener('dragleave', onDragLeave);
 	});
 </script>
 
@@ -913,14 +971,40 @@
 					</Folder>
 				{/if}
 
+				{#if !search}
+					<Folder
+						className="px-2 mt-0.5"
+						name={$i18n.t('Chat Folders')}
+						dragAndDrop={false}
+						bind:open={showFolderSection}
+						onAdd={() => {
+							createFolder($i18n.t('New chat folder'));
+						}}
+						onAddLabel={$i18n.t('New chat folder')}
+						on:change={(e) => {
+							localStorage.setItem('showFolderSection', `${e.detail}`);
+						}}
+					>
+						<Folders
+							{folders}
+							{folderOptions}
+							uiStyle={sidebarStyle}
+							{shiftKey}
+							on:update={async () => {
+								await initChatList();
+							}}
+							on:change={async () => {
+								await initChatList();
+							}}
+						/>
+					</Folder>
+				{/if}
+
 				<Folder
 					collapsible={!search}
 					className="px-2 mt-0.5"
 					name={$i18n.t('Chats')}
 					dragAndDrop={false}
-					on:import={(e) => {
-						importChatHandler(e.detail);
-					}}
 				>
 					{#if $temporaryChatEnabled}
 						<div class="absolute z-40 w-full h-full flex justify-center"></div>
@@ -931,44 +1015,10 @@
 							<Folder
 								className=""
 								bind:open={showPinnedChat}
+								dragAndDrop={false}
 								on:change={(e) => {
 									localStorage.setItem('showPinnedChat', e.detail);
 									console.log(e.detail);
-								}}
-								on:import={(e) => {
-									importChatHandler(e.detail, true);
-								}}
-								on:drop={async (e) => {
-									const { type, id, item } = e.detail;
-
-									if (type === 'chat') {
-										let chat = await getChatById(localStorage.token, id).catch((error) => {
-											return null;
-										});
-										if (!chat && item) {
-											chat = await importChat(localStorage.token, item.chat, item?.meta ?? {});
-										}
-
-										if (chat) {
-											console.log(chat);
-											if (chat.folder_id) {
-												const res = await updateChatFolderIdById(
-													localStorage.token,
-													chat.id,
-													null
-												).catch((error) => {
-													toast.error(`${error}`);
-													return null;
-												});
-											}
-
-											if (!chat.pinned) {
-												const res = await toggleChatPinnedStatusById(localStorage.token, chat.id);
-											}
-
-											initChatList();
-										}
-									}
 								}}
 								name={$i18n.t('Pinned')}
 							>
@@ -981,7 +1031,9 @@
 											uiStyle={sidebarStyle}
 											id={chat.id}
 											title={chat.title}
+											folderId={chat.folder_id ?? null}
 											assistantId={chat.assistant_id}
+											{folderOptions}
 											{shiftKey}
 											selected={selectedChatId === chat.id}
 											on:select={() => {
@@ -1042,7 +1094,9 @@
 										uiStyle={sidebarStyle}
 										id={chat.id}
 										title={chat.title}
+										folderId={chat.folder_id ?? null}
 										assistantId={chat.assistant_id ?? $selectedAssistantScene?.id ?? null}
+										{folderOptions}
 										{shiftKey}
 										selected={selectedChatId === chat.id}
 										on:select={() => {
