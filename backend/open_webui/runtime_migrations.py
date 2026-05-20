@@ -1058,7 +1058,7 @@ def _cleanup_legacy_image_generation_options(conn: Connection) -> dict[str, int]
                     continue
 
             cleaned_chat, changed = sanitize_chat_payload_image_generation_options(
-                chat_payload
+                chat_payload, allow_size=False
             )
             if not changed:
                 continue

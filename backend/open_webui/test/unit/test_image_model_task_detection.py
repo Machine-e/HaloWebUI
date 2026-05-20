@@ -143,5 +143,5 @@ def test_dedicated_image_model_uses_current_chat_model_before_admin_default():
     }
     assert captured["image_generation_options"]["image_size"] == "1K"
     assert captured["image_generation_options"]["negative_prompt"] == "low quality"
-    assert "size" not in captured["image_generation_options"]
+    assert captured["image_generation_options"]["size"] == "900x1600"
     assert "unknown" not in captured["image_generation_options"]

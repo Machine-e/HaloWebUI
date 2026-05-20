@@ -5358,7 +5358,7 @@ async def image_generations(
         )
 
     effective_size = None
-    if not form_data.chat_generation and form_data.size is not None:
+    if form_data.size is not None:
         requested_size = str(form_data.size or "").strip().lower() or "auto"
         if requested_size == "auto":
             effective_size = None

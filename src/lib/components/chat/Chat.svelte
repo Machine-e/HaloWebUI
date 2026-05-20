@@ -404,6 +404,7 @@
 	type ImageGenerationOptions = {
 		model?: string | null;
 		model_ref?: Record<string, unknown> | null;
+		size?: string | null;
 		image_size?: string | null;
 		aspect_ratio?: string | null;
 		resolution?: string | null;
@@ -1281,6 +1282,7 @@
 	const chatImageGenerationOptionKeys = [
 		'model',
 		'model_ref',
+		'size',
 		'image_size',
 		'aspect_ratio',
 		'resolution',

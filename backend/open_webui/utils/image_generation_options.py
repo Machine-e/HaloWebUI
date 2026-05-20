@@ -7,6 +7,7 @@ from typing import Any
 CHAT_IMAGE_GENERATION_OPTION_KEYS = (
     "model",
     "model_ref",
+    "size",
     "image_size",
     "aspect_ratio",
     "resolution",
@@ -22,12 +23,16 @@ CHAT_IMAGE_GENERATION_OPTION_KEYS = (
 _IMAGE_GENERATION_OPTIONS_KEYS = ("image_generation_options", "imageGenerationOptions")
 
 
-def sanitize_chat_image_generation_options(value: Any) -> dict[str, Any]:
+def sanitize_chat_image_generation_options(
+    value: Any, *, allow_size: bool = True
+) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
 
     cleaned: dict[str, Any] = {}
     for key in CHAT_IMAGE_GENERATION_OPTION_KEYS:
+        if key == "size" and not allow_size:
+            continue
         if key not in value:
             continue
 
@@ -45,7 +50,9 @@ def sanitize_chat_image_generation_options(value: Any) -> dict[str, Any]:
     return cleaned
 
 
-def sanitize_chat_image_generation_options_in_mapping(mapping: Any) -> bool:
+def sanitize_chat_image_generation_options_in_mapping(
+    mapping: Any, *, allow_size: bool = True
+) -> bool:
     if not isinstance(mapping, dict):
         return False
 
@@ -55,7 +62,7 @@ def sanitize_chat_image_generation_options_in_mapping(mapping: Any) -> bool:
             continue
 
         original = mapping.get(key)
-        cleaned = sanitize_chat_image_generation_options(original)
+        cleaned = sanitize_chat_image_generation_options(original, allow_size=allow_size)
         if cleaned:
             if original != cleaned:
                 mapping[key] = cleaned
@@ -67,16 +74,25 @@ def sanitize_chat_image_generation_options_in_mapping(mapping: Any) -> bool:
     return changed
 
 
-def sanitize_chat_payload_image_generation_options(chat_payload: Any) -> tuple[Any, bool]:
+def sanitize_chat_payload_image_generation_options(
+    chat_payload: Any, *, allow_size: bool = True
+) -> tuple[Any, bool]:
     if not isinstance(chat_payload, dict):
         return chat_payload, False
 
     cleaned_payload = deepcopy(chat_payload)
-    changed = sanitize_chat_image_generation_options_in_mapping(cleaned_payload)
+    changed = sanitize_chat_image_generation_options_in_mapping(
+        cleaned_payload, allow_size=allow_size
+    )
 
     composer_state = cleaned_payload.get("composer_state")
     if isinstance(composer_state, dict):
-        changed = sanitize_chat_image_generation_options_in_mapping(composer_state) or changed
+        changed = (
+            sanitize_chat_image_generation_options_in_mapping(
+                composer_state, allow_size=allow_size
+            )
+            or changed
+        )
 
     if not changed:
         return chat_payload, False
