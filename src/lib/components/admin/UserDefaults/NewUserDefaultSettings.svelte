@@ -61,8 +61,8 @@
 	const pageMeta = {
 		title: tr('账户预设', 'Account Presets'),
 		description: tr(
-			'首次配置会带入当前管理员偏好；保存后仅影响新账号。',
-			'The first draft uses the current admin preferences. Saved presets only affect new accounts.'
+			'这里不是当前账号设置。保存后只作为之后新建普通账号的初始偏好，不会改变你自己或已有用户；权限请到权限组管理。',
+			'This is not your current account settings. Saved presets only initialize future standard accounts, never your account or existing users; manage permissions in groups.'
 		),
 		badgeColor: 'bg-blue-50 dark:bg-blue-950/30',
 		iconColor: 'text-blue-500 dark:text-blue-400',
