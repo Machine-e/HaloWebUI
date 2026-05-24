@@ -13,8 +13,7 @@
 		activeUserIds,
 		USAGE_POOL,
 		chatId,
-		chats,
-		currentChatPage,
+		chatListRefreshRevision,
 		tags,
 		temporaryChatEnabled,
 		isLastActiveTab,
@@ -49,7 +48,7 @@
 	import { localizeCommonError } from '$lib/utils/common-errors';
 	import { initScrollbarAutohide } from '$lib/utils/scrollbars';
 	import { setTextScale, TEXT_SCALE_DEFAULT } from '$lib/utils/text-scale';
-	import { getAllTags, getChatList } from '$lib/apis/chats';
+	import { getAllTags } from '$lib/apis/chats';
 	import { initPWAInstallSupport } from '$lib/utils/pwa';
 	import NotificationToast from '$lib/components/NotificationToast.svelte';
 	import AppSidebar from '$lib/components/app/AppSidebar.svelte';
@@ -185,6 +184,13 @@
 
 		notifiedChatCompletions.set(notificationKey, now);
 		return true;
+	};
+
+	const refreshSidebarChatList = (eventChatId) => {
+		if (!eventChatId || $temporaryChatEnabled) {
+			return;
+		}
+		chatListRefreshRevision.update((value) => value + 1);
 	};
 
 	const setupSocket = async (enableWebsocket) => {
@@ -387,6 +393,13 @@
 		const type = event?.data?.type ?? null;
 		const data = event?.data?.data ?? null;
 
+		if (type === 'chat:title') {
+			refreshSidebarChatList(event.chat_id);
+		} else if (type === 'chat:tags') {
+			tags.set(await getAllTags(localStorage.token));
+			refreshSidebarChatList(event.chat_id);
+		}
+
 		if ((event.chat_id !== $chatId && !$temporaryChatEnabled) || isFocused) {
 			if (type === 'chat:completion') {
 				const { done, content, title } = data;
@@ -417,11 +430,6 @@
 						unstyled: true
 					});
 				}
-			} else if (type === 'chat:title') {
-				currentChatPage.set(1);
-				await chats.set(await getChatList(localStorage.token, $currentChatPage));
-			} else if (type === 'chat:tags') {
-				tags.set(await getAllTags(localStorage.token));
 			}
 		} else if (data?.session_id === $socket.id) {
 			if (type === 'execute:python') {

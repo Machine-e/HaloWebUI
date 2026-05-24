@@ -78,7 +78,7 @@ COMFYUI_WORKFLOW_NODE_MAPPING_INVALID = "ComfyUI workflow node mapping is invali
 IMAGE_MODEL_DISCOVERY_CACHE_TTL_SECONDS = 60.0
 IMAGE_MODEL_DISCOVERY_CACHE_MAX_ENTRIES = 64
 IMAGE_MODEL_DISCOVERY_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
-OPENAI_IMAGE_BATCH_SPLIT_CONCURRENCY = 2
+OPENAI_IMAGE_BATCH_SPLIT_CONCURRENCY = 4
 MARKDOWN_IMAGE_URL_RE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
 DATA_IMAGE_URL_RE = re.compile(
     r"data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=\s]+", re.IGNORECASE
@@ -5191,6 +5191,7 @@ async def _run_openai_image_split_batch(
     model_id: str,
     n: int,
     run_single: Callable[[int], Awaitable[list[dict[str, str]]]],
+    on_image: Optional[Callable[[int, dict[str, Any]], Awaitable[None]]] = None,
 ) -> list[dict[str, Any]]:
     requested_n = max(1, int(n or 1))
     if requested_n <= 1:
@@ -5210,9 +5211,22 @@ async def _run_openai_image_split_batch(
 
     semaphore = asyncio.Semaphore(concurrency)
 
-    async def run_guarded(index: int) -> list[dict[str, str]]:
+    async def run_guarded(index: int) -> list[dict[str, Any]]:
         async with semaphore:
-            return await run_single(index)
+            result = await run_single(index)
+
+        image_items: list[dict[str, Any]] = []
+        for image in result:
+            image_item = dict(image)
+            image_item.setdefault("slot_index", index)
+            image_items.append(image_item)
+            if on_image:
+                try:
+                    await on_image(index, image_item)
+                except Exception:
+                    log.debug("Failed to emit partial split image result", exc_info=True)
+
+        return image_items
 
     batch_results = await asyncio.gather(
         *(run_guarded(index) for index in range(requested_n)),
@@ -5269,6 +5283,9 @@ async def _generate_via_openai_image_edits_endpoint(
     size: Optional[str],
     background: Optional[str],
     source: dict[str, Any],
+    partial_image_callback: Optional[
+        Callable[[int, dict[str, Any]], Awaitable[None]]
+    ] = None,
 ) -> list[dict[str, str]]:
     requested_n = max(1, int(n or 1))
     if requested_n > 1:
@@ -5292,6 +5309,7 @@ async def _generate_via_openai_image_edits_endpoint(
             model_id=model_id,
             n=requested_n,
             run_single=run_single,
+            on_image=partial_image_callback,
         )
 
     n = requested_n
@@ -5477,6 +5495,9 @@ async def _generate_via_openai_images_endpoint(
     size: Optional[str],
     background: Optional[str],
     source: dict[str, Any],
+    partial_image_callback: Optional[
+        Callable[[int, dict[str, Any]], Awaitable[None]]
+    ] = None,
 ) -> list[dict[str, str]]:
     requested_n = max(1, int(n or 1))
     if requested_n > 1:
@@ -5499,6 +5520,7 @@ async def _generate_via_openai_images_endpoint(
             model_id=model_id,
             n=requested_n,
             run_single=run_single,
+            on_image=partial_image_callback,
         )
 
     n = requested_n
@@ -5718,6 +5740,9 @@ async def _generate_via_openai_chat_image(
     image_url: Optional[str] = None,
     prefer_responses: bool = False,
     n: int = 1,
+    partial_image_callback: Optional[
+        Callable[[int, dict[str, Any]], Awaitable[None]]
+    ] = None,
 ) -> list[dict[str, str]]:
     base_url = source.get("base_url") or ""
     api_key = source.get("key") or ""
@@ -5753,6 +5778,7 @@ async def _generate_via_openai_chat_image(
             model_id=model_id,
             n=requested_n,
             run_single=run_single,
+            on_image=partial_image_callback,
         )
 
     image_input: Optional[tuple[str, bytes, str]] = None
@@ -6477,6 +6503,13 @@ async def image_generations(
     selected_engine = _normalize_engine(
         getattr(request.app.state.config, "IMAGE_GENERATION_ENGINE", "")
     )
+    partial_image_callback = getattr(
+        getattr(request, "state", None),
+        "open_webui_image_generation_partial_callback",
+        None,
+    )
+    if not callable(partial_image_callback):
+        partial_image_callback = None
     model_ref_provider = str(model_ref.get("provider") or "").strip().lower()
     if model_ref_provider in {"openai", "gemini", "grok"}:
         selected_engine = model_ref_provider
@@ -6700,6 +6733,7 @@ async def image_generations(
                     image_url=form_data.image_url,
                     prefer_responses=openai_image_route == OPENAI_IMAGE_ROUTE_RESPONSES,
                     n=requested_n,
+                    partial_image_callback=partial_image_callback,
                 )
 
             if openai_image_route == OPENAI_IMAGE_ROUTE_EDITS:
@@ -6719,6 +6753,7 @@ async def image_generations(
                     size=openai_request_size,
                     background=background,
                     source=source,
+                    partial_image_callback=partial_image_callback,
                 )
 
             return await _generate_via_openai_images_endpoint(
@@ -6731,6 +6766,7 @@ async def image_generations(
                 size=openai_request_size,
                 background=background,
                 source=source,
+                partial_image_callback=partial_image_callback,
             )
 
         elif selected_engine == "gemini":

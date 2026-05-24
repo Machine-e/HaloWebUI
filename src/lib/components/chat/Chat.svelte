@@ -187,14 +187,20 @@
 	const buildImageDataUrl = (mimeType: string, data: string) => `data:${mimeType};base64,${data}`;
 	const mergeMessageFiles = (existing: any[] = [], incoming: any[] = []) => {
 		const merged = [];
-		const seen = new Set<string>();
+		const seen = new Map<string, number>();
 
 		for (const file of [...existing, ...incoming]) {
 			if (!file || typeof file !== 'object') continue;
 			const normalized = JSON.parse(JSON.stringify(file));
-			const key = JSON.stringify(normalized);
-			if (seen.has(key)) continue;
-			seen.add(key);
+			const id = typeof normalized.id === 'string' ? normalized.id.trim() : '';
+			const url = typeof normalized.url === 'string' ? normalized.url.trim() : '';
+			const key = id ? `id:${id}` : url ? `url:${url}` : JSON.stringify(normalized);
+			const existingIndex = seen.get(key);
+			if (existingIndex !== undefined) {
+				merged[existingIndex] = { ...merged[existingIndex], ...normalized };
+				continue;
+			}
+			seen.set(key, merged.length);
 			merged.push(normalized);
 		}
 
@@ -2329,8 +2335,6 @@
 					}
 				} else if (type === 'chat:title') {
 					chatTitle.set(data);
-					currentChatPage.set(1);
-					await chats.set(await getChatList(localStorage.token, $currentChatPage));
 				} else if (type === 'chat:tags') {
 					chat = await getChatById(localStorage.token, $chatId);
 					allTags.set(await getAllTags(localStorage.token));

@@ -265,6 +265,48 @@
 		const maxWidth = slotCount === 1 ? 280 : slotCount === 3 ? 660 : 560;
 		return `grid-template-columns: repeat(${columns}, minmax(0, 1fr)); max-width: ${maxWidth}px;`;
 	};
+	const getImageGenerationStatusSlotCount = (
+		statuses: NonNullable<MessageType['statusHistory']>
+	) => {
+		for (let index = statuses.length - 1; index >= 0; index -= 1) {
+			const status = statuses[index];
+			if (!status?.hidden && status?.action === 'image_generation') {
+				const rawCount = status?.total ?? status?.count;
+				const parsed = Number(rawCount);
+				if (Number.isFinite(parsed) && parsed > 0) {
+					return parsed;
+				}
+			}
+		}
+		return null;
+	};
+	const getImageGenerationHighestResultSlot = (files: MessageFile[]) =>
+		files.reduce((highest, file, index) => {
+			const rawSlotIndex = Number(file?.slot_index);
+			const slotIndex = Number.isFinite(rawSlotIndex) ? rawSlotIndex : index;
+			return Math.max(highest, slotIndex);
+		}, -1);
+	const buildImageGenerationResultSlots = (files: MessageFile[], slotCount: number) => {
+		const count = normalizeImageGenerationSlotCount(slotCount, files.length || 1);
+		const slots: (MessageFile | null)[] = Array.from({ length: count }, () => null);
+		let nextAvailableSlot = 0;
+
+		for (const file of files) {
+			const rawSlotIndex = Number(file?.slot_index);
+			let slotIndex = Number.isFinite(rawSlotIndex) ? rawSlotIndex : -1;
+			if (slotIndex < 0 || slotIndex >= count) {
+				while (nextAvailableSlot < count && slots[nextAvailableSlot] !== null) {
+					nextAvailableSlot += 1;
+				}
+				slotIndex = nextAvailableSlot;
+			}
+			if (slotIndex >= 0 && slotIndex < count) {
+				slots[slotIndex] = file;
+			}
+		}
+
+		return slots;
+	};
 	const getActiveImageGenerationStatus = (statuses: NonNullable<MessageType['statusHistory']>) => {
 		for (let index = statuses.length - 1; index >= 0; index -= 1) {
 			const status = statuses[index];
@@ -277,13 +319,24 @@
 	$: imageGenerationResultFiles = visibleMessageFiles
 		.filter(isImageGenerationResultFile)
 		.sort((a, b) => Number(a?.slot_index ?? 0) - Number(b?.slot_index ?? 0));
+	$: imageGenerationStatusSlotCount = getImageGenerationStatusSlotCount(
+		message?.statusHistory ?? [...(message?.status ? [message?.status] : [])]
+	);
+	$: imageGenerationHighestResultSlot =
+		getImageGenerationHighestResultSlot(imageGenerationResultFiles);
 	$: imageGenerationResultSlotCount = normalizeImageGenerationSlotCount(
-		imageGenerationResultFiles.length,
+		imageGenerationStatusSlotCount ??
+			Math.max(imageGenerationResultFiles.length, imageGenerationHighestResultSlot + 1),
 		1
 	);
+	$: imageGenerationResultSlots = buildImageGenerationResultSlots(
+		imageGenerationResultFiles,
+		imageGenerationResultSlotCount
+	);
 	$: showImageGenerationResultGrid =
-		imageGenerationResultFiles.length > 1 ||
-		imageGenerationResultFiles.some((file) => file?.type === 'image_generation_error');
+		imageGenerationResultFiles.length > 0 &&
+		(imageGenerationResultSlotCount > 1 ||
+			imageGenerationResultFiles.some((file) => file?.type === 'image_generation_error'));
 	$: otherVisibleMessageFiles = visibleMessageFiles.filter(
 		(file) => !showImageGenerationResultGrid || !isImageGenerationResultFile(file)
 	);
@@ -1210,24 +1263,24 @@
 								style={imageGenerationGridStyle(imageGenerationResultSlotCount)}
 								aria-label={tr('图片生成结果', 'Image generation results')}
 							>
-								{#each imageGenerationResultFiles as file, index}
-									<div
-										class="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900"
-									>
-										<div class="relative aspect-[4/5] bg-gray-100 dark:bg-gray-950">
-											{#if file.type === 'image' && file.url}
-												<Image
-													src={file.url}
-													alt={`${tr('第 {{index}} 张', 'Image {{index}}', {
-														index: imageGenerationSlotNumber(file, index)
-													})}`}
-													className="h-full w-full outline-hidden focus:outline-hidden"
-													imageClassName="h-full w-full object-cover"
-												/>
-											{:else}
-												<div
-													class="flex h-full w-full flex-col justify-between gap-3 bg-red-50 p-3 text-red-800 dark:bg-red-950/30 dark:text-red-200"
-												>
+									{#each imageGenerationResultSlots as file, index}
+										<div
+											class="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900"
+										>
+											<div class="relative aspect-[4/5] bg-gray-100 dark:bg-gray-950">
+												{#if file?.type === 'image' && file.url}
+													<Image
+														src={file.url}
+														alt={`${tr('第 {{index}} 张', 'Image {{index}}', {
+															index: imageGenerationSlotNumber(file, index)
+														})}`}
+														className="h-full w-full outline-hidden focus:outline-hidden"
+														imageClassName="h-full w-full object-contain"
+													/>
+												{:else if file}
+													<div
+														class="flex h-full w-full flex-col justify-between gap-3 bg-red-50 p-3 text-red-800 dark:bg-red-950/30 dark:text-red-200"
+													>
 													<div class="flex items-center gap-2 text-sm font-medium">
 														<CircleAlert className="size-4 shrink-0" strokeWidth="1.9" />
 														<span>{tr('生成失败', 'Failed')}</span>
@@ -1238,12 +1291,37 @@
 													<div class="text-[11px] text-red-600/80 dark:text-red-300/80">
 														{tr('第 {{index}} 张', 'Image {{index}}', {
 															index: imageGenerationSlotNumber(file, index)
-														})}
+															})}
+														</div>
 													</div>
-												</div>
-											{/if}
+												{:else}
+													<div
+														class="image-generation-placeholder relative h-full w-full overflow-hidden bg-gray-50 dark:bg-gray-900"
+													>
+														<div class="absolute inset-0 image-generation-sweep" />
+														<div
+															class="absolute inset-0 flex flex-col items-center justify-center gap-3 px-3 text-center"
+														>
+															<div
+																class="flex size-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm dark:border-gray-700 dark:bg-gray-850 dark:text-gray-300"
+															>
+																<Sparkles className="size-5" strokeWidth="1.8" />
+															</div>
+															<div class="space-y-1">
+																<div class="text-sm font-medium text-gray-700 dark:text-gray-200">
+																	{tr('图片正在生成', 'Generating image')}
+																</div>
+																<div class="text-xs text-gray-500 dark:text-gray-400">
+																	{tr('第 {{index}} 张', 'Image {{index}}', {
+																		index: index + 1
+																	})}
+																</div>
+															</div>
+														</div>
+													</div>
+												{/if}
+											</div>
 										</div>
-									</div>
 								{/each}
 							</div>
 						{/if}

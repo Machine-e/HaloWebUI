@@ -23,7 +23,9 @@
 		channels,
 		socket,
 		config,
-		isApp
+		isApp,
+		models,
+		modelsStatus
 	} from '$lib/stores';
 	import { onMount, getContext, tick, onDestroy } from 'svelte';
 
@@ -38,7 +40,7 @@
 	} from '$lib/apis/chats';
 	import { createNewFolder, getFolders } from '$lib/apis/folders';
 	import { WEBUI_BASE_URL } from '$lib/constants';
-	import { getModels as getWorkspaceModels } from '$lib/apis/models';
+	import { ensureModels } from '$lib/services/models';
 	import { getTimeRange } from '$lib/utils';
 	import { getModelChatDisplayName } from '$lib/utils/model-display';
 
@@ -149,13 +151,8 @@
 		return Boolean(baseModelId) && meta?.hidden !== true && isActive !== false;
 	};
 
-	const loadAssistantScenes = async () => {
-		const models = await getWorkspaceModels(localStorage.token).catch((error) => {
-			toast.error(`${error}`);
-			return [];
-		});
-
-		assistantScenes = (models ?? [])
+	const getAssistantScenes = (modelList = []) =>
+		(modelList ?? [])
 			.filter((model) => isAssistantSceneModel(model))
 			.sort((a, b) =>
 				getModelChatDisplayName(a).localeCompare(getModelChatDisplayName(b), undefined, {
@@ -164,7 +161,24 @@
 				})
 			);
 
+	$: assistantScenes = getAssistantScenes($models ?? []);
+
+	$: if (
+		$modelsStatus === 'ready' &&
+		$selectedAssistantScene &&
+		!assistantScenes.some((model) => model.id === $selectedAssistantScene?.id)
+	) {
+		selectedAssistantScene.set(null);
+	}
+
+	const loadAssistantScenes = async () => {
+		await ensureModels(localStorage.token, { reason: 'sidebar-assistants' }).catch((error) => {
+			toast.error(`${error}`);
+			return [];
+		});
+
 		if (
+			$modelsStatus === 'ready' &&
 			$selectedAssistantScene &&
 			!assistantScenes.some((model) => model.id === $selectedAssistantScene?.id)
 		) {

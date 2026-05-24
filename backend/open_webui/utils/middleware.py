@@ -3881,25 +3881,120 @@ async def _build_chat_image_generation_local_response(
     negative_prompt = ""
 
     system_message_content = ""
+    partial_image_files: dict[int, dict[str, Any]] = {}
+    partial_image_urls: set[str] = set()
+
+    async def emit_partial_image_generation_file(
+        slot_index: int, image: dict[str, Any]
+    ) -> None:
+        url = str(image.get("url") or "").strip()
+        if not url or url in partial_image_urls:
+            return
+
+        try:
+            normalized_slot_index = int(image.get("slot_index", slot_index))
+        except Exception:
+            normalized_slot_index = slot_index
+        normalized_slot_index = max(0, min(normalized_slot_index, requested_n - 1))
+
+        file_id = extract_chat_image_file_id(url)
+        file_meta: dict[str, Any] = {}
+        if file_id:
+            try:
+                file_item = Files.get_file_by_id(file_id)
+                if file_item and isinstance(getattr(file_item, "meta", None), dict):
+                    file_meta = file_item.meta
+            except Exception:
+                file_meta = {}
+
+        file_payload = {
+            "type": "image",
+            **({"id": file_id} if file_id else {}),
+            "url": url,
+            "name": file_meta.get("name") or "generated-image.png",
+            **({"size": file_meta.get("size")} if file_meta.get("size") else {}),
+            **(
+                {"content_type": file_meta.get("content_type")}
+                if file_meta.get("content_type")
+                else {}
+            ),
+            "source": "image_generation",
+            "status": "success",
+            "slot_index": normalized_slot_index,
+        }
+        partial_image_urls.add(url)
+        partial_image_files[normalized_slot_index] = file_payload
+
+        await __event_emitter__(
+            {
+                "type": "status",
+                "data": {
+                    "action": "image_generation",
+                    "description": "Generated {{count}} of {{total}} images",
+                    "count": len(partial_image_files),
+                    "total": requested_n,
+                    "done": False,
+                },
+            }
+        )
+        await __event_emitter__(
+            {
+                "type": "files",
+                "data": {"files": [file_payload]},
+            }
+        )
 
     try:
-        images = await image_generations(
-            request=request,
-            form_data=GenerateImageForm(
-                **{
-                    "prompt": prompt,
-                    "stream": form_data.get("stream"),
-                    **{
-                        key: image_generation_options.get(key)
-                        for key in CHAT_IMAGE_GENERATION_OPTION_KEYS
-                        if image_generation_options.get(key) is not None
-                    },
-                    **({"image_url": source_image_url} if source_image_url else {}),
-                    "chat_generation": True,
-                }
-            ),
-            user=user,
+        request_state = getattr(request, "state", None)
+        previous_partial_callback = (
+            getattr(
+                request_state,
+                "open_webui_image_generation_partial_callback",
+                None,
+            )
+            if request_state is not None
+            else None
         )
+        if request_state is not None and requested_n > 1:
+            setattr(
+                request_state,
+                "open_webui_image_generation_partial_callback",
+                emit_partial_image_generation_file,
+            )
+        try:
+            images = await image_generations(
+                request=request,
+                form_data=GenerateImageForm(
+                    **{
+                        "prompt": prompt,
+                        "stream": form_data.get("stream"),
+                        **{
+                            key: image_generation_options.get(key)
+                            for key in CHAT_IMAGE_GENERATION_OPTION_KEYS
+                            if image_generation_options.get(key) is not None
+                        },
+                        **({"image_url": source_image_url} if source_image_url else {}),
+                        "chat_generation": True,
+                    }
+                ),
+                user=user,
+            )
+        finally:
+            if request_state is not None and requested_n > 1:
+                if previous_partial_callback is None:
+                    try:
+                        delattr(
+                            request_state,
+                            "open_webui_image_generation_partial_callback",
+                        )
+                    except AttributeError:
+                        pass
+                else:
+                    setattr(
+                        request_state,
+                        "open_webui_image_generation_partial_callback",
+                        previous_partial_callback,
+                    )
 
         requested_n = max(1, int(requested_n or len(images) or 1))
         image_result_files = _build_chat_image_generation_result_files(

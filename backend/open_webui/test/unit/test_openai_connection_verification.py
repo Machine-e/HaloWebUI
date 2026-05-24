@@ -12,7 +12,9 @@ from open_webui.routers.openai import (  # noqa: E402
     _get_openai_chat_completions_url,
     _get_openai_models_url,
     _is_dashscope_compatible_connection,
+    _get_new_api_public_pricing_url,
     _looks_like_models_listing_unsupported,
+    _normalize_new_api_public_pricing_response,
     _normalize_openai_models_response,
 )
 
@@ -91,6 +93,99 @@ def test_openai_headers_trim_copied_api_key_whitespace():
     )
 
     assert headers["Authorization"] == "Bearer sk-test"
+
+
+def test_openai_headers_honor_x_api_key_auth_type():
+    headers = _build_upstream_headers(
+        "https://example.test/v1",
+        "test-key",
+        {"auth_type": "x-api-key"},
+    )
+
+    assert headers["x-api-key"] == "test-key"
+    assert "api-key" not in headers
+    assert "Authorization" not in headers
+
+
+def test_new_api_public_pricing_url_uses_origin_api_pricing():
+    assert (
+        _get_new_api_public_pricing_url("https://open.cherryin.ai/v1")
+        == "https://open.cherryin.ai/api/pricing"
+    )
+    assert _get_new_api_public_pricing_url("https://api.openai.com/v1") is None
+
+
+def test_normalize_new_api_public_pricing_response_filters_openai_chat_models():
+    normalized = _normalize_new_api_public_pricing_response(
+        {
+            "success": True,
+            "supported_endpoint": {
+                "openai": {"path": "/v1/chat/completions", "method": "POST"},
+                "image-generation": {"path": "/v1/images/generations", "method": "POST"},
+            },
+            "usable_group": {"default": "默认分组"},
+            "data": [
+                {
+                    "model_name": "openai/gpt-4.1",
+                    "supported_endpoint_types": ["openai", "anthropic"],
+                },
+                {
+                    "model_name": "openai/gpt-image-2",
+                    "supported_endpoint_types": ["image-generation"],
+                },
+                {
+                    "model_name": "openai/gpt-5",
+                    "supported_endpoint_types": ["openai-response"],
+                },
+            ],
+        },
+        url="https://open.cherryin.ai/v1",
+        api_config={},
+        models_status=401,
+    )
+
+    assert normalized is not None
+    assert [model["id"] for model in normalized["data"]] == ["openai/gpt-4.1"]
+    assert normalized["_openwebui"]["public_model_catalog"] is True
+    assert normalized["_openwebui"]["models_endpoint_authorized"] is False
+
+
+def test_normalize_new_api_public_pricing_response_allows_responses_models_when_enabled():
+    normalized = _normalize_new_api_public_pricing_response(
+        {
+            "success": True,
+            "supported_endpoint": {
+                "openai-response": {"path": "/v1/responses", "method": "POST"},
+            },
+            "data": [
+                {
+                    "model_name": "openai/gpt-5",
+                    "supported_endpoint_types": ["openai-response"],
+                },
+            ],
+        },
+        url="https://open.cherryin.ai/v1",
+        api_config={"use_responses_api": True},
+        models_status=401,
+    )
+
+    assert normalized is not None
+    assert [model["id"] for model in normalized["data"]] == ["openai/gpt-5"]
+
+
+def test_normalize_new_api_public_pricing_response_rejects_generic_data_list():
+    assert (
+        _normalize_new_api_public_pricing_response(
+            {
+                "success": True,
+                "data": [{"model_name": "looks-like-a-model"}],
+            },
+            url="https://example.test/v1",
+            api_config={},
+            models_status=401,
+        )
+        is None
+    )
 
 
 def test_azure_chat_attempts_add_legacy_deployment_fallback_without_model_field():

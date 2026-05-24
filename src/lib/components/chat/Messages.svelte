@@ -267,8 +267,11 @@
 		}
 	};
 
-	const editMessage = async (messageId, content, submit = true) => {
+	const editMessage = async (messageId, content, submit = true, files = undefined) => {
 		if (history.messages[messageId].role === 'user') {
+			const hasEditedFiles = Array.isArray(files);
+			const messageFiles = hasEditedFiles ? structuredClone(files) : history.messages[messageId].files;
+
 			if (submit) {
 				// New user message
 				let userPrompt = content;
@@ -280,7 +283,9 @@
 					childrenIds: [],
 					role: 'user',
 					content: userPrompt,
-					...(history.messages[messageId].files && { files: history.messages[messageId].files }),
+					...(Array.isArray(messageFiles) && messageFiles.length > 0
+						? { files: structuredClone(messageFiles) }
+						: {}),
 					models: selectedModels,
 					timestamp: Math.floor(Date.now() / 1000) // Unix epoch
 				};
@@ -302,6 +307,13 @@
 			} else {
 				// Edit user message
 				history.messages[messageId].content = content;
+				if (hasEditedFiles) {
+					if (messageFiles.length > 0) {
+						history.messages[messageId].files = structuredClone(messageFiles);
+					} else {
+						delete history.messages[messageId].files;
+					}
+				}
 				history.messages[messageId].editCount = (history.messages[messageId].editCount || 0) + 1;
 				history.messages[messageId].lastEditAt = Math.floor(Date.now() / 1000);
 				await updateChat();

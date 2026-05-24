@@ -5,9 +5,10 @@ export interface ConnectionErrorToastContent {
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-const PROVIDER_PREFIX_RE = /^(OpenAI|Gemini|Anthropic|Ollama):\s*/;
+const PROVIDER_PREFIX_RE = /^(OpenAI|Gemini|Grok|Anthropic|Ollama):\s*/;
 const INVALID_API_KEY_RE =
-	/invalid_api_key|Incorrect API key provided|invalid api key|authentication failed|unauthorized/i;
+	/invalid_api_key|Incorrect API key provided|invalid api key|invalid bearer token|authentication failed|unauthorized/i;
+const UPSTREAM_INVALID_TOKEN_RE = /invalid token\s*\([^)]*(?:request\s*id|req[_ -]?id)[^)]*\)/i;
 const ACCOUNT_RESOURCE_NOT_FOUND_RE =
 	/\b(?:Function|Model|Resource)\b[\s\S]*?\bNot found for account\b/i;
 const RESPONSES_API_ERROR_RE = /responses api|\/responses/i;
@@ -26,6 +27,17 @@ const MIN_VALUE_RE =
 
 const getRawErrorText = (error: unknown): string =>
 	error instanceof Error ? error.message : typeof error === 'string' ? error : `${error ?? ''}`;
+
+const splitProviderPrefix = (raw: string) => {
+	const providerMatch = raw.match(PROVIDER_PREFIX_RE);
+	return {
+		providerPrefix: providerMatch ? `${providerMatch[1]}：` : '',
+		providerStripped: providerMatch ? raw.slice(providerMatch[0].length) : raw
+	};
+};
+
+const isApiAuthError = (text: string) =>
+	INVALID_API_KEY_RE.test(text) || UPSTREAM_INVALID_TOKEN_RE.test(text);
 
 const localizeKnownFragments = (text: string, t: Translate): string =>
 	text
@@ -82,15 +94,13 @@ export const formatConnectionErrorToast = (
 	t: Translate
 ): ConnectionErrorToastContent => {
 	const raw = getRawErrorText(error);
-	const providerMatch = raw.match(PROVIDER_PREFIX_RE);
-	const providerPrefix = providerMatch ? `${providerMatch[1]}：` : '';
-	const providerStripped = providerMatch ? raw.slice(providerMatch[0].length) : raw;
+	const { providerPrefix, providerStripped } = splitProviderPrefix(raw);
 	const simplifiedDetail = normalizeWhitespace(
 		extractPayloadMessage(stripTransportWrappers(providerStripped))
 	);
 	const localizedSimpleDetail = localizeKnownFragments(simplifiedDetail, t);
 
-	if (INVALID_API_KEY_RE.test(providerStripped)) {
+	if (isApiAuthError(providerStripped)) {
 		return {
 			title: `${providerPrefix}${t('error.reason.api_auth_error')}`,
 			description: t('connection.error.check_key_matches_url')
@@ -157,4 +167,21 @@ export const formatConnectionErrorToast = (
 	return {
 		title: providerPrefix ? `${providerPrefix}${fallback}` : fallback
 	};
+};
+
+export const formatModelFetchErrorToast = (
+	error: unknown,
+	t: Translate
+): ConnectionErrorToastContent => {
+	const raw = getRawErrorText(error);
+	const { providerPrefix, providerStripped } = splitProviderPrefix(raw);
+
+	if (isApiAuthError(providerStripped)) {
+		return {
+			title: `${providerPrefix}${t('error.title.model_list_auth_failed')}`,
+			description: t('connection.error.model_list_auth_failed')
+		};
+	}
+
+	return formatConnectionErrorToast(error, t);
 };

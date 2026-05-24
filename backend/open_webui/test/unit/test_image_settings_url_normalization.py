@@ -177,6 +177,89 @@ def test_chat_image_generation_handler_returns_partial_batch_results(monkeypatch
     ]
 
 
+def test_chat_image_generation_handler_emits_partial_image_files(monkeypatch):
+    events = []
+    request = SimpleNamespace(state=SimpleNamespace())
+
+    async def fake_image_generations(request, form_data, user):
+        callback = getattr(
+            request.state,
+            "open_webui_image_generation_partial_callback",
+        )
+        await callback(
+            0,
+            {"url": "/api/v1/files/generated-1/content", "slot_index": 0},
+        )
+        await callback(
+            1,
+            {"url": "/api/v1/files/generated-2/content", "slot_index": 1},
+        )
+        return [
+            {"url": "/api/v1/files/generated-1/content", "slot_index": 0},
+            {"url": "/api/v1/files/generated-2/content", "slot_index": 1},
+        ]
+
+    async def fake_event_emitter(event):
+        events.append(event)
+
+    def fake_get_file_by_id(file_id):
+        return SimpleNamespace(
+            meta={
+                "name": f"{file_id}.png",
+                "content_type": "image/png",
+                "size": 123,
+            }
+        )
+
+    monkeypatch.setattr(middleware, "image_generations", fake_image_generations)
+    monkeypatch.setattr(middleware.Files, "get_file_by_id", fake_get_file_by_id)
+
+    metadata = {"image_generation_options": {"model": "gpt-image-2", "n": 2}}
+
+    asyncio.run(
+        middleware.chat_image_generation_handler(
+            request=request,
+            form_data={"messages": [{"role": "user", "content": "生成两张图"}]},
+            extra_params={
+                "__event_emitter__": fake_event_emitter,
+                "__metadata__": metadata,
+            },
+            user=SimpleNamespace(id="user-1", role="admin"),
+        )
+    )
+
+    progress_events = [
+        event
+        for event in events
+        if event.get("type") == "status"
+        and event.get("data", {}).get("description")
+        == "Generated {{count}} of {{total}} images"
+        and event.get("data", {}).get("done") is False
+    ]
+    file_events = [event for event in events if event.get("type") == "files"]
+
+    assert len(progress_events) == 2
+    assert len(file_events) == 2
+    assert events.index(progress_events[0]) < events.index(file_events[0])
+    assert events.index(progress_events[1]) < events.index(file_events[1])
+    assert progress_events[0]["data"]["count"] == 1
+    assert progress_events[0]["data"]["total"] == 2
+    assert file_events[0]["data"]["files"] == [
+        {
+            "type": "image",
+            "id": "generated-1",
+            "url": "/api/v1/files/generated-1/content",
+            "name": "generated-1.png",
+            "size": 123,
+            "content_type": "image/png",
+            "source": "image_generation",
+            "status": "success",
+            "slot_index": 0,
+        }
+    ]
+    assert not hasattr(request.state, "open_webui_image_generation_partial_callback")
+
+
 def test_chat_image_generation_handler_marks_missing_returned_images(monkeypatch):
     events = []
 
@@ -2390,6 +2473,45 @@ def test_openai_image_split_batch_reports_partial_successes():
         assert [image["slot_index"] for image in exc.images] == [0, 1]
         assert [failure["index"] for failure in exc.failures] == [2, 3]
         assert "upstream failed for image 2" in exc.failures[0]["detail"]
+
+
+def test_openai_image_split_batch_emits_each_image_as_it_finishes():
+    async def run_test():
+        active = 0
+        max_active = 0
+        emitted = []
+
+        async def run_single(index: int):
+            nonlocal active, max_active
+            active += 1
+            max_active = max(max_active, active)
+            await asyncio.sleep(0.01 * (4 - index))
+            active -= 1
+            return [{"url": f"/api/v1/files/generated-{index}"}]
+
+        async def on_image(index: int, image: dict):
+            emitted.append((index, image["slot_index"], image["url"]))
+
+        result = await images_router._run_openai_image_split_batch(
+            route_label="generations",
+            model_id="gpt-image-2",
+            n=4,
+            run_single=run_single,
+            on_image=on_image,
+        )
+
+        return max_active, emitted, result
+
+    max_active, emitted, result = asyncio.run(run_test())
+
+    assert max_active == 4
+    assert sorted(emitted) == [
+        (0, 0, "/api/v1/files/generated-0"),
+        (1, 1, "/api/v1/files/generated-1"),
+        (2, 2, "/api/v1/files/generated-2"),
+        (3, 3, "/api/v1/files/generated-3"),
+    ]
+    assert [image["slot_index"] for image in result] == [0, 1, 2, 3]
 
 
 def test_image_generations_preserves_partial_batch_error(monkeypatch):

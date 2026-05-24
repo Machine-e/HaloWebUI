@@ -221,16 +221,31 @@ const getOpenAIRequestHeaders = (
 	if (key) {
 		if (authType === 'none' || authType === 'custom' || authType === 'custom_headers_only') {
 			// Leave auth to custom headers.
+		} else if (authType === 'x-api-key') {
+			if (
+				!lowerHeaders.has('x-api-key') &&
+				!lowerHeaders.has('api-key') &&
+				!lowerHeaders.has('authorization')
+			) {
+				headers['x-api-key'] = key;
+			}
 		} else if (
 			authType === 'api-key' ||
-			authType === 'x-api-key' ||
 			(isAzureConnection(url, config) &&
 				!['bearer', 'authorization', 'azure_ad', 'microsoft_entra_id'].includes(authType))
 		) {
-			if (!lowerHeaders.has('api-key') && !lowerHeaders.has('authorization')) {
+			if (
+				!lowerHeaders.has('api-key') &&
+				!lowerHeaders.has('x-api-key') &&
+				!lowerHeaders.has('authorization')
+			) {
 				headers['api-key'] = key;
 			}
-		} else if (!lowerHeaders.has('authorization') && !lowerHeaders.has('api-key')) {
+		} else if (
+			!lowerHeaders.has('authorization') &&
+			!lowerHeaders.has('api-key') &&
+			!lowerHeaders.has('x-api-key')
+		) {
 			headers.Authorization = `Bearer ${key}`;
 		}
 	}

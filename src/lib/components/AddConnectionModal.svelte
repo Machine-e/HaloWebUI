@@ -578,6 +578,15 @@
 		};
 	})();
 
+	$: modelSelectorUsesKeyPool = !ollama && !direct;
+	$: modelSelectorKey = modelSelectorUsesKeyPool
+		? getPrimaryKeyFromPool(keyPool) || key.trim()
+		: key.trim();
+	$: modelSelectorApiKeyPool = modelSelectorUsesKeyPool
+		? getSavableApiKeyPool(keyPool, key)
+		: undefined;
+	$: modelSelectorAnthropicBeta = anthropicBetas.map((b) => b.name).filter((b) => b.trim());
+
 	const getHostname = (inputUrl: string): string => {
 		const trimmed = (inputUrl || '').trim().replace(/#$/, '');
 		if (!trimmed) return '';
@@ -1636,17 +1645,18 @@
 		bind:modelIds
 		url={normalizedUrl}
 		force_mode={isForceMode}
-		key={normalizedKey()}
-		api_key_pool={isApiKeyPoolProvider() ? getSavableApiKeyPool() : undefined}
+		key={modelSelectorKey}
+		api_key_pool={modelSelectorApiKeyPool}
+		prefix_id={prefixId}
 		{azure}
 		api_version={apiVersion}
 		{auth_type}
 		headers={parsedHeaders}
-	anthropic_version={anthropicVersion}
-	anthropic_beta={anthropicBetas.map((b) => b.name).filter((b) => b.trim())}
-	{ollama}
-	{gemini}
-	{grok}
+		anthropic_version={anthropicVersion}
+		anthropic_beta={modelSelectorAnthropicBeta}
+		{ollama}
+		{gemini}
+		{grok}
 		{anthropic}
 	/>
 

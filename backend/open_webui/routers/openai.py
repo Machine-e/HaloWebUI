@@ -715,10 +715,16 @@ def _build_upstream_headers(
     lower = {k.lower(): k for k in headers.keys()}
     auth_type = str((api_config or {}).get("auth_type") or "").strip().lower()
     key = str(key or "").strip()
-    if key and ("authorization" not in lower) and ("api-key" not in lower):
+    if key and (
+        "authorization" not in lower
+        and "api-key" not in lower
+        and "x-api-key" not in lower
+    ):
         if auth_type in {"none", "custom", "custom_headers_only"}:
             pass
-        elif auth_type in {"api-key", "x-api-key"} or (
+        elif auth_type == "x-api-key":
+            headers["x-api-key"] = key
+        elif auth_type == "api-key" or (
             _is_azure_openai_connection(base_url, api_config)
             and auth_type not in {"bearer", "authorization", "azure_ad", "microsoft_entra_id"}
         ):
@@ -1001,6 +1007,163 @@ def _normalize_openai_models_response(body) -> Optional[dict]:
         return {"object": "list", "data": normalized}
 
     return None
+
+
+def _get_new_api_public_pricing_url(url: str) -> Optional[str]:
+    if _is_official_openai_connection(url) or _is_azure_openai_connection(url):
+        return None
+
+    try:
+        parsed = urlparse((url or "").strip())
+        if not parsed.scheme or not parsed.netloc:
+            return None
+    except Exception:
+        return None
+
+    return _replace_url_path_and_query(parsed, "/api/pricing", "")
+
+
+def _pricing_entry_supports_openai_chat(
+    item: dict,
+    api_config: Optional[dict],
+) -> bool:
+    endpoint_types = item.get("supported_endpoint_types")
+    if not isinstance(endpoint_types, list) or not endpoint_types:
+        return True
+
+    normalized = {str(endpoint).strip().lower() for endpoint in endpoint_types}
+    if "openai" in normalized:
+        return True
+
+    return _coerce_bool((api_config or {}).get("use_responses_api"), False) and (
+        "openai-response" in normalized
+    )
+
+
+def _coerce_new_api_pricing_model_entry(
+    item,
+    *,
+    api_config: Optional[dict],
+) -> Optional[dict]:
+    if not isinstance(item, dict):
+        return None
+
+    if not _pricing_entry_supports_openai_chat(item, api_config):
+        return None
+
+    model_id = (
+        item.get("model_name")
+        or item.get("id")
+        or item.get("name")
+        or item.get("model")
+    )
+    if not model_id:
+        return None
+
+    normalized = dict(item)
+    normalized["id"] = str(model_id).strip()
+    normalized.setdefault("name", normalized["id"])
+    normalized.setdefault("object", "model")
+    return normalized if normalized["id"] else None
+
+
+def _normalize_new_api_public_pricing_response(
+    body,
+    *,
+    url: str,
+    api_config: Optional[dict],
+    models_status: int,
+) -> Optional[dict]:
+    if not isinstance(body, dict):
+        return None
+    if body.get("success") is False:
+        return None
+    if not _looks_like_new_api_public_pricing_response(body):
+        return None
+
+    data = body.get("data")
+    if not isinstance(data, list):
+        return None
+
+    models = [
+        entry
+        for item in data
+        if (entry := _coerce_new_api_pricing_model_entry(item, api_config=api_config))
+        is not None
+    ]
+    if not models:
+        return None
+
+    pricing_url = _get_new_api_public_pricing_url(url)
+    return {
+        "object": "list",
+        "data": models,
+        "_openwebui": {
+            "provider": "new-api",
+            "public_model_catalog": True,
+            "public_model_catalog_source": pricing_url or "/api/pricing",
+            "models_endpoint_status": models_status,
+            "models_endpoint_authorized": False,
+        },
+    }
+
+
+def _looks_like_new_api_public_pricing_response(body: dict) -> bool:
+    supported_endpoint = body.get("supported_endpoint")
+    if isinstance(supported_endpoint, dict):
+        endpoint_keys = {
+            str(endpoint).strip().lower() for endpoint in supported_endpoint.keys()
+        }
+        if endpoint_keys & {
+            "openai",
+            "openai-response",
+            "anthropic",
+            "gemini",
+            "image-generation",
+        }:
+            return True
+
+    return any(
+        key in body
+        for key in (
+            "usable_group",
+            "group_ratio",
+            "auto_groups",
+            "pricing_version",
+            "vendors",
+        )
+    )
+
+
+async def _fetch_new_api_public_pricing_models(
+    *,
+    session: aiohttp.ClientSession,
+    url: str,
+    api_config: Optional[dict],
+    models_status: int,
+) -> Optional[dict]:
+    pricing_url = _get_new_api_public_pricing_url(url)
+    if not pricing_url:
+        return None
+
+    try:
+        async with session.get(
+            pricing_url,
+            headers={"Accept": "application/json"},
+            ssl=AIOHTTP_CLIENT_SESSION_SSL,
+        ) as response:
+            if response.status != 200:
+                return None
+
+            body = await _safe_read_upstream_body(response)
+            return _normalize_new_api_public_pricing_response(
+                body,
+                url=url,
+                api_config=api_config,
+                models_status=models_status,
+            )
+    except aiohttp.ClientError:
+        return None
 
 
 def _apply_native_web_search_support_to_models_response(
@@ -2282,6 +2445,27 @@ async def verify_connection(
                                 len(attempts),
                             )
                             continue
+
+                        if purpose == "models" and _looks_like_models_listing_unsupported(
+                            r.status, response_body
+                        ):
+                            public_catalog = await _fetch_new_api_public_pricing_models(
+                                session=session,
+                                url=url,
+                                api_config=api_config,
+                                models_status=r.status,
+                            )
+                            if public_catalog is not None:
+                                log.info(
+                                    "Upstream %s rejected /models with status %s; using New API public model catalog for model management",
+                                    url,
+                                    r.status,
+                                )
+                                return _apply_native_web_search_support_to_models_response(
+                                    public_catalog,
+                                    url=url,
+                                    api_config=api_config,
+                                )
 
                         raise HTTPException(
                             status_code=400,
