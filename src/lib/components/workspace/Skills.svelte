@@ -701,74 +701,70 @@
 />
 
 {#if !loaded}
-	<div class="flex min-h-[18rem] items-center justify-center">
+	<section class="workspace-section flex min-h-[18rem] items-center justify-center">
 		<Spinner className="size-8 text-gray-500" />
-	</div>
+	</section>
 {:else}
-	<div class="flex flex-col gap-3">
-		<section
-			class="rounded-lg border border-gray-200/70 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950"
-		>
-			<div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-				<div class="min-w-0">
-					<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-						<h1 class="text-base font-semibold text-gray-900 dark:text-gray-100">
-							{$i18n.t('Skills')}
-						</h1>
-						<span class="text-xs text-gray-500 dark:text-gray-400">
-							{installedSkills.length}
-							{$i18n.t('Installed')}
-						</span>
+	<div class="space-y-4">
+		<section class="workspace-section space-y-4">
+			<div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+				<div class="workspace-toolbar-summary">
+					<div class="workspace-count-pill">
+						{installedSkills.length}
+						{$i18n.t('Installed')}
 					</div>
-
-					<p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500 dark:text-gray-400">
+					<div class="text-xs text-gray-500 dark:text-gray-400">
 						{$i18n.t(
 							'Add skills to give chats task-specific instructions, resources, and automation.'
 						)}
-					</p>
+					</div>
+
+					{#if runtimeCapabilities}
+						<div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+							<span>运行环境：{getRuntimeProfileLabel(runtimeCapabilities.profile)}</span>
+							<span>
+								{runtimeCapabilities.install_allowed
+									? '支持可执行 Skill'
+									: '当前仅支持说明型 Skill'}
+							</span>
+							<span>Python：{runtimeCapabilities.python?.available ? '可用' : '不可用'}</span>
+							<span>Node：{runtimeCapabilities.node?.available ? '可用' : '不可用'}</span>
+							<span
+								>自动启用：{installedSkills.filter((skill) => isAutoEnabledSkill(skill))
+									.length}</span
+							>
+						</div>
+					{/if}
 				</div>
 
-				<div class="flex shrink-0 items-center gap-2">
-					<button
-						class="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-800 dark:text-gray-200 dark:hover:bg-gray-900"
-						on:click={() => refreshData()}
-					>
-						<ArrowPath className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-						{$i18n.t('Refresh')}
-					</button>
+				<div class="workspace-toolbar">
+					<div class="workspace-search workspace-toolbar-search">
+						<Search className="size-4 text-gray-400" />
+						<input
+							class="w-full bg-transparent text-sm outline-hidden"
+							bind:value={mainQuery}
+							placeholder={$i18n.t('Search installed skills')}
+						/>
+					</div>
 
-					<button
-						class="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-black dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-						on:click={() => (showStore = true)}
-					>
-						<Plus className="size-3.5" />
-						{$i18n.t('Install Skill')}
-					</button>
+					<div class="workspace-toolbar-actions">
+						<button class="workspace-icon-button" on:click={() => refreshData()}>
+							<ArrowPath className={`size-4 ${refreshing ? 'animate-spin' : ''}`} />
+							<span>{$i18n.t('Refresh')}</span>
+						</button>
+
+						<button class="workspace-primary-button" on:click={() => (showStore = true)}>
+							<Plus className="size-4" />
+							<span>{$i18n.t('Install Skill')}</span>
+						</button>
+					</div>
 				</div>
 			</div>
-
-			{#if runtimeCapabilities}
-				<div
-					class="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-gray-100 pt-3 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400"
-				>
-						<span>运行环境：{getRuntimeProfileLabel(runtimeCapabilities.profile)}</span>
-						<span
-							>{runtimeCapabilities.install_allowed
-								? '支持可执行 Skill'
-								: '当前仅支持说明型 Skill'}</span
-						>
-					<span>Python：{runtimeCapabilities.python?.available ? '可用' : '不可用'}</span>
-					<span>Node：{runtimeCapabilities.node?.available ? '可用' : '不可用'}</span>
-					<span
-						>自动启用：{installedSkills.filter((skill) => isAutoEnabledSkill(skill)).length}</span
-					>
-				</div>
-			{/if}
 		</section>
 
 		{#if legacyPromptSkills.length > 0}
 			<section
-				class="flex flex-col gap-3 rounded-lg border border-amber-200/70 bg-amber-50/60 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20 md:flex-row md:items-center md:justify-between"
+				class="workspace-section flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
 			>
 				<div>
 					<div class="text-sm font-medium text-amber-900 dark:text-amber-200">
@@ -791,12 +787,8 @@
 			</section>
 		{/if}
 
-		<section
-			class="overflow-hidden rounded-lg border border-gray-200/70 bg-white dark:border-gray-800 dark:bg-gray-950"
-		>
-			<div
-				class="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-800 md:flex-row md:items-center md:justify-between"
-			>
+		<section class="workspace-section space-y-3">
+			<div class="flex flex-col gap-1">
 				<div>
 					<div class="text-sm font-medium text-gray-900 dark:text-gray-100">
 						{$i18n.t('Installed Skill Packages')}
@@ -805,188 +797,166 @@
 						{$i18n.t('Review installed skills, availability, and access settings.')}
 					</div>
 				</div>
-
-				<div
-					class="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 md:max-w-sm dark:border-gray-800 dark:bg-gray-900"
-				>
-					<Search className="size-3.5 text-gray-400" />
-					<input
-						class="w-full bg-transparent text-sm outline-none"
-						bind:value={mainQuery}
-						placeholder={$i18n.t('Search installed skills')}
-					/>
-				</div>
 			</div>
 
 			{#if filteredInstalledSkills.length > 0}
-				<div class="divide-y divide-gray-100 dark:divide-gray-800">
+				<div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
 					{#each filteredInstalledSkills as skill (skill.id)}
 						{@const Icon = getSkillIcon(skill)}
 						{@const tags = getSkillTags(skill)}
 						{@const sourceUrl = getSkillSourceUrl(skill)}
 						{@const categoryLabel = getSkillCategoryLabel(skill)}
-						<div class="px-4 py-3 transition hover:bg-gray-50/70 dark:hover:bg-gray-900/50">
-							<div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-								<div class="flex min-w-0 gap-3">
+						<div class="glass-item flex h-full flex-col gap-3 px-4 py-3 transition">
+							<div class="flex min-w-0 gap-3">
+								<div
+									class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-600 dark:bg-gray-900 dark:text-gray-300"
+								>
+									<svelte:component this={Icon} className="size-4" />
+								</div>
+
+								<div class="min-w-0 flex-1">
+									<div class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+										{skill.name}
+									</div>
 									<div
-										class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 dark:bg-gray-900 dark:text-gray-300"
+										class="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400"
 									>
-										<svelte:component this={Icon} className="size-4" />
-									</div>
-
-									<div class="min-w-0 flex-1">
-										<div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-											<div class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-												{skill.name}
-											</div>
-											<span class="text-xs text-gray-400 dark:text-gray-500">·</span>
-											<span class="text-xs text-gray-500 dark:text-gray-400">
-												{getSkillSourceBadge(skill)}
+										<span>{getSkillSourceBadge(skill)}</span>
+										{#if categoryLabel}
+											<span class="text-gray-400 dark:text-gray-500">·</span>
+											<span>{categoryLabel}</span>
+										{/if}
+										{#if getSkillPackageFileCount(skill) > 0}
+											<span class="text-gray-400 dark:text-gray-500">·</span>
+											<span>
+												{getSkillPackageFileCount(skill)}
+												{$i18n.t('files')}
 											</span>
-											{#if categoryLabel}
-												<span class="text-xs text-gray-400 dark:text-gray-500">·</span>
-												<span class="text-xs text-gray-500 dark:text-gray-400">
-													{categoryLabel}
-												</span>
-											{/if}
-											{#if getSkillPackageFileCount(skill) > 0}
-												<span class="text-xs text-gray-400 dark:text-gray-500">·</span>
-												<span class="text-xs text-gray-500 dark:text-gray-400">
-													{getSkillPackageFileCount(skill)}
-													{$i18n.t('files')}
-												</span>
-											{/if}
-										</div>
-
-										{#if skill.description}
-											<div
-												class="mt-1 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400"
-											>
-												{skill.description}
-											</div>
-										{/if}
-
-										<div
-											class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400"
-										>
-											{#if isRunnableSkill(skill)}
-												<span
-													class={getSkillInstallStatus(skill) === 'ready'
-														? 'text-emerald-600 dark:text-emerald-300'
-														: 'text-gray-500 dark:text-gray-400'}
-												>
-													可执行：{getSkillInstallStatusLabel(skill)}
-												</span>
-											{/if}
-											{#if isAutoEnabledSkill(skill)}
-												<span class="text-sky-600 dark:text-sky-300">自动启用</span>
-											{/if}
-											{#if tags.length > 0}
-												<span class="truncate">标签：{tags.join(', ')}</span>
-											{/if}
-											{#if sourceUrl}
-												<a
-													class="inline-flex min-w-0 max-w-full items-center gap-1 truncate text-gray-500 underline-offset-2 hover:text-gray-900 hover:underline dark:text-gray-400 dark:hover:text-gray-100"
-													href={sourceUrl}
-													target="_blank"
-													rel="noreferrer"
-												>
-													<Link className="size-3 shrink-0" />
-													<span class="truncate">{sourceUrl}</span>
-												</a>
-											{:else}
-												<span class="truncate">{getSkillMetaLine(skill)}</span>
-											{/if}
-										</div>
-
-										{#if isRunnableSkill(skill) && getSkillRuntimeMeta(skill)?.last_error}
-											<div
-												class="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-300"
-											>
-												{getSkillRuntimeMeta(skill).last_error}
-											</div>
 										{/if}
 									</div>
 								</div>
+							</div>
 
-								<div class="flex shrink-0 flex-wrap items-center gap-1.5 lg:justify-end">
-									{#if isRunnableSkill(skill) && $user?.role === 'admin'}
-										{#if getSkillInstallStatus(skill) === 'ready'}
-											<button
-												class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 px-2.5 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50 dark:border-amber-900/60 dark:text-amber-300 dark:hover:bg-amber-950/30 disabled:cursor-not-allowed disabled:opacity-60"
-												on:click={() => handleUninstallRuntime(skill)}
-												disabled={runtimeActionSkillId === skill.id}
-											>
-												{#if runtimeActionSkillId === skill.id}
-													<Spinner className="size-3.5" />
-												{/if}
-												移除运行环境
-											</button>
-										{:else}
-											<button
-												class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:text-gray-200 dark:hover:bg-gray-900"
-												on:click={() => handleInstallRuntime(skill)}
-												disabled={runtimeActionSkillId === skill.id ||
-													!canInstallRunnableSkill(skill)}
-											>
-												{#if runtimeActionSkillId === skill.id}
-													<Spinner className="size-3.5" />
-												{/if}
-												安装运行环境
-											</button>
-										{/if}
-									{/if}
-
-									<button
-										class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-gray-100"
-										on:click={() => openEditSkillModal(skill.id)}
-										aria-label={$i18n.t('Edit')}
-										title={$i18n.t('Edit')}
-									>
-										<Pencil className="size-4" />
-									</button>
-
-									<button
-										class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
-										on:click={() => confirmDeleteSkill(skill.id)}
-										aria-label={$i18n.t('Delete')}
-										title={$i18n.t('Delete')}
-									>
-										<GarbageBin className="size-4" />
-									</button>
+							{#if skill.description}
+								<div class="line-clamp-3 text-xs leading-5 text-gray-500 dark:text-gray-400">
+									{skill.description}
 								</div>
+							{:else}
+								<div class="text-xs leading-5 text-gray-400 dark:text-gray-500">
+									{getSkillMetaLine(skill)}
+								</div>
+							{/if}
+
+							<div
+								class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400"
+							>
+								{#if isRunnableSkill(skill)}
+									<span
+										class={getSkillInstallStatus(skill) === 'ready'
+											? 'text-emerald-600 dark:text-emerald-300'
+											: 'text-gray-500 dark:text-gray-400'}
+									>
+										可执行：{getSkillInstallStatusLabel(skill)}
+									</span>
+								{/if}
+								{#if isAutoEnabledSkill(skill)}
+									<span class="text-sky-600 dark:text-sky-300">自动启用</span>
+								{/if}
+								{#if tags.length > 0}
+									<span class="min-w-0 max-w-full truncate">标签：{tags.join(', ')}</span>
+								{/if}
+								{#if sourceUrl}
+									<a
+										class="inline-flex min-w-0 max-w-full items-center gap-1 truncate text-gray-500 underline-offset-2 hover:text-gray-900 hover:underline dark:text-gray-400 dark:hover:text-gray-100"
+										href={sourceUrl}
+										target="_blank"
+										rel="noreferrer"
+									>
+										<Link className="size-3 shrink-0" />
+										<span class="truncate">{sourceUrl}</span>
+									</a>
+								{/if}
+							</div>
+
+							{#if isRunnableSkill(skill) && getSkillRuntimeMeta(skill)?.last_error}
+								<div
+									class="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-300"
+								>
+									{getSkillRuntimeMeta(skill).last_error}
+								</div>
+							{/if}
+
+							<div
+								class="mt-auto flex flex-wrap items-center justify-end gap-1.5 border-t border-gray-100 pt-3 dark:border-gray-800"
+							>
+								{#if isRunnableSkill(skill) && $user?.role === 'admin'}
+									{#if getSkillInstallStatus(skill) === 'ready'}
+										<button
+											class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 px-2.5 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50 dark:border-amber-900/60 dark:text-amber-300 dark:hover:bg-amber-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+											on:click={() => handleUninstallRuntime(skill)}
+											disabled={runtimeActionSkillId === skill.id}
+										>
+											{#if runtimeActionSkillId === skill.id}
+												<Spinner className="size-3.5" />
+											{/if}
+											移除运行环境
+										</button>
+									{:else}
+										<button
+											class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:text-gray-200 dark:hover:bg-gray-900"
+											on:click={() => handleInstallRuntime(skill)}
+											disabled={runtimeActionSkillId === skill.id ||
+												!canInstallRunnableSkill(skill)}
+										>
+											{#if runtimeActionSkillId === skill.id}
+												<Spinner className="size-3.5" />
+											{/if}
+											安装运行环境
+										</button>
+									{/if}
+								{/if}
+
+								<button
+									class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-gray-100"
+									on:click={() => openEditSkillModal(skill.id)}
+									aria-label={$i18n.t('Edit')}
+									title={$i18n.t('Edit')}
+								>
+									<Pencil className="size-4" />
+								</button>
+
+								<button
+									class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+									on:click={() => confirmDeleteSkill(skill.id)}
+									aria-label={$i18n.t('Delete')}
+									title={$i18n.t('Delete')}
+								>
+									<GarbageBin className="size-4" />
+								</button>
 							</div>
 						</div>
 					{/each}
 				</div>
 			{:else}
-				<div class="px-4 py-8">
-					<div class="max-w-xl">
-						<div class="text-sm font-medium text-gray-900 dark:text-gray-100">
-							{$i18n.t('No installed skill packages')}
-						</div>
-						<div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-							{mainQuery
-								? $i18n.t('No installed skills match your search.')
-								: $i18n.t(
-										'Install a skill from the Skill Store, import from a link, or upload a ZIP package.'
-									)}
-						</div>
-						<div class="mt-4 flex flex-wrap items-center gap-2">
-							<button
-								class="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-black dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-								on:click={() => (showStore = true)}
-							>
-								<Plus className="size-3.5" />
-								{$i18n.t('Install Skill')}
-							</button>
-							<a
-								class="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-800 dark:text-gray-200 dark:hover:bg-gray-900"
-								href="/workspace/prompts"
-							>
-								{$i18n.t('Open Prompts')}
-							</a>
-						</div>
+				<div class="workspace-empty-state">
+					<div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+						{$i18n.t('No installed skill packages')}
+					</div>
+					<div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+						{mainQuery
+							? $i18n.t('No installed skills match your search.')
+							: $i18n.t(
+									'Install a skill from the Skill Store, import from a link, or upload a ZIP package.'
+								)}
+					</div>
+					<div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+						<button class="workspace-primary-button" on:click={() => (showStore = true)}>
+							<Plus className="size-4" />
+							<span>{$i18n.t('Install Skill')}</span>
+						</button>
+						<a class="workspace-secondary-button" href="/workspace/prompts">
+							{$i18n.t('Open Prompts')}
+						</a>
 					</div>
 				</div>
 			{/if}

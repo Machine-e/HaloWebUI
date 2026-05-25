@@ -85,9 +85,7 @@
 
 		<div class="pb-1 px-[18px] flex-1 max-h-full overflow-y-auto" id="workspace-container">
 			<div class="max-w-6xl mx-auto flex min-h-full flex-col gap-6 pb-4">
-				{#if activeTab?.key !== 'skills'}
-					<WorkspaceHero {activeTab} tabs={visibleTabs} pathname={$page.url.pathname} />
-				{/if}
+				<WorkspaceHero {activeTab} tabs={visibleTabs} pathname={$page.url.pathname} />
 				<div class="flex-1 min-h-0">
 					<slot />
 				</div>
