@@ -7,7 +7,17 @@ from typing import Any
 from open_webui.models.chats import ChatTitleMessagesForm
 from open_webui.config import DATA_DIR, ENABLE_ADMIN_EXPORT
 from open_webui.constants import ERROR_MESSAGES
-from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
@@ -22,15 +32,21 @@ from open_webui.utils.optional_dependencies import (
     require_module,
 )
 from open_webui.utils.data_management import (
+    BACKUP_KIND_FULL,
+    BACKUP_KIND_SQLITE,
+    BackupKindMismatchError,
     DB_RESTORE_CONFIRMATION,
     cleanup_path,
+    create_full_backup_package,
     create_restore_token,
     create_sqlite_snapshot,
     ensure_db_restore_state,
     get_database_restore_support,
-    inspect_sqlite_backup,
+    inspect_restore_backup,
+    normalize_backup_kind,
     pop_restore_token,
     prune_db_restore_tokens,
+    restore_full_backup,
     refresh_runtime_after_restore,
     restore_sqlite_backup,
     write_upload_to_temp,
@@ -129,6 +145,7 @@ class ChatForm(BaseModel):
 class DatabaseRestoreInspectResponse(BaseModel):
     token: str
     compatible: bool
+    kind: str
     filename: str
     size: int
     warnings: list[str]
@@ -169,7 +186,7 @@ async def download_chat_as_pdf(
 
 
 @router.get("/db/download")
-async def download_db(user=Depends(get_admin_user)):
+async def download_db(kind: str = BACKUP_KIND_SQLITE, user=Depends(get_admin_user)):
     if not ENABLE_ADMIN_EXPORT:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -184,19 +201,32 @@ async def download_db(user=Depends(get_admin_user)):
         )
 
     try:
-        snapshot_path = create_sqlite_snapshot(engine)
+        backup_kind = normalize_backup_kind(kind)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    try:
+        if backup_kind == BACKUP_KIND_FULL:
+            backup_path = create_full_backup_package(engine)
+            filename = "halo-webui-full-backup.hwbk"
+        else:
+            backup_path = create_sqlite_snapshot(engine)
+            filename = "webui.db"
     except Exception as e:
-        log.exception("Failed to create SQLite snapshot")
+        log.exception("Failed to create database backup")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
 
     return FileResponse(
-        str(snapshot_path),
+        str(backup_path),
         media_type="application/octet-stream",
-        filename="webui.db",
-        background=BackgroundTask(cleanup_path, snapshot_path),
+        filename=filename,
+        background=BackgroundTask(cleanup_path, backup_path),
     )
 
 
@@ -221,6 +251,7 @@ def _assert_restore_supported():
 @router.post("/db/restore/inspect", response_model=DatabaseRestoreInspectResponse)
 async def inspect_db_restore(
     request: Request,
+    expected_kind: str = Form(BACKUP_KIND_SQLITE),
     file: UploadFile = File(...),
     user=Depends(get_admin_user),
 ):
@@ -235,7 +266,14 @@ async def inspect_db_restore(
 
     staged_path = write_upload_to_temp(file, "open-webui-db-restore-")
     try:
-        inspection = inspect_sqlite_backup(staged_path)
+        backup_kind = normalize_backup_kind(expected_kind)
+        inspection = inspect_restore_backup(staged_path, expected_kind=backup_kind)
+    except BackupKindMismatchError as e:
+        cleanup_path(staged_path)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e),
+        )
     except Exception as e:
         cleanup_path(staged_path)
         raise HTTPException(
@@ -248,11 +286,13 @@ async def inspect_db_restore(
         path=str(staged_path),
         filename=file.filename or staged_path.name,
         user_id=user.id,
+        kind=inspection["kind"],
     )
 
     return DatabaseRestoreInspectResponse(
         token=token_payload["token"],
         compatible=True,
+        kind=inspection["kind"],
         filename=token_payload["filename"],
         size=staged_path.stat().st_size,
         warnings=inspection["warnings"],
@@ -318,7 +358,10 @@ async def restore_db(
             rollback_created = True
 
             engine.dispose()
-            restore_sqlite_backup(uploaded_path, Path(engine.url.database))
+            if token_payload.get("kind") == BACKUP_KIND_FULL:
+                restore_full_backup(uploaded_path, Path(engine.url.database))
+            else:
+                restore_sqlite_backup(uploaded_path, Path(engine.url.database))
             refresh_runtime_after_restore(request.app)
 
             return DatabaseRestoreResponse(restored=True, requires_reload=True)

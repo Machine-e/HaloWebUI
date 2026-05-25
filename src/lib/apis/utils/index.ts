@@ -134,9 +134,32 @@ export const getHTMLFromMarkdown = async (token: string, md: string) => {
 	return res.html;
 };
 
-export const downloadDatabase = async (token: string) => {
+export type DatabaseBackupKind = 'sqlite' | 'full';
+
+export type DatabaseRestoreInspectResponse = {
+	token: string;
+	compatible: boolean;
+	kind: DatabaseBackupKind;
+	filename: string;
+	size: number;
+	warnings: string[];
+	summary: {
+		table_count: number;
+		tables_preview: string[];
+		has_chat_table: boolean;
+		has_config_table: boolean;
+		has_user_table?: boolean;
+		upload_count?: number;
+		upload_bytes?: number;
+		missing_upload_count?: number;
+		orphan_upload_count?: number;
+	};
+	confirmation: string;
+};
+
+export const downloadDatabase = async (token: string, kind: DatabaseBackupKind = 'sqlite') => {
 	try {
-		const response = await fetch(`${WEBUI_API_BASE_URL}/utils/db/download`, {
+		const response = await fetch(`${WEBUI_API_BASE_URL}/utils/db/download?kind=${kind}`, {
 			method: 'GET',
 			headers: {
 				'Content-Type': 'application/json',
@@ -148,7 +171,7 @@ export const downloadDatabase = async (token: string) => {
 		const url = window.URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
-		a.download = 'webui.db';
+		a.download = kind === 'full' ? 'halo-webui-full-backup.hwbk' : 'webui.db';
 		document.body.appendChild(a);
 		a.click();
 		window.URL.revokeObjectURL(url);
@@ -158,10 +181,16 @@ export const downloadDatabase = async (token: string) => {
 	}
 };
 
-export const inspectDatabaseRestore = async (token: string, file: File, signal?: AbortSignal) => {
-	let error = null;
+export const inspectDatabaseRestore = async (
+	token: string,
+	file: File,
+	kind: DatabaseBackupKind = 'sqlite',
+	signal?: AbortSignal
+): Promise<DatabaseRestoreInspectResponse> => {
+	let error: any = null;
 	const formData = new FormData();
 	formData.append('file', file);
+	formData.append('expected_kind', kind);
 
 	const res = await fetch(`${WEBUI_API_BASE_URL}/utils/db/restore/inspect`, {
 		method: 'POST',
@@ -171,7 +200,7 @@ export const inspectDatabaseRestore = async (token: string, file: File, signal?:
 		body: formData,
 		signal
 	})
-		.then(parseJsonResponse)
+		.then((response) => parseJsonResponse<DatabaseRestoreInspectResponse>(response))
 		.catch((err) => {
 			console.log(err);
 			error = err;
@@ -180,6 +209,10 @@ export const inspectDatabaseRestore = async (token: string, file: File, signal?:
 
 	if (error) {
 		throw error?.detail ?? error;
+	}
+
+	if (!res) {
+		throw 'No restore inspection response returned.';
 	}
 
 	return res;

@@ -2,10 +2,12 @@
 	import fileSaver from 'file-saver';
 	import { getContext } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { Database, Package, X } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 
 	import ArchivedChatsModal from '$lib/components/layout/Sidebar/ArchivedChatsModal.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
+	import Modal from '$lib/components/common/Modal.svelte';
 	import DataManagementStatus from '$lib/components/settings/DataManagementStatus.svelte';
 	import { getBackendConfig } from '$lib/apis';
 	import { getErrorDetail } from '$lib/apis/response';
@@ -22,7 +24,8 @@
 	import {
 		downloadDatabase,
 		inspectDatabaseRestore,
-		restoreDatabase
+		restoreDatabase,
+		type DatabaseBackupKind
 	} from '$lib/apis/utils';
 	import { convertOpenAIChats, getImportOrigin } from '$lib/utils';
 
@@ -80,11 +83,13 @@
 	type DatabaseRestoreInspectingFile = {
 		fileName: string;
 		fileSize: number;
+		kind: DatabaseBackupKind;
 	};
 
 	type DatabaseRestoreDraft = {
 		fileName: string;
 		fileSize: number;
+		kind: DatabaseBackupKind;
 		token: string;
 		warnings: string[];
 		summary: {
@@ -93,6 +98,10 @@
 			has_chat_table: boolean;
 			has_config_table: boolean;
 			has_user_table?: boolean;
+			upload_count?: number;
+			upload_bytes?: number;
+			missing_upload_count?: number;
+			orphan_upload_count?: number;
 		};
 		confirmationPhrase: string;
 		confirmOverwrite: boolean;
@@ -164,11 +173,15 @@
 	let showArchiveConfirm = false;
 	let showDeleteConfirm = false;
 	let showArchivedChatsModal = false;
+	let showDatabaseExportModal = false;
+	let showDatabaseRestoreModal = false;
+	let databaseExportKind: DatabaseBackupKind = 'sqlite';
 
 	let chatImportDraft: ChatImportDraft | null = null;
 	let configImportDraft: ConfigImportDraft | null = null;
 	let databaseRestoreInspectingFile: DatabaseRestoreInspectingFile | null = null;
 	let databaseRestoreDraft: DatabaseRestoreDraft | null = null;
+	let databaseRestoreKind: DatabaseBackupKind = 'sqlite';
 
 	let chatImportInputElement: HTMLInputElement;
 	let configImportInputElement: HTMLInputElement;
@@ -187,6 +200,12 @@
 		'shrink-0 inline-flex items-center justify-center h-7 px-3 text-xs font-medium rounded-md bg-orange-50 hover:bg-orange-100 text-orange-600 dark:bg-orange-950/30 dark:hover:bg-orange-900/40 dark:text-orange-400 border border-orange-200/60 dark:border-orange-800/30 active:scale-[0.97] transition-all';
 	const btnSmallDanger =
 		'shrink-0 inline-flex items-center justify-center h-7 px-3 text-xs font-medium rounded-md bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/30 dark:hover:bg-red-900/40 dark:text-red-400 border border-red-200/60 dark:border-red-800/30 active:scale-[0.97] transition-all';
+	const modalCloseButton =
+		'flex size-6 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 active:scale-[0.97] transition-all dark:hover:bg-gray-800 dark:hover:text-gray-200';
+	const modalSecondaryButton =
+		'inline-flex h-9 w-24 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 transition-all hover:bg-gray-50 active:scale-[0.98] dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800';
+	const modalPrimaryButton =
+		'inline-flex h-9 w-24 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-sm font-medium text-gray-700 transition-all hover:bg-gray-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700';
 	const badgeClass =
 		'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium';
 	const modeButtonBase =
@@ -653,18 +672,92 @@
 		}
 	};
 
-	const exportDatabase = async () => {
+	const getBackupKindLabel = (kind: DatabaseBackupKind) =>
+		kind === 'full' ? $i18n.t('Full backup') : $i18n.t('Database only');
+
+	const isDatabaseRestoreFileAllowed = (fileName: string, kind: DatabaseBackupKind) => {
+		const normalizedName = fileName.toLowerCase();
+		const sqliteExtensions = ['.db', '.sqlite', '.sqlite3', '.backup', '.bak'];
+		const fullExtensions = ['.hwbk', '.zip'];
+		const extensions = kind === 'full' ? fullExtensions : sqliteExtensions;
+		return extensions.some((extension) => normalizedName.endsWith(extension));
+	};
+
+	const getDatabaseRestoreKindMismatchMessage = (kind: DatabaseBackupKind) =>
+		kind === 'full'
+			? $i18n.t('Full backup restore expects a .hwbk or .zip package.')
+			: $i18n.t('Database-only restore expects a SQLite backup file.');
+
+	const getDatabaseRestoreSummaryDetail = (draft: DatabaseRestoreDraft) => {
+		const tableDetail = $i18n.t('Found {{count}} tables in the backup.', {
+			count: draft.summary.table_count
+		});
+
+		if (draft.kind !== 'full') {
+			return tableDetail;
+		}
+
+		return `${tableDetail} ${$i18n.t('Includes {{count}} uploaded files ({{size}}).', {
+			count: draft.summary.upload_count ?? 0,
+			size: formatBytes(draft.summary.upload_bytes ?? 0)
+		})}`;
+	};
+
+	const backupChoiceClass = (active: boolean) =>
+		`w-full rounded-lg border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/20 ${
+			active
+				? 'border-emerald-200 bg-emerald-50/35 shadow-sm shadow-emerald-100/30 dark:border-emerald-800/60 dark:bg-emerald-950/15 dark:shadow-none'
+				: 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:border-gray-700 dark:hover:bg-gray-800/50'
+		}`;
+	const backupChoiceIconClass = (active: boolean) =>
+		`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border ${
+			active
+				? 'border-emerald-200 bg-white text-emerald-600 dark:border-emerald-800/70 dark:bg-gray-900 dark:text-emerald-300'
+				: 'border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400'
+		}`;
+	const backupChoiceMarkClass = (active: boolean) =>
+		`mt-1 flex size-4 shrink-0 items-center justify-center rounded-full border ${
+			active
+				? 'border-emerald-300 bg-white dark:border-emerald-700 dark:bg-gray-900'
+				: 'border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900'
+		}`;
+
+	const openDatabaseExportModal = () => {
+		databaseExportKind = 'sqlite';
+		showDatabaseExportModal = true;
+	};
+
+	const confirmDatabaseExport = async () => {
+		const kind = databaseExportKind;
+		showDatabaseExportModal = false;
+		await exportDatabase(kind);
+	};
+
+	const exportDatabase = async (kind: DatabaseBackupKind) => {
 		setOperationState(
 			'databaseExport',
 			'running',
-			$i18n.t('Preparing database backup...'),
-			$i18n.t('A SQLite snapshot backup is being generated.')
+			$i18n.t(kind === 'full' ? 'Preparing full backup...' : 'Preparing database backup...'),
+			$i18n.t(
+				kind === 'full'
+					? 'A full backup package is being generated.'
+					: 'A SQLite snapshot backup is being generated.'
+			)
 		);
 
 		try {
-			await downloadDatabase(localStorage.token);
-			const detail = $i18n.t('Database backup download started.');
-			setOperationState('databaseExport', 'success', $i18n.t('Export Database'), detail);
+			await downloadDatabase(localStorage.token, kind);
+			const detail = $i18n.t(
+				kind === 'full'
+					? 'Full backup download started.'
+					: 'Database backup download started.'
+			);
+			setOperationState(
+				'databaseExport',
+				'success',
+				$i18n.t(kind === 'full' ? 'Export Full Backup' : 'Export Database'),
+				detail
+			);
 			toast.info(detail);
 		} catch (error) {
 			const detail = formatError(error, $i18n.t('Failed to export database backup.'));
@@ -678,16 +771,44 @@
 		}
 	};
 
+	const openDatabaseRestoreModal = () => {
+		databaseRestoreKind = 'sqlite';
+		showDatabaseRestoreModal = true;
+	};
+
+	const confirmDatabaseRestoreKind = () => {
+		if (!databaseRestoreSupport.supported) return;
+		showDatabaseRestoreModal = false;
+		openDatabaseRestorePicker(databaseRestoreKind);
+	};
+
+	const openDatabaseRestorePicker = (kind: DatabaseBackupKind) => {
+		databaseRestoreKind = kind;
+		databaseRestoreInputElement?.click();
+	};
+
 	const handleDatabaseRestoreFileChange = async (event: Event) => {
 		const target = event.currentTarget as HTMLInputElement | null;
 		const file = target?.files?.[0];
 		if (!file) return;
 
+		if (!isDatabaseRestoreFileAllowed(file.name, databaseRestoreKind)) {
+			const detail = getDatabaseRestoreKindMismatchMessage(databaseRestoreKind);
+			resetDatabaseRestoreDraft();
+			setOperationState('databaseRestore', 'error', $i18n.t('Backup type does not match.'), detail);
+			toast.error(detail);
+			if (target) {
+				target.value = '';
+			}
+			return;
+		}
+
 		databaseRestoreInspectionController?.abort();
 		resetDatabaseRestoreDraft();
 		databaseRestoreInspectingFile = {
 			fileName: file.name,
-			fileSize: file.size
+			fileSize: file.size,
+			kind: databaseRestoreKind
 		};
 		const controller = new AbortController();
 		databaseRestoreInspectionController = controller;
@@ -699,15 +820,21 @@
 			'databaseRestore',
 			'validating',
 			$i18n.t('Inspecting database backup...'),
-			file.name
+			`${getBackupKindLabel(databaseRestoreKind)} · ${file.name}`
 		);
 
 		try {
-			const response = await inspectDatabaseRestore(localStorage.token, file, controller.signal);
+			const response = await inspectDatabaseRestore(
+				localStorage.token,
+				file,
+				databaseRestoreKind,
+				controller.signal
+			);
 			databaseRestoreInspectingFile = null;
 			databaseRestoreDraft = {
 				fileName: response.filename,
 				fileSize: response.size,
+				kind: response.kind,
 				token: response.token,
 				warnings: response.warnings ?? [],
 				summary: response.summary,
@@ -715,14 +842,11 @@
 				confirmOverwrite: false
 			};
 
-			const detail = $i18n.t('Found {{count}} tables in the backup.', {
-				count: response.summary?.table_count ?? 0
-			});
 			setOperationState(
 				'databaseRestore',
 				response.warnings?.length ? 'warning' : 'success',
 				$i18n.t('Database backup verified.'),
-				detail
+				getDatabaseRestoreSummaryDetail(databaseRestoreDraft)
 			);
 		} catch (error) {
 			if (controller.signal.aborted) {
@@ -900,10 +1024,188 @@
 	id="database-restore-input"
 	bind:this={databaseRestoreInputElement}
 	type="file"
-	accept=".db,.sqlite,.sqlite3,.backup,.bak"
+	accept=".db,.sqlite,.sqlite3,.backup,.bak,.hwbk,.zip"
 	hidden
 	on:change={handleDatabaseRestoreFileChange}
 />
+
+<Modal size="sm" bind:show={showDatabaseExportModal}>
+	<div class="space-y-5 px-5 py-5">
+		<div class="flex items-start justify-between gap-4">
+			<div class="min-w-0 space-y-1">
+				<div class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+					{$i18n.t('Choose export type')}
+				</div>
+				<div class="text-sm leading-5 text-gray-500 dark:text-gray-400">
+					{$i18n.t('Pick what this backup should include before the download starts.')}
+				</div>
+			</div>
+			<button
+				class={modalCloseButton}
+				type="button"
+				aria-label={$i18n.t('Close')}
+				on:click={() => (showDatabaseExportModal = false)}
+			>
+				<X className="size-3.5" strokeWidth={2.4} />
+			</button>
+		</div>
+
+		<div class="grid gap-2.5">
+			<button
+				class={backupChoiceClass(databaseExportKind === 'sqlite')}
+				type="button"
+				on:click={() => (databaseExportKind = 'sqlite')}
+			>
+				<div class="flex items-start gap-3">
+					<div class={backupChoiceIconClass(databaseExportKind === 'sqlite')}>
+						<Database className="size-4" strokeWidth={1.8} />
+					</div>
+					<div class="min-w-0 flex-1">
+						<div class="flex items-center justify-between gap-3">
+							<div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+								{$i18n.t('Database only')}
+							</div>
+							<div class={backupChoiceMarkClass(databaseExportKind === 'sqlite')}>
+								{#if databaseExportKind === 'sqlite'}
+									<span class="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+								{/if}
+							</div>
+						</div>
+						<div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+							{$i18n.t('Exports the SQLite database only. Chat images and uploaded files are not included.')}
+						</div>
+					</div>
+				</div>
+			</button>
+			<button
+				class={backupChoiceClass(databaseExportKind === 'full')}
+				type="button"
+				on:click={() => (databaseExportKind = 'full')}
+			>
+				<div class="flex items-start gap-3">
+					<div class={backupChoiceIconClass(databaseExportKind === 'full')}>
+						<Package className="size-4" strokeWidth={1.8} />
+					</div>
+					<div class="min-w-0 flex-1">
+						<div class="flex items-center justify-between gap-3">
+							<div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+								{$i18n.t('Full backup')}
+							</div>
+							<div class={backupChoiceMarkClass(databaseExportKind === 'full')}>
+								{#if databaseExportKind === 'full'}
+									<span class="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+								{/if}
+							</div>
+						</div>
+						<div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+							{$i18n.t('Exports the database and local uploaded files that are still referenced by the database.')}
+						</div>
+					</div>
+				</div>
+			</button>
+		</div>
+
+		<div class="flex items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
+			<button class={modalSecondaryButton} type="button" on:click={() => (showDatabaseExportModal = false)}>
+				{$i18n.t('Cancel')}
+			</button>
+			<button class={modalPrimaryButton} type="button" on:click={confirmDatabaseExport}>
+				{$i18n.t('Export')}
+			</button>
+		</div>
+	</div>
+</Modal>
+
+<Modal size="sm" bind:show={showDatabaseRestoreModal}>
+	<div class="space-y-5 px-5 py-5">
+		<div class="flex items-start justify-between gap-4">
+			<div class="min-w-0 space-y-1">
+				<div class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+					{$i18n.t('Choose restore type')}
+				</div>
+				<div class="text-sm leading-5 text-gray-500 dark:text-gray-400">
+					{$i18n.t('Choose the backup type first. The uploaded file must match this choice.')}
+				</div>
+			</div>
+			<button
+				class={modalCloseButton}
+				type="button"
+				aria-label={$i18n.t('Close')}
+				on:click={() => (showDatabaseRestoreModal = false)}
+			>
+				<X className="size-3.5" strokeWidth={2.4} />
+			</button>
+		</div>
+
+		<div class="grid gap-2.5">
+			<button
+				class={backupChoiceClass(databaseRestoreKind === 'sqlite')}
+				type="button"
+				on:click={() => (databaseRestoreKind = 'sqlite')}
+			>
+				<div class="flex items-start gap-3">
+					<div class={backupChoiceIconClass(databaseRestoreKind === 'sqlite')}>
+						<Database className="size-4" strokeWidth={1.8} />
+					</div>
+					<div class="min-w-0 flex-1">
+						<div class="flex items-center justify-between gap-3">
+							<div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+								{$i18n.t('Database only')}
+							</div>
+							<div class={backupChoiceMarkClass(databaseRestoreKind === 'sqlite')}>
+								{#if databaseRestoreKind === 'sqlite'}
+									<span class="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+								{/if}
+							</div>
+						</div>
+						<div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+							{$i18n.t('Use this for .db, .sqlite, .sqlite3, .backup, or .bak files.')}
+						</div>
+					</div>
+				</div>
+			</button>
+			<button
+				class={backupChoiceClass(databaseRestoreKind === 'full')}
+				type="button"
+				on:click={() => (databaseRestoreKind = 'full')}
+			>
+				<div class="flex items-start gap-3">
+					<div class={backupChoiceIconClass(databaseRestoreKind === 'full')}>
+						<Package className="size-4" strokeWidth={1.8} />
+					</div>
+					<div class="min-w-0 flex-1">
+						<div class="flex items-center justify-between gap-3">
+							<div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+								{$i18n.t('Full backup')}
+							</div>
+							<div class={backupChoiceMarkClass(databaseRestoreKind === 'full')}>
+								{#if databaseRestoreKind === 'full'}
+									<span class="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+								{/if}
+							</div>
+						</div>
+						<div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+							{$i18n.t('Use this for .hwbk or .zip packages that include database and referenced local uploads.')}
+						</div>
+					</div>
+				</div>
+			</button>
+		</div>
+
+		<div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600 dark:border-gray-800 dark:bg-gray-900/50 dark:text-gray-400">
+			{$i18n.t('If the file type does not match the selected restore type, the restore will be blocked before any data is changed.')}
+		</div>
+
+		<div class="flex items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
+			<button class={modalSecondaryButton} type="button" on:click={() => (showDatabaseRestoreModal = false)}>
+				{$i18n.t('Cancel')}
+			</button>
+			<button class={modalPrimaryButton} type="button" on:click={confirmDatabaseRestoreKind} disabled={!databaseRestoreSupport.supported}>
+				{$i18n.t('Choose file')}
+			</button>
+		</div>
+	</div>
+</Modal>
 
 <div class="h-full min-h-0 overflow-y-auto pr-1 scrollbar-hidden">
 	<div class="max-w-6xl mx-auto space-y-6">
@@ -1306,11 +1608,8 @@
 							<div class="text-sm font-medium text-gray-500 dark:text-gray-400">
 								{$i18n.t('Database')}
 							</div>
-							<span class="{badgeClass} border-red-200/70 bg-red-50/80 text-red-700 dark:border-red-800/40 dark:bg-red-950/20 dark:text-red-300">
+							<span class="{badgeClass} border-amber-200/55 bg-amber-50/45 text-amber-700/80 dark:border-amber-800/30 dark:bg-amber-950/15 dark:text-amber-300/80">
 								{$i18n.t('Entire system data')}
-							</span>
-							<span class="{badgeClass} border-orange-200/70 bg-orange-50/80 text-orange-700 dark:border-orange-800/40 dark:bg-orange-950/20 dark:text-orange-300">
-								{$i18n.t('Restore replaces current data')}
 							</span>
 						</div>
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1319,10 +1618,10 @@
 									<div class="min-w-0">
 										<div class="text-sm font-medium">{$i18n.t('Export Database')}</div>
 										<div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-											{$i18n.t('Export the complete SQLite database backup, containing all system data')}
+											{$i18n.t('Export a database-only file or a full backup package.')}
 										</div>
 									</div>
-									<button class={btnNeutral} type="button" on:click={exportDatabase} disabled={operationStates.databaseExport.phase === 'running'}>
+									<button class={btnNeutral} type="button" on:click={openDatabaseExportModal} disabled={operationStates.databaseExport.phase === 'running'}>
 										{$i18n.t(operationStates.databaseExport.phase === 'running' ? 'Exporting...' : 'Export')}
 									</button>
 								</div>
@@ -1339,58 +1638,58 @@
 									<div class="min-w-0">
 										<div class="text-sm font-medium">{$i18n.t('Restore Database')}</div>
 										<div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-											{$i18n.t('Upload and inspect a SQLite backup before restoring it.')}
+											{$i18n.t('Select a backup type, then choose the matching file.')}
 										</div>
 									</div>
-										<button
-											class={btnNeutral}
-											type="button"
-											on:click={() => databaseRestoreInputElement?.click()}
-											disabled={!databaseRestoreSupport.supported || operationStates.databaseRestore.phase === 'validating' || operationStates.databaseRestore.phase === 'running'}
-										>
-											{$i18n.t(operationStates.databaseRestore.phase === 'validating' ? 'Checking...' : 'Import')}
-										</button>
-									</div>
+									<button
+										class={btnNeutral}
+										type="button"
+										on:click={openDatabaseRestoreModal}
+										disabled={!databaseRestoreSupport.supported || operationStates.databaseRestore.phase === 'validating' || operationStates.databaseRestore.phase === 'running'}
+									>
+										{$i18n.t(operationStates.databaseRestore.phase === 'validating' ? 'Checking...' : 'Import')}
+									</button>
+								</div>
 
 								{#if !databaseRestoreSupport.supported}
-									<div class="rounded-xl border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300">
+									<div class="rounded-lg border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300">
 										{getRestoreUnavailableMessage()}
-										</div>
-									{/if}
+									</div>
+								{/if}
 
-									{#if databaseRestoreInspectingFile && operationStates.databaseRestore.phase === 'validating'}
-										<div class="rounded-2xl border border-red-200/70 bg-red-50/40 p-3 space-y-3 dark:border-red-800/40 dark:bg-red-950/10">
-											<div class="flex items-start gap-3">
-												<div class="mt-0.5 shrink-0 text-red-600 dark:text-red-300">
-													<Spinner className="size-5" />
-												</div>
-												<div class="min-w-0 flex-1 space-y-1">
-													<div class="text-xs font-medium text-red-700 dark:text-red-300">
-														{$i18n.t('Backup file')}
-													</div>
-													<div class="truncate text-sm font-medium text-gray-800 dark:text-gray-100">
-														{databaseRestoreInspectingFile.fileName}
-													</div>
-													<div class="text-xs text-gray-500 dark:text-gray-400">
-														{formatBytes(databaseRestoreInspectingFile.fileSize)}
-													</div>
-												</div>
+								{#if databaseRestoreInspectingFile && operationStates.databaseRestore.phase === 'validating'}
+									<div class="rounded-2xl border border-red-200/70 bg-red-50/40 p-3 space-y-3 dark:border-red-800/40 dark:bg-red-950/10">
+										<div class="flex items-start gap-3">
+											<div class="mt-0.5 shrink-0 text-red-600 dark:text-red-300">
+												<Spinner className="size-5" />
 											</div>
-
-											<div class="rounded-xl border border-red-200/70 bg-white/80 px-3 py-2 text-xs text-red-700 dark:border-red-800/40 dark:bg-gray-900/60 dark:text-red-300">
-												{$i18n.t('Checking backup contents. Large database files may take a while.')}
-											</div>
-
-											<div class="flex items-center justify-end gap-2">
-												<button class={btnSmall} type="button" on:click={cancelDatabaseRestoreInspection}>
-													{$i18n.t('Cancel')}
-												</button>
+											<div class="min-w-0 flex-1 space-y-1">
+												<div class="text-xs font-medium text-red-700 dark:text-red-300">
+													{$i18n.t('Backup file')}
+												</div>
+												<div class="truncate text-sm font-medium text-gray-800 dark:text-gray-100">
+													{databaseRestoreInspectingFile.fileName}
+												</div>
+												<div class="text-xs text-gray-500 dark:text-gray-400">
+													{getBackupKindLabel(databaseRestoreInspectingFile.kind)} · {formatBytes(databaseRestoreInspectingFile.fileSize)}
+												</div>
 											</div>
 										</div>
-									{/if}
 
-									{#if databaseRestoreDraft}
-										<div class="rounded-2xl border border-red-200/70 bg-red-50/40 p-3 space-y-3 dark:border-red-800/40 dark:bg-red-950/10">
+										<div class="rounded-xl border border-red-200/70 bg-white/80 px-3 py-2 text-xs text-red-700 dark:border-red-800/40 dark:bg-gray-900/60 dark:text-red-300">
+											{$i18n.t('Checking backup contents. Large database files may take a while.')}
+										</div>
+
+										<div class="flex items-center justify-end gap-2">
+											<button class={btnSmall} type="button" on:click={cancelDatabaseRestoreInspection}>
+												{$i18n.t('Cancel')}
+											</button>
+										</div>
+									</div>
+								{/if}
+
+								{#if databaseRestoreDraft}
+									<div class="rounded-2xl border border-red-200/70 bg-red-50/40 p-3 space-y-3 dark:border-red-800/40 dark:bg-red-950/10">
 										<div class="space-y-1">
 											<div class="text-xs font-medium text-red-700 dark:text-red-300">
 												{$i18n.t('Backup file')}
@@ -1399,9 +1698,15 @@
 												{databaseRestoreDraft.fileName}
 											</div>
 											<div class="text-xs text-gray-500 dark:text-gray-400">
-												{formatBytes(databaseRestoreDraft.fileSize)} · {$i18n.t('Found {{count}} tables in the backup.', {
+												{getBackupKindLabel(databaseRestoreDraft.kind)} · {formatBytes(databaseRestoreDraft.fileSize)} · {$i18n.t('Found {{count}} tables in the backup.', {
 													count: databaseRestoreDraft.summary.table_count
 												})}
+												{#if databaseRestoreDraft.kind === 'full'}
+													· {$i18n.t('Includes {{count}} uploaded files ({{size}}).', {
+														count: databaseRestoreDraft.summary.upload_count ?? 0,
+														size: formatBytes(databaseRestoreDraft.summary.upload_bytes ?? 0)
+													})}
+												{/if}
 											</div>
 										</div>
 
@@ -1442,12 +1747,12 @@
 								{/if}
 
 								<DataManagementStatus
-										visible={hasOperationState('databaseRestore')}
-										phase={operationStates.databaseRestore.phase}
-										title={operationStates.databaseRestore.title}
-										detail={operationStates.databaseRestore.detail}
-									/>
-								</div>
+									visible={hasOperationState('databaseRestore')}
+									phase={operationStates.databaseRestore.phase}
+									title={operationStates.databaseRestore.title}
+									detail={operationStates.databaseRestore.detail}
+								/>
+							</div>
 
 							<div class="glass-item px-4 py-3 space-y-3 md:col-span-2">
 								<div class="flex items-center justify-between gap-3">

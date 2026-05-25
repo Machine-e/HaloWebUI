@@ -1,18 +1,38 @@
 import asyncio
+import hashlib
 import json
 import sqlite3
+import shutil
 import tempfile
 import time
 import uuid
+import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import open_webui.config as config_module
-from open_webui.config import ENABLE_PERSISTENT_CONFIG, REDIS_KEY_PREFIX
+from open_webui.config import (
+    ENABLE_PERSISTENT_CONFIG,
+    REDIS_KEY_PREFIX,
+    STORAGE_PROVIDER,
+    UPLOAD_DIR,
+)
 
 
+BACKUP_KIND_SQLITE = "sqlite"
+BACKUP_KIND_FULL = "full"
 DB_RESTORE_CONFIRMATION = "RESTORE DATABASE"
 DB_RESTORE_TOKEN_TTL_SECONDS = 15 * 60
+FULL_BACKUP_KIND = "halo_full_backup"
+FULL_BACKUP_VERSION = 1
+FULL_BACKUP_MANIFEST = "manifest.json"
+FULL_BACKUP_DB_FILENAME = "webui.db"
+FULL_BACKUP_UPLOAD_PREFIX = "uploads/"
+
+
+class BackupKindMismatchError(ValueError):
+    pass
 
 
 def deep_merge_dict(current: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
@@ -71,7 +91,9 @@ def prune_db_restore_tokens(app, now: float | None = None) -> None:
             cleanup_path(payload.get("path"))
 
 
-def create_restore_token(app, *, path: str, filename: str, user_id: str) -> dict[str, Any]:
+def create_restore_token(
+    app, *, path: str, filename: str, user_id: str, kind: str = BACKUP_KIND_SQLITE
+) -> dict[str, Any]:
     _, tokens = ensure_db_restore_state(app)
     prune_db_restore_tokens(app)
 
@@ -80,6 +102,7 @@ def create_restore_token(app, *, path: str, filename: str, user_id: str) -> dict
         "path": path,
         "filename": filename,
         "user_id": user_id,
+        "kind": kind,
         "expires_at": time.time() + DB_RESTORE_TOKEN_TTL_SECONDS,
     }
     tokens[token] = payload
@@ -99,10 +122,7 @@ def cleanup_path(path: str | Path | None) -> None:
     candidate = Path(path)
     try:
         if candidate.is_dir():
-            for child in candidate.iterdir():
-                if child.is_file():
-                    child.unlink(missing_ok=True)
-            candidate.rmdir()
+            shutil.rmtree(candidate, ignore_errors=True)
         else:
             candidate.unlink(missing_ok=True)
             parent = candidate.parent
@@ -149,6 +169,212 @@ def create_sqlite_snapshot(engine, filename: str = "webui.db") -> Path:
     return snapshot_path
 
 
+def normalize_backup_kind(kind: str | None, default: str = BACKUP_KIND_SQLITE) -> str:
+    normalized = (kind or default).strip().lower()
+    if normalized not in {BACKUP_KIND_SQLITE, BACKUP_KIND_FULL}:
+        raise ValueError("Unsupported backup type.")
+    return normalized
+
+
+def _is_remote_storage_path(path: str) -> bool:
+    if not isinstance(path, str):
+        return False
+    lowered = path.lower()
+    return lowered.startswith(("s3://", "gs://", "http://", "https://"))
+
+
+def _stored_upload_name(path: str | None) -> str | None:
+    if not isinstance(path, str) or not path or _is_remote_storage_path(path):
+        return None
+
+    normalized = str(path).replace("\\", "/").rstrip("/")
+    name = normalized.rsplit("/", 1)[-1]
+    if not name or name in {".", ".."} or "/" in name or "\\" in name:
+        return None
+    return name
+
+
+def _assert_local_storage_available() -> None:
+    if STORAGE_PROVIDER != "local":
+        raise ValueError(
+            "Full backup is only available for local file storage deployments."
+        )
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file_obj:
+        while True:
+            chunk = file_obj.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _sha256_zip_member(zip_file: zipfile.ZipFile, member_name: str) -> str:
+    digest = hashlib.sha256()
+    with zip_file.open(member_name, "r") as file_obj:
+        while True:
+            chunk = file_obj.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _assert_safe_zip_member(name: str) -> None:
+    normalized = name.replace("\\", "/")
+    if normalized != name or normalized.startswith("/"):
+        raise ValueError("The full backup package contains an unsafe file path.")
+
+    parts = normalized.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise ValueError("The full backup package contains an unsafe file path.")
+
+    if normalized in {FULL_BACKUP_MANIFEST, FULL_BACKUP_DB_FILENAME}:
+        return
+
+    if normalized.startswith(FULL_BACKUP_UPLOAD_PREFIX) and len(parts) == 2:
+        return
+
+    raise ValueError("The full backup package contains an unexpected file path.")
+
+
+def _read_sqlite_tables(cursor: sqlite3.Cursor) -> list[str]:
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    return [row[0] for row in cursor.fetchall()]
+
+
+def _read_sqlite_file_rows(file_path: Path) -> list[dict[str, Any]]:
+    connection = sqlite3.connect(f"file:{file_path}?mode=ro", uri=True)
+    connection.row_factory = sqlite3.Row
+    try:
+        cursor = connection.cursor()
+        tables = _read_sqlite_tables(cursor)
+        if "file" not in tables:
+            return []
+
+        cursor.execute(
+            "SELECT id, filename, path, meta FROM file WHERE path IS NOT NULL AND path != ''"
+        )
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        connection.close()
+
+
+def _build_upload_manifest(snapshot_path: Path) -> dict[str, Any]:
+    upload_dir = Path(UPLOAD_DIR)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    referenced_names: set[str] = set()
+    uploads_by_name: dict[str, dict[str, Any]] = {}
+    missing_uploads: list[dict[str, Any]] = []
+
+    for row in _read_sqlite_file_rows(snapshot_path):
+        stored_name = _stored_upload_name(row.get("path"))
+        if not stored_name:
+            continue
+
+        referenced_names.add(stored_name)
+        candidate = upload_dir / stored_name
+        if not candidate.is_file():
+            missing_uploads.append(
+                {
+                    "id": row.get("id"),
+                    "filename": row.get("filename"),
+                    "stored_name": stored_name,
+                }
+            )
+            continue
+
+        stat = candidate.stat()
+        entry = uploads_by_name.setdefault(
+            stored_name,
+            {
+                "stored_name": stored_name,
+                "archive_path": f"{FULL_BACKUP_UPLOAD_PREFIX}{stored_name}",
+                "size": stat.st_size,
+                "sha256": _sha256_file(candidate),
+                "file_ids": [],
+                "filenames": [],
+            },
+        )
+        if row.get("id") not in entry["file_ids"]:
+            entry["file_ids"].append(row.get("id"))
+        if row.get("filename") not in entry["filenames"]:
+            entry["filenames"].append(row.get("filename"))
+
+    local_names = {path.name for path in upload_dir.iterdir() if path.is_file()}
+    orphan_count = len(local_names - referenced_names)
+
+    uploads = list(uploads_by_name.values())
+    uploads.sort(key=lambda item: item["stored_name"])
+    missing_uploads.sort(key=lambda item: item["stored_name"])
+
+    upload_bytes = sum(item["size"] for item in uploads)
+    return {
+        "uploads": uploads,
+        "missing_uploads": missing_uploads,
+        "upload_count": len(uploads),
+        "upload_bytes": upload_bytes,
+        "missing_upload_count": len(missing_uploads),
+        "orphan_upload_count": orphan_count,
+    }
+
+
+def create_full_backup_package(engine) -> Path:
+    _assert_local_storage_available()
+
+    snapshot_path = create_sqlite_snapshot(engine, filename=FULL_BACKUP_DB_FILENAME)
+    package_path = snapshot_path.parent / "halo-webui-full-backup.hwbk"
+
+    try:
+        inspection = inspect_sqlite_backup(snapshot_path)
+        upload_summary = _build_upload_manifest(snapshot_path)
+
+        manifest = {
+            "kind": FULL_BACKUP_KIND,
+            "version": FULL_BACKUP_VERSION,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "database": {
+                "filename": FULL_BACKUP_DB_FILENAME,
+                "size": snapshot_path.stat().st_size,
+                "sha256": _sha256_file(snapshot_path),
+                "summary": inspection["summary"],
+            },
+            "uploads": upload_summary["uploads"],
+            "missing_uploads": upload_summary["missing_uploads"],
+            "summary": {
+                "upload_count": upload_summary["upload_count"],
+                "upload_bytes": upload_summary["upload_bytes"],
+                "missing_upload_count": upload_summary["missing_upload_count"],
+                "orphan_upload_count": upload_summary["orphan_upload_count"],
+            },
+        }
+
+        upload_dir = Path(UPLOAD_DIR)
+        with zipfile.ZipFile(
+            package_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6
+        ) as zip_file:
+            zip_file.writestr(
+                FULL_BACKUP_MANIFEST,
+                json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2),
+            )
+            zip_file.write(snapshot_path, FULL_BACKUP_DB_FILENAME)
+            for upload in upload_summary["uploads"]:
+                zip_file.write(
+                    upload_dir / upload["stored_name"],
+                    upload["archive_path"],
+                )
+
+        snapshot_path.unlink(missing_ok=True)
+        return package_path
+    except Exception:
+        cleanup_path(snapshot_path.parent)
+        raise
+
+
 def inspect_sqlite_backup(file_path: Path) -> dict[str, Any]:
     connection = sqlite3.connect(f"file:{file_path}?mode=ro", uri=True)
     try:
@@ -160,8 +386,7 @@ def inspect_sqlite_backup(file_path: Path) -> dict[str, Any]:
         if integrity_value != "ok":
             raise ValueError(f"SQLite integrity check failed: {integrity_value}")
 
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-        tables = [row[0] for row in cursor.fetchall()]
+        tables = _read_sqlite_tables(cursor)
     finally:
         connection.close()
 
@@ -173,6 +398,7 @@ def inspect_sqlite_backup(file_path: Path) -> dict[str, Any]:
         warnings.append("The backup is missing the user table; please verify the source file.")
 
     return {
+        "kind": BACKUP_KIND_SQLITE,
         "summary": {
             "table_count": len(tables),
             "tables_preview": tables[:8],
@@ -182,6 +408,194 @@ def inspect_sqlite_backup(file_path: Path) -> dict[str, Any]:
         },
         "warnings": warnings,
     }
+
+
+def _load_full_backup_manifest(zip_file: zipfile.ZipFile) -> dict[str, Any]:
+    for info in zip_file.infolist():
+        _assert_safe_zip_member(info.filename)
+
+    if FULL_BACKUP_MANIFEST not in zip_file.namelist():
+        raise ValueError("The uploaded file is not a compatible full backup package.")
+
+    try:
+        manifest = json.loads(zip_file.read(FULL_BACKUP_MANIFEST).decode("utf-8"))
+    except Exception as exc:
+        raise ValueError("The full backup manifest is invalid.") from exc
+
+    if manifest.get("kind") != FULL_BACKUP_KIND:
+        raise ValueError("The uploaded file is not a compatible full backup package.")
+    if manifest.get("version") != FULL_BACKUP_VERSION:
+        raise ValueError("The full backup package version is not supported.")
+    if FULL_BACKUP_DB_FILENAME not in zip_file.namelist():
+        raise ValueError("The full backup package is missing the database file.")
+
+    return manifest
+
+
+def _validate_full_backup_upload_entries(
+    zip_file: zipfile.ZipFile, manifest: dict[str, Any], *, verify_hashes: bool
+) -> dict[str, Any]:
+    uploads = manifest.get("uploads")
+    if not isinstance(uploads, list):
+        raise ValueError("The full backup manifest is missing upload metadata.")
+
+    upload_count = 0
+    upload_bytes = 0
+    stored_names: set[str] = set()
+    declared_archive_paths: set[str] = set()
+
+    for upload in uploads:
+        if not isinstance(upload, dict):
+            raise ValueError("The full backup manifest contains invalid upload metadata.")
+
+        stored_name = upload.get("stored_name")
+        archive_path = upload.get("archive_path")
+        if not isinstance(stored_name, str) or _stored_upload_name(stored_name) != stored_name:
+            raise ValueError("The full backup manifest contains an unsafe upload name.")
+        if archive_path != f"{FULL_BACKUP_UPLOAD_PREFIX}{stored_name}":
+            raise ValueError("The full backup manifest contains invalid upload metadata.")
+        if archive_path not in zip_file.namelist():
+            raise ValueError("The full backup package is missing an upload file.")
+        declared_archive_paths.add(archive_path)
+
+        info = zip_file.getinfo(archive_path)
+        expected_size = int(upload.get("size", -1))
+        if expected_size != info.file_size:
+            raise ValueError("The full backup package upload size does not match.")
+
+        if verify_hashes and upload.get("sha256") != _sha256_zip_member(
+            zip_file, archive_path
+        ):
+            raise ValueError("The full backup package upload checksum does not match.")
+
+        stored_names.add(stored_name)
+        upload_count += 1
+        upload_bytes += info.file_size
+
+    for name in zip_file.namelist():
+        if (
+            name.startswith(FULL_BACKUP_UPLOAD_PREFIX)
+            and name not in declared_archive_paths
+        ):
+            raise ValueError("The full backup package contains an undeclared upload file.")
+
+    missing_uploads = manifest.get("missing_uploads") or []
+    if not isinstance(missing_uploads, list):
+        raise ValueError("The full backup manifest contains invalid missing upload metadata.")
+
+    missing_stored_names: set[str] = set()
+    for upload in missing_uploads:
+        if not isinstance(upload, dict):
+            raise ValueError("The full backup manifest contains invalid missing upload metadata.")
+        stored_name = upload.get("stored_name")
+        if not isinstance(stored_name, str) or _stored_upload_name(stored_name) != stored_name:
+            raise ValueError("The full backup manifest contains an unsafe upload name.")
+        missing_stored_names.add(stored_name)
+
+    return {
+        "upload_count": upload_count,
+        "upload_bytes": upload_bytes,
+        "missing_upload_count": len(missing_uploads),
+        "stored_names": stored_names,
+        "missing_stored_names": missing_stored_names,
+    }
+
+
+def inspect_full_backup_package(
+    file_path: Path, *, verify_hashes: bool = True
+) -> dict[str, Any]:
+    if not zipfile.is_zipfile(file_path):
+        raise ValueError("The uploaded file is not a compatible full backup package.")
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="open-webui-full-backup-inspect-"))
+    db_path = temp_dir / FULL_BACKUP_DB_FILENAME
+    try:
+        with zipfile.ZipFile(file_path, "r") as zip_file:
+            manifest = _load_full_backup_manifest(zip_file)
+
+            with zip_file.open(FULL_BACKUP_DB_FILENAME, "r") as source, db_path.open(
+                "wb"
+            ) as target:
+                shutil.copyfileobj(source, target, length=1024 * 1024)
+
+            database = manifest.get("database")
+            if not isinstance(database, dict):
+                raise ValueError("The full backup manifest is missing database metadata.")
+            if database.get("filename") != FULL_BACKUP_DB_FILENAME:
+                raise ValueError("The full backup manifest contains invalid database metadata.")
+
+            try:
+                expected_db_size = int(database.get("size", -1))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "The full backup manifest contains invalid database metadata."
+                ) from exc
+            if expected_db_size != db_path.stat().st_size:
+                raise ValueError("The full backup database size does not match.")
+
+            expected_db_sha256 = database.get("sha256")
+            if not isinstance(expected_db_sha256, str) or not expected_db_sha256:
+                raise ValueError("The full backup manifest is missing database checksum.")
+            if expected_db_sha256 != _sha256_file(db_path):
+                raise ValueError("The full backup database checksum does not match.")
+
+            sqlite_inspection = inspect_sqlite_backup(db_path)
+            upload_summary = _validate_full_backup_upload_entries(
+                zip_file, manifest, verify_hashes=verify_hashes
+            )
+    finally:
+        cleanup_path(temp_dir)
+
+    warnings = list(sqlite_inspection["warnings"])
+    if upload_summary["missing_upload_count"] > 0:
+        warnings.append(
+            "The full backup is missing some referenced uploaded files; those attachments will remain unavailable after restore."
+        )
+    orphan_count = int((manifest.get("summary") or {}).get("orphan_upload_count") or 0)
+    if orphan_count > 0:
+        warnings.append(
+            "Some local upload files were not referenced by the database and were not included in this full backup."
+        )
+
+    return {
+        "kind": BACKUP_KIND_FULL,
+        "summary": {
+            **sqlite_inspection["summary"],
+            "upload_count": upload_summary["upload_count"],
+            "upload_bytes": upload_summary["upload_bytes"],
+            "missing_upload_count": upload_summary["missing_upload_count"],
+            "orphan_upload_count": orphan_count,
+        },
+        "warnings": warnings,
+        "manifest": manifest,
+        "stored_names": upload_summary["stored_names"],
+        "referenced_stored_names": upload_summary["stored_names"]
+        | upload_summary["missing_stored_names"],
+    }
+
+
+def inspect_restore_backup(file_path: Path, expected_kind: str | None = None) -> dict[str, Any]:
+    expected = normalize_backup_kind(expected_kind)
+
+    if zipfile.is_zipfile(file_path):
+        inspection = inspect_full_backup_package(file_path)
+    else:
+        inspection = inspect_sqlite_backup(file_path)
+
+    actual = inspection["kind"]
+    if actual != expected:
+        if actual == BACKUP_KIND_FULL:
+            raise BackupKindMismatchError(
+                "The uploaded file is a full backup package. Select Full backup restore."
+            )
+        raise BackupKindMismatchError(
+            "The uploaded file is a SQLite-only backup. Select Database-only restore."
+        )
+
+    if expected == BACKUP_KIND_FULL:
+        _assert_local_storage_available()
+
+    return inspection
 
 
 def restore_sqlite_backup(source_path: Path, target_path: Path) -> None:
@@ -197,6 +611,115 @@ def restore_sqlite_backup(source_path: Path, target_path: Path) -> None:
 
     Path(f"{target_path}-wal").unlink(missing_ok=True)
     Path(f"{target_path}-shm").unlink(missing_ok=True)
+
+
+def _copy_full_backup_uploads(
+    package_path: Path, manifest: dict[str, Any], upload_dir: Path, temp_dir: Path
+) -> list[tuple[Path, Path | None]]:
+    rollback_files: list[tuple[Path, Path | None]] = []
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    with zipfile.ZipFile(package_path, "r") as zip_file:
+        _load_full_backup_manifest(zip_file)
+        _validate_full_backup_upload_entries(zip_file, manifest, verify_hashes=True)
+
+        for upload in manifest.get("uploads", []):
+            stored_name = upload["stored_name"]
+            target_path = upload_dir / stored_name
+            archive_path = upload["archive_path"]
+            staged_path = temp_dir / f"staged-{uuid.uuid4().hex}-{stored_name}"
+
+            with zip_file.open(archive_path, "r") as source, staged_path.open(
+                "wb"
+            ) as target:
+                shutil.copyfileobj(source, target, length=1024 * 1024)
+
+            if upload["sha256"] != _sha256_file(staged_path):
+                raise ValueError(
+                    "The full backup package upload checksum does not match."
+                )
+
+            rollback_path = None
+            if target_path.exists():
+                rollback_path = temp_dir / f"rollback-{uuid.uuid4().hex}-{stored_name}"
+                shutil.copy2(target_path, rollback_path)
+
+            shutil.move(str(staged_path), target_path)
+            rollback_files.append((target_path, rollback_path))
+
+    return rollback_files
+
+
+def _rollback_full_backup_uploads(rollback_files: list[tuple[Path, Path | None]]) -> None:
+    for target_path, rollback_path in reversed(rollback_files):
+        try:
+            if rollback_path and rollback_path.exists():
+                shutil.move(str(rollback_path), target_path)
+            else:
+                target_path.unlink(missing_ok=True)
+        except Exception:
+            continue
+
+
+def _rewrite_sqlite_upload_paths(
+    db_path: Path, upload_dir: Path, stored_names: set[str]
+) -> None:
+    if not stored_names:
+        return
+
+    connection = sqlite3.connect(db_path)
+    try:
+        cursor = connection.cursor()
+        tables = _read_sqlite_tables(cursor)
+        if "file" not in tables:
+            return
+
+        cursor.execute("SELECT id, path FROM file WHERE path IS NOT NULL AND path != ''")
+        updates: list[tuple[str, str]] = []
+        for file_id, file_path in cursor.fetchall():
+            stored_name = _stored_upload_name(file_path)
+            if stored_name and stored_name in stored_names:
+                updates.append((str(upload_dir / stored_name), file_id))
+
+        if updates:
+            cursor.executemany("UPDATE file SET path = ? WHERE id = ?", updates)
+            connection.commit()
+    finally:
+        connection.close()
+
+
+def restore_full_backup(package_path: Path, target_path: Path) -> None:
+    _assert_local_storage_available()
+
+    inspection = inspect_full_backup_package(package_path, verify_hashes=True)
+    manifest = inspection["manifest"]
+    referenced_stored_names = set(inspection["referenced_stored_names"])
+    upload_dir = Path(UPLOAD_DIR)
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="open-webui-full-backup-restore-"))
+    db_path = temp_dir / FULL_BACKUP_DB_FILENAME
+    rollback_files: list[tuple[Path, Path | None]] = []
+    db_restored = False
+
+    try:
+        with zipfile.ZipFile(package_path, "r") as zip_file:
+            with zip_file.open(FULL_BACKUP_DB_FILENAME, "r") as source, db_path.open(
+                "wb"
+            ) as target:
+                shutil.copyfileobj(source, target, length=1024 * 1024)
+
+        _rewrite_sqlite_upload_paths(db_path, upload_dir, referenced_stored_names)
+        rollback_files = _copy_full_backup_uploads(
+            package_path, manifest, upload_dir, temp_dir
+        )
+        restore_sqlite_backup(db_path, target_path)
+        db_restored = True
+    except Exception:
+        if not db_restored:
+            _rollback_full_backup_uploads(rollback_files)
+        raise
+    finally:
+        cleanup_path(temp_dir)
 
 
 def reload_persistent_config_state(app_config) -> None:
