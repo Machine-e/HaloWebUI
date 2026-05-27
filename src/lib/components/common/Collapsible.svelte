@@ -185,7 +185,9 @@
 			{disabled}
 			expandable={!hide}
 			className="activity-collapsible"
-			bodyClassName="activity-collapsible-body"
+			bodyClassName={attributes?.type === 'reasoning'
+				? 'activity-collapsible-body activity-reasoning-body'
+				: 'activity-collapsible-body'}
 		>
 			<svelte:fragment slot="icon">
 				{#if attributes?.type === 'reasoning'}
@@ -426,3 +428,34 @@
 		{/if}
 	{/if}
 </div>
+
+<style>
+	:global(.activity-reasoning-body) {
+		font-size: 0.9375rem;
+		line-height: 1.75;
+		color: rgb(55 65 81);
+	}
+
+	:global(.dark .activity-reasoning-body) {
+		color: rgb(209 213 219);
+	}
+
+	:global(.activity-reasoning-body blockquote) {
+		margin-left: 0;
+		border-left: 0;
+		padding-left: 0;
+		font-style: normal;
+		color: inherit;
+	}
+
+	:global(.activity-reasoning-body blockquote p:first-of-type::before),
+	:global(.activity-reasoning-body blockquote p:last-of-type::after) {
+		content: none;
+	}
+
+	:global(.activity-reasoning-body p),
+	:global(.activity-reasoning-body li) {
+		font-size: inherit;
+		line-height: inherit;
+	}
+</style>

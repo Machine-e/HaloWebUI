@@ -238,7 +238,7 @@
 <!-- {JSON.stringify(tokens)} -->
 {#each renderItems as item, idx (idx)}
 	{#if item.kind === 'tool_call_group'}
-		<div class="my-2 w-full">
+		<div class="my-2 -ml-4 w-[calc(100%+1rem)] sm:-ml-5 sm:w-[calc(100%+1.25rem)]">
 			<ToolCallGroup id={`${id}-tcg-${item.startIdx}`} tokens={item.tokens} />
 		</div>
 	{:else}
@@ -454,7 +454,7 @@
 		{:else if token.type === 'details'}
 			{@const isStructuredDetail = isStructuredDetailsToken(token)}
 			{#if isStructuredDetail}
-				<div class="my-2 w-full">
+				<div class="my-2 -ml-4 w-[calc(100%+1rem)] sm:-ml-5 sm:w-[calc(100%+1.25rem)]">
 					<Collapsible
 						title={token.summary}
 						open={getDetailsOpen(token, tokenIdx)}
