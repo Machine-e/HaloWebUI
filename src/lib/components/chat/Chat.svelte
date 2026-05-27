@@ -1140,6 +1140,7 @@
 		const imageGenerationActive = canUseChatImageGeneration()
 			? isImageGenerationActiveForRequest()
 			: false;
+		const requestReasoningEffort = maxThinkingTokens === 0 ? 'none' : reasoningEffort;
 
 		return {
 			stream,
@@ -1148,7 +1149,7 @@
 			params: {
 				...$settings?.params,
 				...params,
-				...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+				...(requestReasoningEffort ? { reasoning_effort: requestReasoningEffort } : {}),
 				...(maxThinkingTokens != null && maxThinkingTokens > 0
 					? { thinking: { type: 'enabled', budget_tokens: maxThinkingTokens } }
 					: {}),

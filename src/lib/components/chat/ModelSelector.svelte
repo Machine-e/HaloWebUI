@@ -16,18 +16,25 @@
 
 	export let showSetDefault = true;
 
-	$: canUseMultipleModels = $user?.role === 'admin' || ($user?.permissions?.chat?.multiple_models ?? true);
+	$: canUseMultipleModels =
+		$user?.role === 'admin' || ($user?.permissions?.chat?.multiple_models ?? true);
 	$: selectedModelCount = selectedModels.filter((model) => `${model ?? ''}`.trim()).length;
 	$: discussionDisabled = disabled || !canUseMultipleModels;
-	$: discussionHint = !canUseMultipleModels
+	$: discussionIssue = !canUseMultipleModels
 		? $i18n.t('Multiple models are not enabled for your account')
 		: selectedModelCount < 2
 			? $i18n.t('Select at least 2 models to start a discussion')
 			: selectedModelCount > maxDiscussionModels
 				? $i18n.t('Discussion uses the first {{count}} selected models', {
 						count: maxDiscussionModels
-				})
-			: $i18n.t('Selected models will discuss before producing one final answer');
+					})
+				: '';
+	$: showDiscussionIssue = Boolean(
+		discussionIssue &&
+			(!canUseMultipleModels ||
+				multiModelDiscussionEnabled ||
+				selectedModelCount > maxDiscussionModels)
+	);
 
 	const toggleMultiModelDiscussion = () => {
 		if (discussionDisabled) {
@@ -91,7 +98,8 @@
 							placeholder={$i18n.t('Select a model')}
 							items={selectorItems}
 							showSetDefaultAction={showSetDefault && selectedModelIdx === 0}
-							showTemporaryChatControl={temporaryChatAccess.allowed && !temporaryChatAccess.enforced}
+							showTemporaryChatControl={temporaryChatAccess.allowed &&
+								!temporaryChatAccess.enforced}
 							bind:value={selectedModel}
 						/>
 					</div>
@@ -135,20 +143,23 @@
 			</div>
 		{/each}
 	{:else}
-		<!-- 多模型：紧凑水平 chips 流式布局 -->
+		<!-- 多模型：紧凑水平选择块布局 -->
 		<div class="flex flex-wrap items-center gap-1.5 max-w-full">
 			{#each selectedModels as selectedModel, selectedModelIdx}
-				{@const modelItem = selectorItems.find((item) => item.value === selectedModel)}
-				<div class="flex items-center gap-0.5 group/chip">
+				<div
+					class="group/chip flex items-center gap-0.5 rounded-lg border border-gray-200/70 bg-white/70 pr-0.5 shadow-xs transition-colors dark:border-gray-700/50 dark:bg-gray-900/35"
+				>
 					<!-- 模型 Selector 下拉（点击弹出更换模型） -->
-					<div class="overflow-hidden max-w-[200px]">
+					<div class="overflow-hidden max-w-[200px] rounded-lg">
 						<Selector
 							id={`${selectedModelIdx}`}
 							placeholder={$i18n.t('Select a model')}
 							items={selectorItems}
 							showSetDefaultAction={showSetDefault && selectedModelIdx === 0}
-							showTemporaryChatControl={selectedModelIdx === 0 && temporaryChatAccess.allowed && !temporaryChatAccess.enforced}
-							triggerClassName="text-sm"
+							showTemporaryChatControl={selectedModelIdx === 0 &&
+								temporaryChatAccess.allowed &&
+								!temporaryChatAccess.enforced}
+							triggerClassName="text-sm rounded-lg bg-transparent shadow-none"
 							bind:value={selectedModel}
 						/>
 					</div>
@@ -226,16 +237,17 @@
 		</div>
 	{/if}
 
-	<div class="mt-1.5 flex max-w-full flex-wrap items-center gap-2 px-0.5 text-xs">
+	<div class="mt-2 flex max-w-full flex-col gap-1 px-0.5 text-xs">
 		<button
 			type="button"
-			class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-all duration-150
+			class="inline-flex w-fit items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-all duration-150
 				{multiModelDiscussionEnabled
-					? 'border-primary-500/50 bg-primary-50 text-primary-700 dark:border-primary-400/40 dark:bg-primary-900/20 dark:text-primary-200'
-					: 'border-gray-200/70 bg-white/70 text-gray-500 hover:bg-gray-50 dark:border-gray-700/60 dark:bg-gray-900/50 dark:text-gray-400 dark:hover:bg-gray-800/70'}
+				? 'border-primary-300/70 bg-primary-50/70 text-primary-700 shadow-xs dark:border-primary-700/60 dark:bg-primary-900/15 dark:text-primary-200'
+				: 'border-gray-200/70 bg-white/50 text-gray-600 hover:bg-gray-50 dark:border-gray-700/60 dark:bg-gray-900/25 dark:text-gray-400 dark:hover:bg-gray-800/50'}
 				disabled:cursor-not-allowed disabled:opacity-50"
 			disabled={discussionDisabled}
 			aria-pressed={multiModelDiscussionEnabled}
+			title={discussionIssue || $i18n.t('Multi-model discussion')}
 			on:click={toggleMultiModelDiscussion}
 		>
 			<span
@@ -250,12 +262,10 @@
 			<span class="font-medium">{$i18n.t('Multi-model discussion')}</span>
 		</button>
 
-		<span
-			class="min-w-0 flex-1 text-gray-500 dark:text-gray-400 {multiModelDiscussionEnabled && selectedModelCount < 2
-				? 'text-amber-600 dark:text-amber-400'
-				: ''}"
-		>
-			{discussionHint}
-		</span>
+		{#if showDiscussionIssue}
+			<div class="text-[11px] leading-4 text-amber-600 dark:text-amber-400">
+				{discussionIssue}
+			</div>
+		{/if}
 	</div>
 </div>

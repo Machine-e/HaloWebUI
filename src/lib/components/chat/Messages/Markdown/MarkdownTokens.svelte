@@ -94,23 +94,114 @@
 	type RenderItem =
 		| { kind: 'token'; token: any; originalIdx: number }
 		| { kind: 'tool_call_group'; tokens: any[]; startIdx: number };
+	type IndexedToken = { token: any; originalIdx: number };
 
-	function groupConsecutiveToolCalls(tokens: Token[]): RenderItem[] {
+	const STRUCTURED_DETAIL_TYPES = new Set(['reasoning', 'tool_calls', 'code_interpreter']);
+
+	function getTokenPlainText(token: any): string {
+		if (!token) {
+			return '';
+		}
+
+		if (typeof token.text === 'string') {
+			return token.text;
+		}
+
+		if (Array.isArray(token.tokens)) {
+			return token.tokens.map(getTokenPlainText).join('');
+		}
+
+		return '';
+	}
+
+	function isStructuredDetailsToken(token: any): boolean {
+		return (
+			token?.type === 'details' &&
+			STRUCTURED_DETAIL_TYPES.has(String(token?.attributes?.type ?? ''))
+		);
+	}
+
+	function isEllipsisOnlyToken(token: any): boolean {
+		if (token?.type !== 'paragraph' && token?.type !== 'text') {
+			return false;
+		}
+
+		const text = getTokenPlainText(token).replace(/\s+/g, '');
+		return /^(?:\.{3,}|…|⋯)+$/.test(text);
+	}
+
+	function getAdjacentNonSpaceIndex(tokens: Token[], tokenIdx: number, direction: -1 | 1) {
+		let index = tokenIdx + direction;
+
+		while (index >= 0 && index < tokens.length) {
+			if ((tokens[index] as any)?.type !== 'space') {
+				return index;
+			}
+
+			index += direction;
+		}
+
+		return null;
+	}
+
+	function isStructuredEllipsisPlaceholder(tokens: Token[], tokenIdx: number): boolean {
+		const token = tokens[tokenIdx] as any;
+
+		if (!isEllipsisOnlyToken(token)) {
+			return false;
+		}
+
+		const previousIdx = getAdjacentNonSpaceIndex(tokens, tokenIdx, -1);
+		const nextIdx = getAdjacentNonSpaceIndex(tokens, tokenIdx, 1);
+
+		return (
+			previousIdx !== null &&
+			nextIdx !== null &&
+			isStructuredDetailsToken(tokens[previousIdx]) &&
+			isStructuredDetailsToken(tokens[nextIdx])
+		);
+	}
+
+	function shouldHideStructuredPlaceholderSpace(tokens: Token[], tokenIdx: number): boolean {
+		if ((tokens[tokenIdx] as any)?.type !== 'space') {
+			return false;
+		}
+
+		const previousIdx = getAdjacentNonSpaceIndex(tokens, tokenIdx, -1);
+		const nextIdx = getAdjacentNonSpaceIndex(tokens, tokenIdx, 1);
+
+		return (
+			(previousIdx !== null && isStructuredEllipsisPlaceholder(tokens, previousIdx)) ||
+			(nextIdx !== null && isStructuredEllipsisPlaceholder(tokens, nextIdx))
+		);
+	}
+
+	function getVisibleTokens(tokens: Token[]): IndexedToken[] {
+		return tokens
+			.map((token, originalIdx) => ({ token, originalIdx }))
+			.filter(
+				(_, tokenIdx) =>
+					!isStructuredEllipsisPlaceholder(tokens, tokenIdx) &&
+					!shouldHideStructuredPlaceholderSpace(tokens, tokenIdx)
+			);
+	}
+
+	function groupConsecutiveToolCalls(tokens: IndexedToken[]): RenderItem[] {
 		const items: RenderItem[] = [];
 		let i = 0;
 		while (i < tokens.length) {
-			const token = tokens[i] as any;
+			const { token, originalIdx } = tokens[i];
 			if (token.type === 'details' && token.attributes?.type === 'tool_calls') {
 				const group: any[] = [token];
-				const startIdx = i;
+				const startIdx = originalIdx;
 				let j = i + 1;
 				while (j < tokens.length) {
-					const next = tokens[j] as any;
+					const next = tokens[j].token;
 					if (next.type === 'space') {
 						if (
 							j + 1 < tokens.length &&
-							(tokens[j + 1] as any).type === 'details' &&
-							(tokens[j + 1] as any).attributes?.type === 'tool_calls'
+							tokens[j + 1].token.type === 'details' &&
+							tokens[j + 1].token.attributes?.type === 'tool_calls'
 						) {
 							j++;
 							continue;
@@ -128,11 +219,11 @@
 				if (group.length >= 2) {
 					items.push({ kind: 'tool_call_group', tokens: group, startIdx });
 				} else {
-					items.push({ kind: 'token', token, originalIdx: i });
+					items.push({ kind: 'token', token, originalIdx });
 				}
 				i = j;
 			} else {
-				items.push({ kind: 'token', token, originalIdx: i });
+				items.push({ kind: 'token', token, originalIdx });
 				i++;
 			}
 		}
@@ -140,7 +231,8 @@
 	}
 
 	$: normalizedTokens = promoteSvgMarkupTokens(tokens);
-	$: renderItems = groupConsecutiveToolCalls(normalizedTokens);
+	$: visibleTokens = getVisibleTokens(normalizedTokens);
+	$: renderItems = groupConsecutiveToolCalls(visibleTokens);
 </script>
 
 <!-- {JSON.stringify(tokens)} -->

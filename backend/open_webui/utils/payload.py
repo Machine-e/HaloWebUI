@@ -22,6 +22,10 @@ _DEEPSEEK_HYBRID_MODEL_RE = re.compile(
     r"(?:deepseek[\w\s./:-]*[-_\s/]v3[.-]\d|deepseek-chat(?:$|[\w\s./:-]))",
     re.IGNORECASE,
 )
+_MIMO_MODEL_RE = re.compile(
+    r"(?:^|[\w\s./:-]*[-_\s/])(?:xiaomi|mimo)(?:$|[-_\s/][\w\s./:-]*)",
+    re.IGNORECASE,
+)
 
 
 def _normalize_reasoning_effort_value(value: Any) -> Optional[str]:
@@ -30,6 +34,16 @@ def _normalize_reasoning_effort_value(value: Any) -> Optional[str]:
 
     normalized = str(value).strip().lower()
     return normalized or None
+
+
+def _normalize_thinking_token_value(value: Any) -> Optional[int]:
+    if value is None or value == "":
+        return None
+
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _is_reasoning_effort_off(value: Any) -> bool:
@@ -58,27 +72,35 @@ def _is_deepseek_model_id(value: Any) -> bool:
     return bool(normalized and "deepseek" in normalized)
 
 
-def _with_deepseek_thinking_type(payload: dict, thinking_type: str) -> dict:
+def _is_mimo_model_id(value: Any) -> bool:
+    normalized = str(value or "").strip().lower()
+    if not normalized or ("mimo" not in normalized and "xiaomi" not in normalized):
+        return False
+
+    return bool(_MIMO_MODEL_RE.search(normalized))
+
+
+def _with_thinking_type(payload: dict, thinking_type: str) -> dict:
     normalized = dict(payload)
     normalized["thinking"] = {"type": thinking_type}
     return normalized
 
 
-def _normalize_deepseek_thinking_payload(payload: dict) -> dict:
+def _normalize_thinking_type_payload(payload: dict) -> dict:
     thinking = payload.get("thinking")
     if not isinstance(thinking, dict):
         return payload
 
     thinking_type = _normalize_reasoning_effort_value(thinking.get("type"))
     if _is_reasoning_effort_off(thinking_type):
-        return _with_deepseek_thinking_type(payload, "disabled")
+        return _with_thinking_type(payload, "disabled")
 
     if (
         thinking_type in _THINKING_ENABLED_VALUES
         or thinking_type in _REASONING_AUTO_VALUES
         or "budget_tokens" in thinking
     ):
-        return _with_deepseek_thinking_type(payload, "enabled")
+        return _with_thinking_type(payload, "enabled")
 
     return payload
 
@@ -133,6 +155,63 @@ def _without_reasoning_effort(payload: dict) -> dict:
     return normalized
 
 
+def _without_empty_reasoning_controls(payload: dict) -> dict:
+    normalized = payload
+
+    if "reasoning_effort" in normalized and normalized.get("reasoning_effort") is None:
+        normalized = dict(normalized)
+        normalized.pop("reasoning_effort", None)
+
+    reasoning = normalized.get("reasoning")
+    if isinstance(reasoning, dict) and "effort" in reasoning:
+        effort = _normalize_reasoning_effort_value(reasoning.get("effort"))
+        if effort is None:
+            if normalized is payload:
+                normalized = dict(normalized)
+            normalized_reasoning = dict(reasoning)
+            normalized_reasoning.pop("effort", None)
+            if normalized_reasoning:
+                normalized["reasoning"] = normalized_reasoning
+            else:
+                normalized.pop("reasoning", None)
+
+    if "thinking" in normalized and normalized.get("thinking") is None:
+        if normalized is payload:
+            normalized = dict(normalized)
+        normalized.pop("thinking", None)
+
+    return normalized
+
+
+def _without_reasoning_controls(payload: dict) -> dict:
+    normalized = dict(payload)
+    normalized.pop("reasoning_effort", None)
+    normalized.pop("reasoning", None)
+    normalized.pop("thinking", None)
+    return normalized
+
+
+def _normalize_max_thinking_tokens_payload(payload: dict) -> dict:
+    if "max_thinking_tokens" not in payload:
+        return payload
+
+    normalized = dict(payload)
+    tokens = _normalize_thinking_token_value(normalized.pop("max_thinking_tokens", None))
+    if tokens is None:
+        return normalized
+
+    if tokens <= 0:
+        normalized.pop("thinking", None)
+        normalized = _without_reasoning_effort(normalized)
+        normalized["reasoning_effort"] = "none"
+        return normalized
+
+    if "thinking" not in normalized:
+        normalized["thinking"] = {"type": "enabled", "budget_tokens": tokens}
+
+    return normalized
+
+
 def normalize_openai_compatible_reasoning_controls(
     payload: dict,
     *,
@@ -142,21 +221,50 @@ def normalize_openai_compatible_reasoning_controls(
     Translate UI-level reasoning controls to the provider-specific shape only
     when a known OpenAI-compatible upstream does not accept the literal value.
 
-    DeepSeek thinking-mode APIs do not accept reasoning_effort="none" or
-    reasoning_effort="auto".  V4+ uses thinking.type for on/off and accepts
-    reasoning_effort high/max; V3.x hybrid models use thinking.type only.
+    DeepSeek and Xiaomi MiMo thinking-mode APIs do not accept the UI sentinel
+    reasoning_effort="none".  DeepSeek V4+ uses thinking.type for on/off and
+    accepts reasoning_effort high/max; V3.x hybrid models use thinking.type
+    only. MiMo uses thinking.type enabled/disabled.
     The same UI sentinel may appear as Responses API reasoning.effort after
     conversion, so normalize both locations at the final provider boundary.
     """
     if not isinstance(payload, dict):
         return payload
 
+    payload = _normalize_max_thinking_tokens_payload(
+        _without_empty_reasoning_controls(payload)
+    )
     model_candidates = [payload.get("model"), model_id]
+    reasoning_effort, reasoning_effort_location = _get_reasoning_effort_from_payload(
+        payload
+    )
+
+    if reasoning_effort in _REASONING_DEFAULT_VALUES:
+        return _without_reasoning_controls(payload)
+
+    is_mimo = any(_is_mimo_model_id(candidate) for candidate in model_candidates)
+    if is_mimo:
+        normalized = _normalize_thinking_type_payload(payload)
+        reasoning_effort, reasoning_effort_location = _get_reasoning_effort_from_payload(
+            normalized
+        )
+        if reasoning_effort is None:
+            return normalized
+
+        normalized = _without_reasoning_effort(normalized)
+        if _is_reasoning_effort_off(reasoning_effort):
+            return _with_thinking_type(normalized, "disabled")
+
+        if reasoning_effort in _REASONING_AUTO_VALUES:
+            return _with_thinking_type(normalized, "enabled")
+
+        return _with_thinking_type(normalized, "enabled")
+
     is_deepseek = any(_is_deepseek_model_id(candidate) for candidate in model_candidates)
     if not is_deepseek:
         return payload
 
-    normalized = _normalize_deepseek_thinking_payload(payload)
+    normalized = _normalize_thinking_type_payload(payload)
     reasoning_effort, reasoning_effort_location = _get_reasoning_effort_from_payload(
         normalized
     )
@@ -189,7 +297,7 @@ def normalize_openai_compatible_reasoning_controls(
 
     if _is_reasoning_effort_off(reasoning_effort):
         if is_deepseek_v4_plus:
-            return _with_deepseek_thinking_type(normalized, "disabled")
+            return _with_thinking_type(normalized, "disabled")
         # DeepSeek V3.x hybrid defaults to non-thinking; for other DeepSeek
         # models, there is no documented way to disable reasoning.
         normalized.pop("thinking", None)
@@ -197,11 +305,11 @@ def normalize_openai_compatible_reasoning_controls(
 
     if reasoning_effort in _REASONING_AUTO_VALUES:
         if is_deepseek_hybrid:
-            return _with_deepseek_thinking_type(normalized, "enabled")
+            return _with_thinking_type(normalized, "enabled")
         return normalized
 
     if is_deepseek_v4_plus:
-        normalized = _with_deepseek_thinking_type(normalized, "enabled")
+        normalized = _with_thinking_type(normalized, "enabled")
         if reasoning_effort in _DEEPSEEK_MAX_EFFORT_VALUES:
             normalized = _with_reasoning_effort(
                 normalized,
@@ -217,7 +325,7 @@ def normalize_openai_compatible_reasoning_controls(
         return normalized
 
     if is_deepseek_hybrid:
-        return _with_deepseek_thinking_type(normalized, "enabled")
+        return _with_thinking_type(normalized, "enabled")
 
     # Other DeepSeek models do not document reasoning_effort control.
     return normalized

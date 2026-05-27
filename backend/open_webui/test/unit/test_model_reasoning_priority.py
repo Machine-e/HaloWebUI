@@ -39,6 +39,44 @@ def test_apply_model_params_to_body_openai_preserves_explicit_reasoning_off():
     assert result["reasoning_effort"] == "none"
 
 
+def test_apply_model_params_to_body_openai_skips_null_reasoning_default():
+    result = apply_model_params_to_body_openai({"reasoning_effort": None}, {})
+
+    assert "reasoning_effort" not in result
+
+
+def test_normalize_reasoning_default_omits_controls_for_all_models():
+    payload = {
+        "model": "gpt-5.2",
+        "reasoning_effort": "default",
+        "thinking": {"type": "enabled"},
+    }
+
+    result = normalize_openai_compatible_reasoning_controls(payload)
+
+    assert "reasoning_effort" not in result
+    assert "thinking" not in result
+
+
+def test_normalize_null_reasoning_controls_are_omitted_for_all_models():
+    payload = {"model": "gpt-5.2", "reasoning_effort": None, "thinking": None}
+
+    result = normalize_openai_compatible_reasoning_controls(payload)
+
+    assert "reasoning_effort" not in result
+    assert "thinking" not in result
+
+
+def test_normalize_max_thinking_tokens_zero_maps_to_reasoning_off():
+    payload = {"model": "gpt-5.2", "max_thinking_tokens": 0}
+
+    result = normalize_openai_compatible_reasoning_controls(payload)
+
+    assert "max_thinking_tokens" not in result
+    assert "thinking" not in result
+    assert result["reasoning_effort"] == "none"
+
+
 def test_normalize_deepseek_v4_reasoning_off_uses_thinking_disabled():
     payload = {"model": "deepseek-v4-flash", "reasoning_effort": "none"}
 
@@ -178,3 +216,44 @@ def test_normalize_responses_reasoning_off_preserves_non_deepseek_models():
 
     assert result is payload
     assert result["reasoning"] == {"effort": "none"}
+
+
+def test_normalize_mimo_reasoning_off_uses_thinking_disabled():
+    payload = {"model": "mimo-v2.5-pro", "reasoning_effort": "none"}
+
+    result = normalize_openai_compatible_reasoning_controls(payload)
+
+    assert "reasoning_effort" not in result
+    assert result["thinking"] == {"type": "disabled"}
+    assert payload["reasoning_effort"] == "none"
+
+
+def test_normalize_mimo_max_thinking_tokens_zero_uses_thinking_disabled():
+    payload = {"model": "mimo-v2.5-pro", "max_thinking_tokens": 0}
+
+    result = normalize_openai_compatible_reasoning_controls(payload)
+
+    assert "max_thinking_tokens" not in result
+    assert "reasoning_effort" not in result
+    assert result["thinking"] == {"type": "disabled"}
+
+
+def test_normalize_mimo_reasoning_off_uses_resolved_model_candidate():
+    payload = {"model": "workspace-alias", "reasoning_effort": "off"}
+
+    result = normalize_openai_compatible_reasoning_controls(
+        payload,
+        model_id="xiaomi/mimo-v2.5-pro",
+    )
+
+    assert "reasoning_effort" not in result
+    assert result["thinking"] == {"type": "disabled"}
+
+
+def test_normalize_mimo_responses_reasoning_off_uses_thinking_disabled():
+    payload = {"model": "mimo-v2.5-pro", "reasoning": {"effort": "none"}}
+
+    result = normalize_openai_compatible_reasoning_controls(payload)
+
+    assert "reasoning" not in result
+    assert result["thinking"] == {"type": "disabled"}
