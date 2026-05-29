@@ -536,6 +536,26 @@
 	let model = null;
 	$: model = findModelByIdentity($models, message.model);
 	$: stats = getStatsDisplay(message);
+	const toDiscussionArray = (value: unknown) => (Array.isArray(value) ? value : []);
+	const getDiscussionParticipantName = (participant: any): string =>
+		`${participant?.name ?? participant?.id ?? ''}`.trim();
+	const getDiscussionParticipantId = (participant: any): string =>
+		`${participant?.id ?? participant?.model ?? participant?.name ?? ''}`.trim();
+	const isDiscussionFinalModel = (participant: any): boolean => {
+		const finalModel = message?.discussion?.finalModel ?? {};
+		const finalId = `${finalModel?.id ?? message?.model ?? ''}`.trim();
+		const finalName = `${finalModel?.name ?? message?.modelName ?? ''}`.trim();
+		const participantId = getDiscussionParticipantId(participant);
+		const participantName = getDiscussionParticipantName(participant);
+
+		return Boolean(
+			(finalId && participantId && finalId === participantId) ||
+			(finalName && participantName && finalName === participantName)
+		);
+	};
+	$: discussionParticipants = toDiscussionArray(message?.discussion?.participants).filter(
+		(participant) => getDiscussionParticipantName(participant)
+	);
 
 	const doRegenerate = () => {
 		regenerateResponse(message);
@@ -1077,11 +1097,44 @@
 
 		<div class="flex-auto w-0 sm:pl-1 relative z-10">
 			<Name>
-				<Tooltip content={getModelChatDisplayName(model) || message.modelName || message.model} placement="top-start">
-					<span class="line-clamp-1 text-black dark:text-white font-semibold">
-						{getModelChatDisplayName(model) || message.modelName || message.model}
-					</span>
-				</Tooltip>
+				{#if hasVisibleDiscussion && discussionParticipants.length > 0}
+					<div class="flex min-w-0 flex-col gap-1">
+						<div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+							<span class="line-clamp-1 text-black dark:text-white font-semibold">
+								{tr('多模型讨论', 'Multi-model discussion')}
+							</span>
+							<span class="text-xs font-medium text-gray-400 dark:text-gray-500">
+								{tr('共 {{count}} 个模型', '{{count}} models', {
+									count: discussionParticipants.length
+								})}
+							</span>
+						</div>
+
+						<div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+							{#each discussionParticipants as participant}
+								{@const participantName = getDiscussionParticipantName(participant)}
+								<Tooltip content={participantName} placement="top-start">
+									<span
+										class="inline-flex max-w-[190px] items-center gap-1 truncate rounded-lg border border-gray-200/70 bg-white/60 px-2 py-0.5 text-xs font-medium text-gray-600 shadow-xs transition-colors dark:border-gray-700/70 dark:bg-gray-900/50 dark:text-gray-300"
+									>
+										<span class="truncate">{participantName}</span>
+										{#if isDiscussionFinalModel(participant)}
+											<span class="shrink-0 text-[10px] font-medium text-gray-400 dark:text-gray-500">
+												{tr('总结', 'Final')}
+											</span>
+										{/if}
+									</span>
+								</Tooltip>
+							{/each}
+						</div>
+					</div>
+				{:else}
+					<Tooltip content={getModelChatDisplayName(model) || message.modelName || message.model} placement="top-start">
+						<span class="line-clamp-1 text-black dark:text-white font-semibold">
+							{getModelChatDisplayName(model) || message.modelName || message.model}
+						</span>
+					</Tooltip>
+				{/if}
 
 				{#if message.timestamp}
 					<div

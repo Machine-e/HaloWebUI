@@ -987,6 +987,38 @@ export const updateChatById = async (token: string, id: string, chat: object) =>
 	return res;
 };
 
+export const updateChatTitleById = async (token: string, id: string, title: string) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/chats/${id}/title`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			...(token && { authorization: `Bearer ${token}` })
+		},
+		body: JSON.stringify({
+			title: title
+		})
+	})
+		.then(parseJsonResponse)
+		.then((json) => {
+			return json;
+		})
+		.catch((err) => {
+			error = err;
+
+			console.log(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
 export const updateChatComposerStateById = async (
 	token: string,
 	id: string,

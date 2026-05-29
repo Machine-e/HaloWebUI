@@ -115,7 +115,9 @@ def test_multi_model_discussion_orchestrates_models_and_events(monkeypatch):
         scheduled["chat_id"] = id
         return "task-1", task
 
-    monkeypatch.setattr(discussion_mod, "get_event_emitter", lambda _metadata: event_emitter)
+    monkeypatch.setattr(
+        discussion_mod, "get_event_emitter", lambda _metadata: event_emitter
+    )
     monkeypatch.setattr(
         discussion_mod,
         "generate_chat_completion",
@@ -177,7 +179,10 @@ def test_multi_model_discussion_orchestrates_models_and_events(monkeypatch):
         event for event in discussion_events if event["data"]["type"] == "turn_done"
     )
     assert turn_done["data"]["usage"]["total_tokens"] == 15
-    assert turn_done["data"]["state"]["rounds"][0]["turns"][0]["usage"]["total_tokens"] == 15
+    assert (
+        turn_done["data"]["state"]["rounds"][0]["turns"][0]["usage"]["total_tokens"]
+        == 15
+    )
 
     completion = next(event for event in events if event["type"] == "chat:completion")
     assert completion["data"]["content"] == "answer from model-final"
@@ -195,7 +200,9 @@ def test_multi_model_discussion_orchestrates_models_and_events(monkeypatch):
     assert final_upsert["sources"] == search_sources
 
 
-def test_multi_model_discussion_passes_transcript_to_later_rounds_and_final(monkeypatch):
+def test_multi_model_discussion_passes_transcript_to_later_rounds_and_final(
+    monkeypatch,
+):
     calls = []
     scheduled = {}
 
@@ -225,7 +232,9 @@ def test_multi_model_discussion_passes_transcript_to_later_rounds_and_final(monk
         scheduled["chat_id"] = id
         return "task-1", task
 
-    monkeypatch.setattr(discussion_mod, "get_event_emitter", lambda _metadata: event_emitter)
+    monkeypatch.setattr(
+        discussion_mod, "get_event_emitter", lambda _metadata: event_emitter
+    )
     monkeypatch.setattr(
         discussion_mod,
         "generate_chat_completion",
@@ -325,7 +334,9 @@ def test_multi_model_discussion_isolates_failed_turns_from_transcript(monkeypatc
         scheduled["chat_id"] = id
         return "task-1", task
 
-    monkeypatch.setattr(discussion_mod, "get_event_emitter", lambda _metadata: event_emitter)
+    monkeypatch.setattr(
+        discussion_mod, "get_event_emitter", lambda _metadata: event_emitter
+    )
     monkeypatch.setattr(
         discussion_mod,
         "generate_chat_completion",
@@ -429,7 +440,9 @@ def test_multi_model_discussion_cancellation_marks_message_stopped(monkeypatch):
         scheduled["chat_id"] = id
         return "task-1", task
 
-    monkeypatch.setattr(discussion_mod, "get_event_emitter", lambda _metadata: event_emitter)
+    monkeypatch.setattr(
+        discussion_mod, "get_event_emitter", lambda _metadata: event_emitter
+    )
     monkeypatch.setattr(discussion_mod, "_run_model_once", never_finish)
     monkeypatch.setattr(discussion_mod, "create_task", fake_create_task)
     monkeypatch.setattr(
@@ -470,8 +483,175 @@ def test_multi_model_discussion_cancellation_marks_message_stopped(monkeypatch):
     ]
     assert stopped_events
     assert stopped_events[-1]["data"]["state"]["status"] == "stopped"
+    assert (
+        stopped_events[-1]["data"]["state"]["rounds"][0]["turns"][0]["status"]
+        == "stopped"
+    )
+
+    stopped_completion = next(
+        event
+        for event in events
+        if event["type"] == "chat:completion" and event["data"].get("stopped") is True
+    )
+    assert stopped_completion["data"]["done"] is True
+    assert stopped_completion["data"]["stoppedByUser"] is True
+    assert stopped_completion["data"]["discussion"]["status"] == "stopped"
+    assert (
+        stopped_completion["data"]["discussion"]["rounds"][0]["turns"][0]["status"]
+        == "stopped"
+    )
 
     stopped_upsert = upserts[-1][0][2]
     assert stopped_upsert["done"] is True
     assert stopped_upsert["stoppedByUser"] is True
     assert stopped_upsert["discussion"]["status"] == "stopped"
+    assert stopped_upsert["discussion"]["rounds"][0]["turns"][0]["status"] == "stopped"
+
+
+def test_multi_model_discussion_persists_final_state_when_events_fail(monkeypatch):
+    upserts = []
+    calls = []
+    scheduled = {}
+
+    async def failing_event_emitter(_event):
+        raise RuntimeError("socket disconnected")
+
+    async def fake_generate_chat_completion(_request, payload, _user):
+        calls.append(payload)
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": f"answer from {payload['model']}",
+                    }
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 2,
+                "completion_tokens": 3,
+                "total_tokens": 5,
+            },
+        }
+
+    def fake_create_task(coroutine, id=None):
+        task = asyncio.create_task(coroutine)
+        scheduled["task"] = task
+        scheduled["chat_id"] = id
+        return "task-1", task
+
+    monkeypatch.setattr(
+        discussion_mod, "get_event_emitter", lambda _metadata: failing_event_emitter
+    )
+    monkeypatch.setattr(
+        discussion_mod,
+        "generate_chat_completion",
+        fake_generate_chat_completion,
+    )
+    monkeypatch.setattr(discussion_mod, "create_task", fake_create_task)
+    monkeypatch.setattr(
+        discussion_mod.Chats,
+        "upsert_message_to_chat_by_id_and_message_id",
+        lambda *args, **kwargs: upserts.append((args, kwargs)),
+    )
+
+    async def run():
+        await discussion_mod.generate_multi_model_discussion_completion(
+            _request(_models("model-a", "model-b", "model-final")),
+            {
+                "model": "model-final",
+                "messages": [{"role": "user", "content": "question"}],
+                "stream": True,
+            },
+            _user(),
+            {"chat_id": "chat-1", "message_id": "assistant-1"},
+            {"id": "model-final"},
+            {
+                "enabled": True,
+                "participants": ["model-a", "model-b"],
+                "rounds": 1,
+                "finalModel": "model-final",
+            },
+        )
+        await scheduled["task"]
+
+    asyncio.run(run())
+
+    assert [payload["model"] for payload in calls] == [
+        "model-a",
+        "model-b",
+        "model-final",
+    ]
+    final_upsert = upserts[-1][0][2]
+    assert final_upsert["done"] is True
+    assert final_upsert["content"] == "answer from model-final"
+    assert final_upsert["discussion"]["status"] == "completed"
+
+
+def test_multi_model_discussion_persists_error_when_final_model_fails(monkeypatch):
+    events = []
+    upserts = []
+    scheduled = {}
+
+    async def event_emitter(event):
+        events.append(event)
+
+    async def fake_run_model_once(_request, _form_data, _user, model_id, _messages):
+        if model_id == "model-final":
+            raise RuntimeError("final model failed")
+        return {
+            "content": f"answer from {model_id}",
+            "usage": {
+                "prompt_tokens": 1,
+                "completion_tokens": 1,
+                "total_tokens": 2,
+            },
+        }
+
+    def fake_create_task(coroutine, id=None):
+        task = asyncio.create_task(coroutine)
+        scheduled["task"] = task
+        scheduled["chat_id"] = id
+        return "task-1", task
+
+    monkeypatch.setattr(
+        discussion_mod, "get_event_emitter", lambda _metadata: event_emitter
+    )
+    monkeypatch.setattr(discussion_mod, "_run_model_once", fake_run_model_once)
+    monkeypatch.setattr(discussion_mod, "create_task", fake_create_task)
+    monkeypatch.setattr(
+        discussion_mod.Chats,
+        "upsert_message_to_chat_by_id_and_message_id",
+        lambda *args, **kwargs: upserts.append((args, kwargs)),
+    )
+
+    async def run():
+        await discussion_mod.generate_multi_model_discussion_completion(
+            _request(_models("model-a", "model-b", "model-final")),
+            {
+                "model": "model-final",
+                "messages": [{"role": "user", "content": "question"}],
+                "stream": True,
+            },
+            _user(),
+            {"chat_id": "chat-1", "message_id": "assistant-1"},
+            {"id": "model-final"},
+            {
+                "enabled": True,
+                "participants": ["model-a", "model-b"],
+                "rounds": 1,
+                "finalModel": "model-final",
+            },
+        )
+        await scheduled["task"]
+
+    asyncio.run(run())
+
+    completion = next(event for event in events if event["type"] == "chat:completion")
+    assert completion["data"]["done"] is True
+    assert completion["data"]["error"]["content"] == "final model failed"
+    assert completion["data"]["discussion"]["status"] == "error"
+
+    error_upsert = upserts[-1][0][2]
+    assert error_upsert["done"] is True
+    assert error_upsert["error"]["content"] == "final model failed"
+    assert error_upsert["discussion"]["status"] == "error"

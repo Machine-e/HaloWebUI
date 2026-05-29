@@ -2,6 +2,7 @@ import logging
 import json
 import time
 import uuid
+from copy import deepcopy
 from typing import Optional
 
 from open_webui.internal.db import Base, get_db
@@ -186,6 +187,7 @@ class ChatTitleIdResponse(BaseModel):
 
 class ChatReaction(Base):
     """Kept for Alembic migration compatibility - do not remove."""
+
     __tablename__ = "chat_reaction"
 
     id = Column(Text, primary_key=True)
@@ -195,9 +197,7 @@ class ChatReaction(Base):
     name = Column(Text, nullable=False)
     created_at = Column(BigInteger, nullable=False)
 
-    __table_args__ = (
-        Index("ix_chat_reaction_chat_message", "chat_id", "message_id"),
-    )
+    __table_args__ = (Index("ix_chat_reaction_chat_message", "chat_id", "message_id"),)
 
 
 # [REACTION_FEATURE] Commented out - reaction feature disabled for now
@@ -230,6 +230,108 @@ def normalize_chat_payload(chat: Optional[dict]) -> dict:
         normalized.pop("messages", None)
 
     return normalized
+
+
+RUNNING_DISCUSSION_STATUSES = {"running", "summarizing"}
+COMPLETED_MESSAGE_FIELDS = {
+    "content",
+    "done",
+    "completedAt",
+    "usage",
+    "sources",
+    "error",
+    "files",
+    "discussion",
+    "stopped",
+    "stoppedByUser",
+}
+
+
+def _discussion_status(message: dict) -> str:
+    discussion = message.get("discussion")
+    if not isinstance(discussion, dict):
+        return ""
+    return str(discussion.get("status") or "").strip().lower()
+
+
+def _has_running_status_history(message: dict) -> bool:
+    statuses = message.get("statusHistory")
+    if isinstance(statuses, list):
+        return any(
+            isinstance(status, dict)
+            and status.get("done") is False
+            and not status.get("hidden")
+            for status in statuses
+        )
+
+    status_value = message.get("status")
+    return (
+        isinstance(status_value, dict)
+        and status_value.get("done") is False
+        and not status_value.get("hidden")
+    )
+
+
+def _is_completed_assistant_message(message: dict) -> bool:
+    return (
+        isinstance(message, dict)
+        and message.get("role") == "assistant"
+        and (message.get("done") is True or message.get("completedAt") is not None)
+    )
+
+
+def _is_stale_unresolved_assistant_message(message: dict) -> bool:
+    if not isinstance(message, dict):
+        return False
+    if message.get("role") not in {None, "assistant"}:
+        return False
+    if message.get("done") is True or message.get("completedAt") is not None:
+        return False
+
+    return (
+        message.get("done") is False
+        or _discussion_status(message) in RUNNING_DISCUSSION_STATUSES
+        or _has_running_status_history(message)
+    )
+
+
+def _preserve_completed_assistant_messages(
+    existing_chat: dict, incoming_chat: dict
+) -> dict:
+    """Keep a stale full-chat save from downgrading a completed assistant reply."""
+    if not isinstance(existing_chat, dict) or not isinstance(incoming_chat, dict):
+        return incoming_chat
+
+    existing_messages = (
+        existing_chat.get("history", {}).get("messages", {})
+        if isinstance(existing_chat.get("history"), dict)
+        else {}
+    )
+    incoming_history = incoming_chat.get("history")
+    incoming_messages = (
+        incoming_history.get("messages", {})
+        if isinstance(incoming_history, dict)
+        else {}
+    )
+    if not isinstance(existing_messages, dict) or not isinstance(
+        incoming_messages, dict
+    ):
+        return incoming_chat
+
+    for message_id, incoming_message in list(incoming_messages.items()):
+        existing_message = existing_messages.get(message_id)
+        if not _is_completed_assistant_message(existing_message):
+            continue
+        if not _is_stale_unresolved_assistant_message(incoming_message):
+            continue
+
+        restored_message = dict(incoming_message)
+        for key in COMPLETED_MESSAGE_FIELDS:
+            if key in existing_message:
+                restored_message[key] = deepcopy(existing_message[key])
+        incoming_messages[message_id] = restored_message
+
+    return incoming_chat
 
 
 class ChatTable:
@@ -326,7 +428,8 @@ class ChatTable:
             ]
 
             existing_chat_ids = [
-                chat_id for (chat_id,) in db.query(Chat.id).filter_by(user_id=user_id).all()
+                chat_id
+                for (chat_id,) in db.query(Chat.id).filter_by(user_id=user_id).all()
             ]
             shared_chat_ids = [f"shared-{chat_id}" for chat_id in existing_chat_ids]
 
@@ -351,22 +454,29 @@ class ChatTable:
 
             return [ChatModel.model_validate(row) for row in rows]
 
-    def update_chat_by_id(
-        self, id: str, chat: dict
-    ) -> Optional[ChatModel]:
+    def update_chat_by_id(self, id: str, chat: dict) -> Optional[ChatModel]:
         try:
             with get_db() as db:
                 normalized_chat = normalize_chat_payload(chat)
-                normalized_chat, _changed = sanitize_chat_payload_image_generation_options(
-                    normalized_chat
+                normalized_chat, _changed = (
+                    sanitize_chat_payload_image_generation_options(normalized_chat)
                 )
                 chat_item = db.get(Chat, id)
+                if chat_item is None:
+                    return None
+                normalized_chat = _preserve_completed_assistant_messages(
+                    chat_item.chat or {}, normalized_chat
+                )
                 chat_item.chat = normalized_chat
                 flag_modified(chat_item, "chat")
                 chat_item.title = (
-                    normalized_chat["title"] if "title" in normalized_chat else "New Chat"
+                    normalized_chat["title"]
+                    if "title" in normalized_chat
+                    else "New Chat"
                 )
-                chat_item.updated_at = self._next_user_chat_timestamp(db, chat_item.user_id)
+                chat_item.updated_at = self._next_user_chat_timestamp(
+                    db, chat_item.user_id
+                )
                 db.commit()
                 db.refresh(chat_item)
 
@@ -382,8 +492,14 @@ class ChatTable:
             return None
 
         chat_dict = chat.chat or {}
-        sanitized_composer_state, _changed = sanitize_chat_payload_image_generation_options(
-            {"composer_state": composer_state if isinstance(composer_state, dict) else {}}
+        sanitized_composer_state, _changed = (
+            sanitize_chat_payload_image_generation_options(
+                {
+                    "composer_state": (
+                        composer_state if isinstance(composer_state, dict) else {}
+                    )
+                }
+            )
         )
         next_chat = {
             **chat_dict,
@@ -393,14 +509,24 @@ class ChatTable:
         return self.update_chat_by_id(id, next_chat)
 
     def update_chat_title_by_id(self, id: str, title: str) -> Optional[ChatModel]:
-        chat = self.get_chat_by_id(id)
-        if chat is None:
+        try:
+            with get_db() as db:
+                chat_item = db.get(Chat, id)
+                if chat_item is None:
+                    return None
+
+                chat = normalize_chat_payload(chat_item.chat or {})
+                chat["title"] = title
+
+                chat_item.chat = chat
+                flag_modified(chat_item, "chat")
+                chat_item.title = title
+                db.commit()
+                db.refresh(chat_item)
+
+                return ChatModel.model_validate(chat_item)
+        except Exception:
             return None
-
-        chat = chat.chat
-        chat["title"] = title
-
-        return self.update_chat_by_id(id, chat)
 
     def update_chat_tags_by_id(
         self, id: str, tags: list[str], user
@@ -460,12 +586,9 @@ class ChatTable:
         incoming_stopped = (
             message.get("stopped") is True or message.get("stoppedByUser") is True
         )
-        existing_stopped = (
-            isinstance(existing_message, dict)
-            and (
-                existing_message.get("stopped") is True
-                or existing_message.get("stoppedByUser") is True
-            )
+        existing_stopped = isinstance(existing_message, dict) and (
+            existing_message.get("stopped") is True
+            or existing_message.get("stoppedByUser") is True
         )
 
         if guard_stopped and existing_stopped and not incoming_stopped:
@@ -551,7 +674,9 @@ class ChatTable:
                     "chat": normalized_chat,
                     "assistant_id": chat.assistant_id,
                     "created_at": chat.created_at,
-                    "updated_at": self._next_user_chat_timestamp(db, f"shared-{chat_id}"),
+                    "updated_at": self._next_user_chat_timestamp(
+                        db, f"shared-{chat_id}"
+                    ),
                 }
             )
             shared_result = Chat(**shared_chat.model_dump())
@@ -804,11 +929,7 @@ class ChatTable:
     def get_chat_meta_by_id_and_user_id(self, id: str, user_id: str) -> Optional[dict]:
         try:
             with get_db() as db:
-                row = (
-                    db.query(Chat.meta)
-                    .filter_by(id=id, user_id=user_id)
-                    .first()
-                )
+                row = db.query(Chat.meta).filter_by(id=id, user_id=user_id).first()
                 return row[0] if row else None
         except Exception:
             return None
@@ -1086,12 +1207,14 @@ class ChatTable:
         except Exception:
             return None
 
-    def count_chats_by_folder_id_and_user_id(
-        self, folder_id: str, user_id: str
-    ) -> int:
+    def count_chats_by_folder_id_and_user_id(self, folder_id: str, user_id: str) -> int:
         try:
             with get_db() as db:
-                return db.query(Chat).filter_by(folder_id=folder_id, user_id=user_id).count()
+                return (
+                    db.query(Chat)
+                    .filter_by(folder_id=folder_id, user_id=user_id)
+                    .count()
+                )
         except Exception:
             return 0
 
@@ -1366,12 +1489,29 @@ class ChatMessageTable:
 
             # Collect non-core fields into meta
             meta_keys = {
-                "files", "sources", "code_executions", "statusHistory",
-                "childrenIds", "models", "modelName", "modelIdx", "model_ref",
-                "done", "stopped", "stoppedByUser", "error", "info", "completedAt", "userContext",
-                "merged", "lastSentence", "originalContent",
+                "files",
+                "sources",
+                "code_executions",
+                "statusHistory",
+                "childrenIds",
+                "models",
+                "modelName",
+                "modelIdx",
+                "model_ref",
+                "done",
+                "stopped",
+                "stoppedByUser",
+                "error",
+                "info",
+                "completedAt",
+                "userContext",
+                "merged",
+                "lastSentence",
+                "originalContent",
             }
-            meta = {k: v for k, v in message.items() if k in meta_keys and v is not None}
+            meta = {
+                k: v for k, v in message.items() if k in meta_keys and v is not None
+            }
 
             created_at = message.get("timestamp", now)
 
@@ -1435,15 +1575,15 @@ class ChatMessageTable:
             )
             return [ChatMessageModel.model_validate(m) for m in messages]
 
-    def get_usage_by_model(
-        self, model: str, user_id: Optional[str] = None
-    ) -> dict:
+    def get_usage_by_model(self, model: str, user_id: Optional[str] = None) -> dict:
         """Get aggregate token usage for analytics."""
         with get_db() as db:
             query = db.query(
                 func.count(ChatMessage.id).label("message_count"),
                 func.sum(ChatMessage.prompt_tokens).label("total_prompt_tokens"),
-                func.sum(ChatMessage.completion_tokens).label("total_completion_tokens"),
+                func.sum(ChatMessage.completion_tokens).label(
+                    "total_completion_tokens"
+                ),
             ).filter(
                 ChatMessage.model == model,
                 ChatMessage.role == "assistant",
@@ -1465,7 +1605,9 @@ class ChatMessageTable:
                     ChatMessage.model,
                     func.count(ChatMessage.id).label("message_count"),
                     func.sum(ChatMessage.prompt_tokens).label("total_prompt_tokens"),
-                    func.sum(ChatMessage.completion_tokens).label("total_completion_tokens"),
+                    func.sum(ChatMessage.completion_tokens).label(
+                        "total_completion_tokens"
+                    ),
                 )
                 .filter(
                     ChatMessage.role == "assistant",

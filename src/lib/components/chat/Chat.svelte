@@ -5704,9 +5704,6 @@
 			}
 
 			// Temporarily override params if options provided
-			const origSelectedModels = selectedModels;
-			const origMultiModelDiscussionEnabled = multiModelDiscussionEnabled;
-			const origAtSelectedModel = atSelectedModel;
 			const origReasoningEffort = reasoningEffort;
 			const origWebSearchMode = webSearchMode;
 			if (options.reasoningEffort) reasoningEffort = options.reasoningEffort;
@@ -5720,18 +5717,19 @@
 
 			try {
 				if (message?.discussion?.enabled === true) {
-					const participantIds = Array.isArray(message?.discussion?.participants)
-						? message.discussion.participants
-								.map((participant) => `${participant?.id ?? ''}`.trim())
-								.filter(Boolean)
-						: [];
-					const originalModelIds = Array.isArray(userMessage?.models)
-						? userMessage.models.map((modelId) => `${modelId ?? ''}`.trim()).filter(Boolean)
-						: [];
-					selectedModels = originalModelIds.length >= 2 ? originalModelIds : participantIds;
-					multiModelDiscussionEnabled = true;
-					atSelectedModel = undefined;
-					await sendPrompt(history, userPrompt, userMessage.id);
+					const currentModelIds =
+						atSelectedModel !== undefined
+							? [getModelSelectionId(atSelectedModel)].filter(Boolean)
+							: (selectedModels ?? []).map((modelId) => `${modelId ?? ''}`.trim()).filter(Boolean);
+
+					if (currentModelIds.length === 1) {
+						await sendPrompt(history, userPrompt, userMessage.id, {
+							modelId: currentModelIds[0],
+							modelIdx: 0
+						});
+					} else {
+						await sendPrompt(history, userPrompt, userMessage.id);
+					}
 				} else if ((userMessage?.models ?? [...selectedModels]).length == 1) {
 					await sendPrompt(history, userPrompt, userMessage.id);
 				} else {
@@ -5741,9 +5739,6 @@
 					});
 				}
 			} finally {
-				selectedModels = origSelectedModels;
-				multiModelDiscussionEnabled = origMultiModelDiscussionEnabled;
-				atSelectedModel = origAtSelectedModel;
 				reasoningEffort = origReasoningEffort;
 				webSearchMode = origWebSearchMode;
 				_pendingInstruction = null;
