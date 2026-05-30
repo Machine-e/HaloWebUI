@@ -1495,6 +1495,22 @@
 	const shouldRestoreChatSessionState = (id: string | null | undefined) =>
 		Boolean(id) || getNewChatStateInheritanceEnabled();
 
+	const loadCurrentUserSettings = async () => {
+		const fallbackSettings = get(settings) ?? {};
+		const userSettings = await getUserSettings(localStorage.token).catch((error) => {
+			console.error(error);
+			return null;
+		});
+
+		if (userSettings) {
+			applyUserSettingsSnapshot(userSettings, fallbackSettings);
+			return userSettings.ui ?? fallbackSettings;
+		}
+
+		settings.set(fallbackSettings);
+		return fallbackSettings;
+	};
+
 	const safeParseStoredJson = <T,>(rawValue: string | null | undefined, fallback: T): T => {
 		if (!rawValue) {
 			return fallback;
@@ -3022,8 +3038,12 @@
 	//////////////////////////
 
 	const initNewChat = async (options: { fresh?: boolean } = {}) => {
+		const currentUserSettings = await loadCurrentUserSettings();
+		const configuredDefaultModels = Array.isArray(currentUserSettings?.models)
+			? [...currentUserSettings.models]
+			: undefined;
 		const fresh = options.fresh ?? false;
-		const inheritNewChatState = !fresh && getNewChatStateInheritanceEnabled();
+		const inheritNewChatState = !fresh && getNewChatStateInheritanceEnabled(currentUserSettings);
 		freshChatActive = fresh;
 		composerStateSyncReady = false;
 		resetReasoningSelectionTracking();
@@ -3071,12 +3091,12 @@
 					}
 				}
 			} else {
-				if ($settings?.models) {
-					selectedModels = $settings?.models;
+				if (configuredDefaultModels) {
+					selectedModels = configuredDefaultModels;
 				}
 			}
-		} else if ($settings?.models) {
-			selectedModels = $settings?.models;
+		} else if (configuredDefaultModels) {
+			selectedModels = configuredDefaultModels;
 		} else if (fresh || !inheritNewChatState) {
 			// fresh=true but no default model configured — reset to empty so user must choose
 			selectedModels = [''];
@@ -3111,7 +3131,7 @@
 			}
 		}
 
-		let temporaryChatState = syncTemporaryChatState();
+		let temporaryChatState = syncTemporaryChatState(currentUserSettings);
 		messageQueue = [];
 
 		await showControls.set(false);
@@ -3264,16 +3284,7 @@
 			}
 		}
 
-		const userSettings = await getUserSettings(localStorage.token);
-
-		if (userSettings) {
-			applyUserSettingsSnapshot(userSettings, get(settings) ?? {});
-			temporaryChatState = syncTemporaryChatState(userSettings.ui);
-		} else {
-			const fallbackSettings = get(settings) ?? {};
-			settings.set(fallbackSettings);
-			temporaryChatState = syncTemporaryChatState(fallbackSettings);
-		}
+		temporaryChatState = syncTemporaryChatState(currentUserSettings);
 
 		if (fresh && $page.url.searchParams.get('web-search') !== 'true') {
 			webSearchMode = getPreferredDefaultWebSearchMode();

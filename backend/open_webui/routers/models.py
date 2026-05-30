@@ -26,6 +26,20 @@ from open_webui.utils.access_control import (
 router = APIRouter()
 
 
+def _is_private_access_control(access_control: Optional[dict]) -> bool:
+    if access_control is None or not isinstance(access_control, dict):
+        return False
+
+    for permission in ("read", "write"):
+        permission_access = access_control.get(permission) or {}
+        if not isinstance(permission_access, dict):
+            return False
+        if permission_access.get("group_ids") or permission_access.get("user_ids"):
+            return False
+
+    return True
+
+
 ###########################
 # GetModels
 ###########################
@@ -60,12 +74,20 @@ async def create_new_model(
     form_data: ModelForm,
     user=Depends(get_verified_user),
 ):
-    if user.role != "admin" and not has_permission(
+    can_create_workspace_model = user.role == "admin" or has_permission(
         user.id, "workspace.models", request.app.state.config.USER_PERMISSIONS
+    )
+    can_create_public_model = form_data.access_control is None and has_permission(
+        user.id, "sharing.public_models", request.app.state.config.USER_PERMISSIONS
+    )
+    if (
+        not can_create_workspace_model
+        and not can_create_public_model
+        and not _is_private_access_control(form_data.access_control)
     ):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=ERROR_MESSAGES.UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
         )
 
     ensure_requested_access_control_allowed(
