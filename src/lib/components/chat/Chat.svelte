@@ -456,6 +456,7 @@
 	let pendingComposerStateSave: Promise<void> = Promise.resolve();
 	let hasPersistedComposerState = false;
 	let composerStateSyncReady = false;
+	let newChatSelectionSyncReady = false;
 	let lastRequestedChatIdProp = '';
 	let activeChatLoadToken = 0;
 
@@ -1477,6 +1478,11 @@
 	const getSelectedModelsStorageKey = () =>
 		buildScopedStorageKey(getLegacySelectedModelsStorageKey());
 
+	const getLegacyNewChatSelectionStateKey = () => 'new-chat-selection-state';
+
+	const getNewChatSelectionStateKey = () =>
+		buildScopedStorageKey(getLegacyNewChatSelectionStateKey());
+
 	const removeSessionSelectedModels = () => {
 		if (typeof window === 'undefined') {
 			return;
@@ -1523,6 +1529,15 @@
 		}
 	};
 
+	const normalizeStoredSelectedModels = (value: unknown): string[] | null => {
+		if (!Array.isArray(value)) {
+			return null;
+		}
+
+		const normalized = value.map((id) => String(id ?? '').trim()).filter(Boolean);
+		return normalized.length > 0 ? normalized : null;
+	};
+
 	const buildComposerStatePayload = () => ({
 		selected_tool_ids: selectedToolIds,
 		tool_selection_touched: toolSelectionTouched,
@@ -1538,7 +1553,77 @@
 		max_thinking_tokens: maxThinkingTokens
 	});
 
+	const buildNewChatSelectionState = () => ({
+		models: selectedModels,
+		selectedModels,
+		model_selection_hints: buildPersistedModelSelectionHints(selectedModels),
+		reasoning_effort: reasoningEffort,
+		max_thinking_tokens: maxThinkingTokens,
+		reasoningEffort,
+		maxThinkingTokens
+	});
+
+	const getStoredSelectedModelsFromState = (state: Record<string, any> | null | undefined) =>
+		normalizeStoredSelectedModels(state?.selectedModels ?? state?.models);
+
+	const hasStoredReasoningSelection = (state: Record<string, any> | null | undefined) =>
+		normalizeReasoningEffortValue(state?.reasoning_effort ?? state?.reasoningEffort ?? null) !==
+			null ||
+		normalizeThinkingTokenValue(state?.max_thinking_tokens ?? state?.maxThinkingTokens ?? null) !==
+			null;
+
+	const hasUsableNewChatSelectionState = (state: Record<string, any> | null | undefined) =>
+		Boolean(getStoredSelectedModelsFromState(state) || hasStoredReasoningSelection(state));
+
+	const readNewChatSelectionState = (): Record<string, any> | null => {
+		if (typeof localStorage === 'undefined') {
+			return null;
+		}
+
+		const scopedKey = getNewChatSelectionStateKey();
+		const legacyKey = getLegacyNewChatSelectionStateKey();
+		const { value, usedLegacy } = readStorageItem(localStorage, scopedKey, legacyKey);
+		const stored = safeParseStoredJson<Record<string, any> | null>(value, null);
+
+		if (stored && usedLegacy) {
+			migrateStorageItem(localStorage, scopedKey, legacyKey, value);
+		}
+
+		return stored;
+	};
+
+	const persistNewChatSelectionState = () => {
+		if (typeof localStorage === 'undefined') {
+			return;
+		}
+
+		const scopedKey = getNewChatSelectionStateKey();
+		const legacyKey = getLegacyNewChatSelectionStateKey();
+		localStorage.setItem(scopedKey, JSON.stringify(buildNewChatSelectionState()));
+		if (legacyKey !== scopedKey) {
+			localStorage.removeItem(legacyKey);
+		}
+	};
+
+	const applyNewChatReasoningSelectionState = (
+		state: Record<string, any> | null | undefined
+	) => {
+		if (!hasStoredReasoningSelection(state)) {
+			return false;
+		}
+
+		setSharedReasoningState({
+			effort: state?.reasoning_effort ?? state?.reasoningEffort ?? null,
+			tokens: state?.max_thinking_tokens ?? state?.maxThinkingTokens ?? null
+		});
+
+		return true;
+	};
+
 	const buildLocalChatSessionState = () => ({
+		models: selectedModels,
+		selectedModels,
+		model_selection_hints: buildPersistedModelSelectionHints(selectedModels),
 		...buildComposerStatePayload(),
 		webSearchMode: webSearchMode,
 		webSearchModeSource: webSearchModeSource,
@@ -1715,21 +1800,28 @@
 		}
 	};
 
+	const readChatSessionState = (
+		id: string | null | undefined = $chatId || chatIdProp
+	): Record<string, any> | null => {
+		const scopedKey = getChatSessionStateKey(id);
+		const legacyKey = getLegacyChatSessionStateKey(id);
+		const { value, usedLegacy } = readStorageItem(localStorage, scopedKey, legacyKey);
+		const stored = safeParseStoredJson<Record<string, any> | null>(value, null);
+
+		if (stored && usedLegacy) {
+			migrateStorageItem(localStorage, scopedKey, legacyKey, value);
+		}
+
+		return stored;
+	};
+
 	const restoreChatSessionState = (id: string | null | undefined = $chatId || chatIdProp) => {
 		try {
 			if (!shouldRestoreChatSessionState(id)) {
 				return false;
 			}
 
-			const scopedKey = getChatSessionStateKey(id);
-			const legacyKey = getLegacyChatSessionStateKey(id);
-			const { value, usedLegacy } = readStorageItem(localStorage, scopedKey, legacyKey);
-			const stored = safeParseStoredJson<Record<string, any> | null>(value, null);
-			if (stored && usedLegacy) {
-				migrateStorageItem(localStorage, scopedKey, legacyKey, value);
-			}
-
-			const state = stored ?? readChatInputState(id);
+			const state = readChatSessionState(id) ?? readChatInputState(id);
 			if (!state) {
 				return false;
 			}
@@ -2148,6 +2240,7 @@
 			loading = true;
 			cancelPendingAutoScrollFrames();
 			composerStateSyncReady = false;
+			newChatSelectionSyncReady = false;
 			resetReasoningSelectionTracking();
 			webSearchSelectionSyncReady = false;
 
@@ -2194,6 +2287,7 @@
 			const chatInput = document.getElementById('chat-input');
 			chatInput?.focus();
 			composerStateSyncReady = true;
+			newChatSelectionSyncReady = true;
 			webSearchSelectionSyncReady = true;
 			initializeReasoningSelectionTracking();
 		})();
@@ -2201,6 +2295,18 @@
 
 	$: if (selectedModels) {
 		saveSessionSelectedModels();
+	}
+
+	$: {
+		const newChatSelectionSignature = JSON.stringify({
+			selectedModels,
+			reasoningEffort,
+			maxThinkingTokens
+		});
+		newChatSelectionSignature;
+		if (newChatSelectionSyncReady) {
+			persistNewChatSelectionState();
+		}
 	}
 
 	const saveSessionSelectedModels = () => {
@@ -2683,6 +2789,7 @@
 				clearNewChatStateCache();
 			}
 			composerStateSyncReady = true;
+			newChatSelectionSyncReady = true;
 			webSearchSelectionSyncReady = true;
 		}
 
@@ -3044,8 +3151,27 @@
 			: undefined;
 		const fresh = options.fresh ?? false;
 		const inheritNewChatState = !fresh && getNewChatStateInheritanceEnabled(currentUserSettings);
+		const currentNewChatSelectionState = buildNewChatSelectionState();
+		const hasCurrentNewChatSelectionState = hasUsableNewChatSelectionState(
+			currentNewChatSelectionState
+		);
+		const newChatSelectionState =
+			!fresh && hasCurrentNewChatSelectionState
+				? currentNewChatSelectionState
+				: !fresh
+					? readNewChatSelectionState()
+					: null;
+		const preservedSelectedModels = getStoredSelectedModelsFromState(newChatSelectionState);
+		let applyPreservedReasoningSelection = false;
+		if (!fresh && hasCurrentNewChatSelectionState) {
+			persistNewChatSelectionState();
+			if (inheritNewChatState) {
+				persistChatSessionState('');
+			}
+		}
 		freshChatActive = fresh;
 		composerStateSyncReady = false;
+		newChatSelectionSyncReady = false;
 		resetReasoningSelectionTracking();
 		webSearchSelectionSyncReady = false;
 
@@ -3086,15 +3212,22 @@
 				const storedSelectedModels = safeParseStoredJson<string[] | null>(value, null);
 				if (Array.isArray(storedSelectedModels)) {
 					selectedModels = storedSelectedModels;
+					applyPreservedReasoningSelection = true;
 					if (usedLegacy) {
 						migrateStorageItem(sessionStorage, scopedKey, legacyKey, value);
 					}
 				}
 			} else {
-				if (configuredDefaultModels) {
+				if (preservedSelectedModels) {
+					selectedModels = preservedSelectedModels;
+					applyPreservedReasoningSelection = true;
+				} else if (configuredDefaultModels) {
 					selectedModels = configuredDefaultModels;
 				}
 			}
+		} else if (!fresh && preservedSelectedModels) {
+			selectedModels = preservedSelectedModels;
+			applyPreservedReasoningSelection = true;
 		} else if (configuredDefaultModels) {
 			selectedModels = configuredDefaultModels;
 		} else if (fresh || !inheritNewChatState) {
@@ -3194,7 +3327,7 @@
 		selectedSkillIds = [];
 		skillSelectionTouched = false;
 
-		if (fresh || !inheritNewChatState) {
+		if (fresh) {
 			clearNewChatStateCache();
 			reasoningEffort = null;
 			maxThinkingTokens = null;
@@ -3205,7 +3338,14 @@
 			maxThinkingTokens = null;
 			webSearchMode = getPreferredDefaultWebSearchMode();
 			webSearchModeSource = 'default';
-			restoreChatSessionState('');
+			if (inheritNewChatState) {
+				restoreChatSessionState('');
+			} else {
+				clearNewChatStateCache();
+			}
+			if (applyPreservedReasoningSelection) {
+				applyNewChatReasoningSelectionState(newChatSelectionState);
+			}
 			if (reasoningEffort) {
 				params.reasoning_effort = reasoningEffort;
 			}
@@ -3324,6 +3464,7 @@
 		const chatInput = document.getElementById('chat-input');
 		setTimeout(() => chatInput?.focus(), 0);
 		composerStateSyncReady = true;
+		newChatSelectionSyncReady = true;
 		webSearchSelectionSyncReady = true;
 		initializeReasoningSelectionTracking();
 		syncImageGenerationForDedicatedModel({ force: true });
@@ -3352,6 +3493,11 @@
 			lastFreshChatRequest = '';
 		}
 	}
+
+	const openNewChatInNewTab = () => {
+		persistNewChatSelectionState();
+		window.open('/', '_blank', 'noopener');
+	};
 
 	const loadChat = async (targetChatId: string = chatIdProp) => {
 		const navigationId = targetChatId;
@@ -5988,6 +6134,7 @@
 					maxDiscussionModels={MULTI_MODEL_DISCUSSION_MAX_MODELS}
 					shareEnabled={!!history.currentId}
 					{initNewChat}
+					{openNewChatInNewTab}
 				/>
 
 				<div class="flex flex-col flex-auto z-10 w-full min-w-0 @container">
