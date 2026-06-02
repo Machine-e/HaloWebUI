@@ -31,6 +31,9 @@
 	const i18n = getContext('i18n');
 
 	export let initNewChat: Function;
+	export let openNewChatInNewTab: Function = () => {
+		window.open('/', '_blank', 'noopener');
+	};
 	export let title: string = $WEBUI_NAME;
 	export let shareEnabled: boolean = false;
 
@@ -40,6 +43,16 @@
 
 	let showShareChatModal = false;
 	let showDownloadChatModal = false;
+
+	const handleNewChatClick = (event: MouseEvent) => {
+		if (event.button === 0 && (event.ctrlKey || event.metaKey)) {
+			event.preventDefault();
+			openNewChatInNewTab();
+			return;
+		}
+
+		initNewChat();
+	};
 </script>
 
 <ShareChatModal bind:show={showShareChatModal} chatId={$chatId} />
@@ -153,9 +166,7 @@
 						class="{$mobile ? 'hidden' : 'flex'} {$showSidebar
 							? 'md:hidden'
 							: ''} cursor-pointer px-2 py-2 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-850 transition"
-						on:click={() => {
-							initNewChat();
-						}}
+						on:click={handleNewChatClick}
 						aria-label="New Chat"
 					>
 						<div class=" m-auto self-center">
