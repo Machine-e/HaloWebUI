@@ -26,7 +26,11 @@
 	<string name="auto_login_network_failed">自动登录无法连接服务，已退回登录页：%1$s</string>
 	<string name="auto_login_failed">自动登录失败，已退回登录页：%1$s</string>
 	<string name="change_server_button">更改</string>
+	<string name="refresh_button">刷新</string>
 	<string name="change_server_hint">你可以在这里更改网址、账号或密码。</string>
+	<string name="web_loading_connecting">正在连接网页...</string>
+	<string name="web_loading_workspace">正在载入工作台...</string>
+	<string name="web_loading_refreshing">正在刷新网页...</string>
 	<string name="webview_network_failed">页面连接失败，已退回登录页：%1$s</string>
 	<string name="webview_http_failed">页面返回 HTTP %1$d，已退回登录页。</string>
 </resources>

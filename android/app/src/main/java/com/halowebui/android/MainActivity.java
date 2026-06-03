@@ -1,11 +1,14 @@
 package com.halowebui.android;
 
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -79,6 +82,12 @@ public final class MainActivity extends Activity {
 	private Button loginButton;
 	private WebView webView;
 	private ProgressBar webProgress;
+	private Button refreshButton;
+	private View loadingOverlay;
+	private TextView loadingStatusText;
+	private View loadingPulse;
+	private ObjectAnimator loadingPulseAnimator;
+	private boolean webLoadingVisible;
 
 	private boolean darkMode;
 	private int pageStartColor;
@@ -113,11 +122,7 @@ public final class MainActivity extends Activity {
 
 	@Override
 	protected void onDestroy() {
-		if (webView != null) {
-			webView.stopLoading();
-			webView.destroy();
-			webView = null;
-		}
+		destroyWebView();
 		executor.shutdownNow();
 		super.onDestroy();
 	}
@@ -546,6 +551,22 @@ public final class MainActivity extends Activity {
 		changeButton.setOnClickListener(view -> showLoginScreen(getString(R.string.change_server_hint)));
 		toolbar.addView(changeButton, new LinearLayout.LayoutParams(dp(76), dp(38)));
 
+		refreshButton = new Button(this);
+		refreshButton.setAllCaps(false);
+		refreshButton.setText(getString(R.string.refresh_button));
+		refreshButton.setTextColor(textColor);
+		refreshButton.setTextSize(13);
+		refreshButton.setBackground(rounded(inputColor, dp(999), borderColor, 1));
+		refreshButton.setOnClickListener(view -> {
+			if (webView != null) {
+				showWebLoading(getString(R.string.web_loading_refreshing), false);
+				webView.reload();
+			}
+		});
+		LinearLayout.LayoutParams refreshParams = new LinearLayout.LayoutParams(dp(76), dp(38));
+		refreshParams.setMargins(dp(8), 0, 0, 0);
+		toolbar.addView(refreshButton, refreshParams);
+
 		webProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
 		webProgress.setMax(100);
 		root.addView(webProgress, new LinearLayout.LayoutParams(
@@ -553,16 +574,136 @@ public final class MainActivity extends Activity {
 			dp(2)
 		));
 
-		webView = new WebView(this);
-		configureWebView(webView);
-		root.addView(webView, new LinearLayout.LayoutParams(
+		FrameLayout webFrame = new FrameLayout(this);
+		root.addView(webFrame, new LinearLayout.LayoutParams(
 			ViewGroup.LayoutParams.MATCH_PARENT,
 			0,
 			1
 		));
 
+		webView = new WebView(this);
+		configureWebView(webView);
+		webFrame.addView(webView, new FrameLayout.LayoutParams(
+			ViewGroup.LayoutParams.MATCH_PARENT,
+			ViewGroup.LayoutParams.MATCH_PARENT
+		));
+
+		loadingOverlay = createWebLoadingOverlay();
+		webFrame.addView(loadingOverlay, new FrameLayout.LayoutParams(
+			ViewGroup.LayoutParams.MATCH_PARENT,
+			ViewGroup.LayoutParams.MATCH_PARENT
+		));
+		showWebLoading(getString(R.string.web_loading_connecting), true);
+
 		setContentView(root);
 		webView.loadUrl(baseUrl);
+	}
+
+	private View createWebLoadingOverlay() {
+		LinearLayout overlay = new LinearLayout(this);
+		overlay.setOrientation(LinearLayout.VERTICAL);
+		overlay.setGravity(Gravity.CENTER);
+		overlay.setPadding(dp(24), dp(24), dp(24), dp(24));
+		overlay.setBackgroundColor(darkMode ? Color.rgb(10, 10, 15) : Color.rgb(249, 250, 251));
+
+		TextView pulse = new TextView(this);
+		pulse.setText("H");
+		pulse.setGravity(Gravity.CENTER);
+		pulse.setTextColor(Color.WHITE);
+		pulse.setTypeface(Typeface.DEFAULT_BOLD);
+		pulse.setTextSize(22);
+		pulse.setBackground(rounded(accentColor, dp(18), Color.TRANSPARENT, 0));
+		overlay.addView(pulse, new LinearLayout.LayoutParams(dp(54), dp(54)));
+		loadingPulse = pulse;
+
+		ProgressBar spinner = new ProgressBar(this);
+		spinner.setIndeterminate(true);
+		LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(dp(36), dp(36));
+		spinnerParams.setMargins(0, dp(18), 0, dp(14));
+		overlay.addView(spinner, spinnerParams);
+
+		loadingStatusText = new TextView(this);
+		loadingStatusText.setTextColor(mutedTextColor);
+		loadingStatusText.setTextSize(14);
+		loadingStatusText.setGravity(Gravity.CENTER);
+		loadingStatusText.setText(getString(R.string.web_loading_connecting));
+		overlay.addView(loadingStatusText, new LinearLayout.LayoutParams(
+			ViewGroup.LayoutParams.MATCH_PARENT,
+			ViewGroup.LayoutParams.WRAP_CONTENT
+		));
+
+		return overlay;
+	}
+
+	private void showWebLoading(String message, boolean immediate) {
+		if (loadingOverlay == null) {
+			return;
+		}
+		boolean alreadyVisible = webLoadingVisible
+			&& loadingOverlay.getVisibility() == View.VISIBLE
+			&& loadingOverlay.getAlpha() > 0.0f;
+		webLoadingVisible = true;
+		if (loadingStatusText != null) {
+			loadingStatusText.setText(message);
+		}
+		if (refreshButton != null) {
+			refreshButton.setEnabled(false);
+		}
+		loadingOverlay.animate().cancel();
+		loadingOverlay.setVisibility(View.VISIBLE);
+		startLoadingAnimation();
+		if (alreadyVisible || immediate) {
+			loadingOverlay.setAlpha(1.0f);
+		} else {
+			loadingOverlay.setAlpha(0.0f);
+			loadingOverlay.animate().alpha(1.0f).setDuration(180).start();
+		}
+	}
+
+	private void hideWebLoading() {
+		if (loadingOverlay == null) {
+			return;
+		}
+		webLoadingVisible = false;
+		if (refreshButton != null) {
+			refreshButton.setEnabled(true);
+		}
+		final View overlay = loadingOverlay;
+		overlay.animate()
+			.alpha(0.0f)
+			.setDuration(220)
+			.withEndAction(() -> {
+				if (!webLoadingVisible && overlay == loadingOverlay) {
+					overlay.setVisibility(View.GONE);
+					stopLoadingAnimation();
+				}
+			})
+			.start();
+	}
+
+	private void startLoadingAnimation() {
+		if (loadingPulse == null) {
+			return;
+		}
+		if (loadingPulseAnimator == null) {
+			loadingPulseAnimator = ObjectAnimator.ofFloat(loadingPulse, View.ALPHA, 0.45f, 1.0f);
+			loadingPulseAnimator.setDuration(760);
+			loadingPulseAnimator.setRepeatCount(ValueAnimator.INFINITE);
+			loadingPulseAnimator.setRepeatMode(ValueAnimator.REVERSE);
+		}
+		if (!loadingPulseAnimator.isStarted()) {
+			loadingPulseAnimator.start();
+		}
+	}
+
+	private void stopLoadingAnimation() {
+		if (loadingPulseAnimator != null) {
+			loadingPulseAnimator.cancel();
+			loadingPulseAnimator = null;
+		}
+		if (loadingPulse != null) {
+			loadingPulse.setAlpha(1.0f);
+		}
 	}
 
 	private void configureWebView(WebView view) {
@@ -592,6 +733,11 @@ public final class MainActivity extends Activity {
 
 		view.setWebViewClient(new WebViewClient() {
 			@Override
+			public void onPageStarted(WebView view, String url, Bitmap favicon) {
+				showWebLoading(getString(R.string.web_loading_connecting), false);
+			}
+
+			@Override
 			public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
 				Uri uri = request.getUrl();
 				String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
@@ -604,7 +750,11 @@ public final class MainActivity extends Activity {
 
 			@Override
 			public void onPageFinished(WebView view, String url) {
-				injectTokenIfNeeded(view, url);
+				if (injectTokenIfNeeded(view, url)) {
+					showWebLoading(getString(R.string.web_loading_workspace), true);
+					return;
+				}
+				hideWebLoading();
 			}
 
 			@Override
@@ -623,9 +773,9 @@ public final class MainActivity extends Activity {
 		});
 	}
 
-	private void injectTokenIfNeeded(WebView view, String pageUrl) {
+	private boolean injectTokenIfNeeded(WebView view, String pageUrl) {
 		if (tokenInjected || pendingToken == null || pendingToken.isEmpty() || !sameOrigin(pageUrl, currentBaseUrl)) {
-			return;
+			return false;
 		}
 
 		tokenInjected = true;
@@ -634,6 +784,7 @@ public final class MainActivity extends Activity {
 			+ "window.location.replace(" + JSONObject.quote(currentBaseUrl) + ");"
 			+ "})();";
 		view.evaluateJavascript(script, null);
+		return true;
 	}
 
 	private boolean sameOrigin(String pageUrl, String baseUrl) {
@@ -681,6 +832,12 @@ public final class MainActivity extends Activity {
 		webView.destroy();
 		webView = null;
 		webProgress = null;
+		refreshButton = null;
+		stopLoadingAnimation();
+		loadingOverlay = null;
+		loadingStatusText = null;
+		loadingPulse = null;
+		webLoadingVisible = false;
 	}
 
 	private void setLoginBusy(boolean busy, String message) {
