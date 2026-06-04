@@ -65,6 +65,7 @@
 	import { getSuggestionRenderer } from '../common/RichTextInput/suggestions';
 	import Tooltip from '../common/Tooltip.svelte';
 	import FileItem from '../common/FileItem.svelte';
+	import ImageUploadProgressRing from '../common/ImageUploadProgressRing.svelte';
 	import Image from '../common/Image.svelte';
 	import ModelIcon from '../common/ModelIcon.svelte';
 	import { getModelChatDisplayName } from '$lib/utils/model-display';
@@ -248,8 +249,7 @@
 	let inputVariableValues = {};
 	$: hasActiveImageGenerationReference =
 		imageGenerationReferenceFiles.length > 0 && files.length === 0;
-	$: hasSubmittableContent =
-		prompt !== '' || files.length > 0 || hasActiveImageGenerationReference;
+	$: hasSubmittableContent = prompt !== '' || files.length > 0 || hasActiveImageGenerationReference;
 	$: hasReferenceImageForImageGeneration =
 		files.some(isImageReferenceFile) ||
 		imageGenerationReferenceFiles.some(isImageReferenceFile) ||
@@ -709,6 +709,7 @@
 			errorTitle: '',
 			errorHint: '',
 			diagnostic: null,
+			uploadProgress: 1,
 			itemId: tempItemId,
 			preview_url: previewUrl
 		};
@@ -723,7 +724,11 @@
 
 		try {
 			const uploadedFile = await uploadFile(localStorage.token, file, {
-				process: false
+				process: false,
+				onUploadProgress: (progress) => {
+					fileItem.uploadProgress = Math.min(99, Math.max(fileItem.uploadProgress, progress));
+					files = files;
+				}
 			});
 
 			if (uploadedFile) {
@@ -738,6 +743,7 @@
 				}
 
 				fileItem.status = 'uploaded';
+				fileItem.uploadProgress = 100;
 				fileItem.id = uploadedFile.id;
 				fileItem.name = uploadedFile?.meta?.name ?? file.name;
 				fileItem.size = uploadedFile?.meta?.size ?? file.size;
@@ -1209,7 +1215,9 @@
 											class="rounded-2xl border border-dashed border-primary-200/80 bg-primary-50/60 px-3 py-2 dark:border-primary-500/25 dark:bg-primary-950/20"
 										>
 											<div class="mb-2 flex items-center justify-between gap-2">
-												<div class="min-w-0 text-xs font-medium text-primary-700 dark:text-primary-200">
+												<div
+													class="min-w-0 text-xs font-medium text-primary-700 dark:text-primary-200"
+												>
 													{tr(
 														'引用上一轮生成图 {{count}} 张',
 														'Referencing {{count}} generated image(s) from the previous turn',
@@ -1256,6 +1264,9 @@
 															alt="input"
 															imageClassName=" size-14 rounded-xl object-cover"
 														/>
+														{#if file.status === 'uploading'}
+															<ImageUploadProgressRing progress={file.uploadProgress ?? 1} />
+														{/if}
 														{#if atSelectedModel ? visionCapableModels.length === 0 : selectedModels.length !== visionCapableModels.length}
 															<Tooltip
 																className=" absolute top-1 left-1"
@@ -1617,10 +1628,10 @@
 															e.preventDefault();
 														}
 
-																// Submit the prompt when Enter key is pressed
-																if (hasSubmittableContent && enterPressed) {
-																	dispatch('submit', prompt);
-																}
+														// Submit the prompt when Enter key is pressed
+														if (hasSubmittableContent && enterPressed) {
+															dispatch('submit', prompt);
+														}
 													}
 												}
 
