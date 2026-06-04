@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="app_name">Halo WebUI</string>
+	<string name="login_title">登录 Halo WebUI</string>
+	<string name="login_subtitle">填写服务地址和账号信息，登录后进入移动端 WebView。</string>
+	<string name="server_url_label">服务地址</string>
+	<string name="server_url_hint">https://your-domain.example 或 http://192.168.1.10:3000</string>
+	<string name="account_label">登录账号</string>
+	<string name="account_hint">邮箱或账号</string>
+	<string name="password_label">登录密码</string>
+	<string name="password_hint">请输入密码</string>
+	<string name="auto_login_label">启动时自动登录</string>
+	<string name="login_status_idle">可在这里更改网址、账号和密码。</string>
+	<string name="login_button">登录并打开</string>
+	<string name="login_button_busy">正在连接...</string>
+	<string name="login_running">正在登录...</string>
+	<string name="auto_login_running">正在自动登录...</string>
+	<string name="server_url_required">请填写服务地址。</string>
+	<string name="server_url_invalid">服务地址格式不正确。</string>
+	<string name="account_required">请填写登录账号。</string>
+	<string name="password_required">请填写登录密码。</string>
+	<string name="login_missing_token">登录成功但服务端未返回 token。</string>
+	<string name="login_parse_error">无法解析登录响应。</string>
+	<string name="network_error">无法连接服务：%1$s</string>
+	<string name="http_error">服务返回 HTTP %1$d。</string>
+	<string name="auto_login_network_failed">自动登录无法连接服务，已退回登录页：%1$s</string>
+	<string name="auto_login_failed">自动登录失败，已退回登录页：%1$s</string>
+	<string name="change_server_button">更改</string>
+	<string name="refresh_button">刷新</string>
+	<string name="change_server_hint">你可以在这里更改网址、账号或密码。</string>
+	<string name="web_loading_connecting">正在连接网页...</string>
+	<string name="web_loading_workspace">正在载入工作台...</string>
+	<string name="web_loading_refreshing">正在刷新网页...</string>
+	<string name="webview_network_failed">页面连接失败，已退回登录页：%1$s</string>
+	<string name="webview_http_failed">页面返回 HTTP %1$d，已退回登录页。</string>
+</resources>

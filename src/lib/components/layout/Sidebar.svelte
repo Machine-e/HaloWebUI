@@ -164,6 +164,21 @@
 
 	$: assistantScenes = getAssistantScenes($models ?? []);
 
+	const shouldLetBrowserHandleLinkClick = (event: MouseEvent) =>
+		event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
+
+	const openNewChat = async (event: MouseEvent, options: { closeMobileSidebar?: boolean } = {}) => {
+		if (shouldLetBrowserHandleLinkClick(event)) {
+			return;
+		}
+
+		event.preventDefault();
+		await startSidebarNewChat();
+		if (options.closeMobileSidebar && $mobile) {
+			showSidebar.set(false);
+		}
+	};
+
 	$: if (
 		$modelsStatus === 'ready' &&
 		$selectedAssistantScene &&
@@ -766,7 +781,7 @@
 					href="/"
 					draggable="false"
 					aria-label={$i18n.t('New Chat')}
-					on:click|preventDefault={startSidebarNewChat}
+					on:click={(event) => openNewChat(event, { closeMobileSidebar: true })}
 				>
 					<ChatBubblePlus className="size-5" strokeWidth="2" />
 					<span class="text-sm font-medium whitespace-nowrap">{$i18n.t('New Chat')}</span>
@@ -818,7 +833,7 @@
 						class={iconButtonClass + ' no-drag-region'}
 						href="/"
 						draggable="false"
-						on:click|preventDefault={startSidebarNewChat}
+						on:click={(event) => openNewChat(event)}
 					>
 						<ChatBubblePlus className="size-5" strokeWidth="2" />
 					</a>
