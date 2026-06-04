@@ -65,6 +65,7 @@
 	import { getSuggestionRenderer } from '../common/RichTextInput/suggestions';
 	import Tooltip from '../common/Tooltip.svelte';
 	import FileItem from '../common/FileItem.svelte';
+	import ImageUploadProgressRing from '../common/ImageUploadProgressRing.svelte';
 	import Image from '../common/Image.svelte';
 	import ModelIcon from '../common/ModelIcon.svelte';
 	import { getModelChatDisplayName } from '$lib/utils/model-display';
@@ -701,6 +702,7 @@
 			errorTitle: '',
 			errorHint: '',
 			diagnostic: null,
+			uploadProgress: 1,
 			itemId: tempItemId,
 			preview_url: previewUrl
 		};
@@ -715,7 +717,11 @@
 
 		try {
 			const uploadedFile = await uploadFile(localStorage.token, file, {
-				process: false
+				process: false,
+				onUploadProgress: (progress) => {
+					fileItem.uploadProgress = Math.min(99, Math.max(fileItem.uploadProgress, progress));
+					files = files;
+				}
 			});
 
 			if (uploadedFile) {
@@ -730,6 +736,7 @@
 				}
 
 				fileItem.status = 'uploaded';
+				fileItem.uploadProgress = 100;
 				fileItem.id = uploadedFile.id;
 				fileItem.name = uploadedFile?.meta?.name ?? file.name;
 				fileItem.size = uploadedFile?.meta?.size ?? file.size;
@@ -1210,6 +1217,9 @@
 															alt="input"
 															imageClassName=" size-14 rounded-xl object-cover"
 														/>
+														{#if file.status === 'uploading'}
+															<ImageUploadProgressRing progress={file.uploadProgress ?? 1} />
+														{/if}
 														{#if atSelectedModel ? visionCapableModels.length === 0 : selectedModels.length !== visionCapableModels.length}
 															<Tooltip
 																className=" absolute top-1 left-1"

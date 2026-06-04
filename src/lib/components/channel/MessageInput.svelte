@@ -40,6 +40,7 @@
 	import { PASTED_TEXT_CHARACTER_LIMIT, WEBUI_API_BASE_URL } from '$lib/constants';
 	import FileItem from '../common/FileItem.svelte';
 	import Image from '../common/Image.svelte';
+	import ImageUploadProgressRing from '../common/ImageUploadProgressRing.svelte';
 	import { transcribeAudio } from '$lib/apis/audio';
 	import FilesOverlay from '../chat/MessageInput/FilesOverlay.svelte';
 	import { getSuggestionRenderer } from '../common/RichTextInput/suggestions';
@@ -374,6 +375,7 @@
 			errorTitle: '',
 			errorHint: '',
 			diagnostic: null,
+			uploadProgress: 1,
 			itemId: tempItemId,
 			preview_url: previewUrl
 		};
@@ -387,7 +389,13 @@
 		files = [...files, fileItem];
 
 		try {
-			const uploadedFile = await uploadFile(localStorage.token, file, { process: false });
+			const uploadedFile = await uploadFile(localStorage.token, file, {
+				process: false,
+				onUploadProgress: (progress) => {
+					fileItem.uploadProgress = Math.min(99, Math.max(fileItem.uploadProgress, progress));
+					files = files;
+				}
+			});
 
 			if (uploadedFile) {
 				if (uploadedFile.error) {
@@ -399,6 +407,7 @@
 				}
 
 				fileItem.status = 'uploaded';
+				fileItem.uploadProgress = 100;
 				fileItem.id = uploadedFile.id;
 				fileItem.name = uploadedFile?.meta?.name ?? file.name;
 				fileItem.size = uploadedFile?.meta?.size ?? file.size;
@@ -525,7 +534,9 @@
 				: item
 		);
 
-		toast.error(localizeFileUploadError(error, $i18n.t.bind($i18n), { isAdmin: $user?.role === 'admin' }));
+		toast.error(
+			localizeFileUploadError(error, $i18n.t.bind($i18n), { isAdmin: $user?.role === 'admin' })
+		);
 	};
 
 	const handleKeyDown = (event: KeyboardEvent) => {
@@ -806,6 +817,9 @@
 													alt="input"
 													imageClassName=" h-16 w-16 rounded-xl object-cover"
 												/>
+												{#if file.status === 'uploading'}
+													<ImageUploadProgressRing progress={file.uploadProgress ?? 1} />
+												{/if}
 											</div>
 											<div class=" absolute -top-1 -right-1">
 												<button
@@ -877,24 +891,24 @@
 										e = e.detail.event;
 										const suggestionsContainerElement =
 											document.getElementById('suggestions-container');
-											if (
-												!suggestionsContainerElement &&
-												(!$mobile ||
+										if (
+											!suggestionsContainerElement &&
+											(!$mobile ||
 												!(
 													'ontouchstart' in window ||
 													navigator.maxTouchPoints > 0 ||
 													navigator.msMaxTouchPoints > 0
 												))
-											) {
-												if (e.keyCode === 13 && !e.shiftKey) {
-													e.preventDefault();
-												}
-
-												if ((content !== '' || files.length > 0) && e.keyCode === 13 && !e.shiftKey) {
-													submitHandler();
-												}
+										) {
+											if (e.keyCode === 13 && !e.shiftKey) {
+												e.preventDefault();
 											}
-										}}
+
+											if ((content !== '' || files.length > 0) && e.keyCode === 13 && !e.shiftKey) {
+												submitHandler();
+											}
+										}
+									}}
 									on:paste={async (e) => {
 										e = e.detail.event;
 										const clipboardData = e.clipboardData || window.clipboardData;
@@ -914,7 +928,10 @@
 													await uploadImageFileHandler(
 														createNamedImageFile(blob, 'Channel_Pasted_Image')
 													);
-												} else if (item.type === 'text/plain' && ($settings?.largeTextAsFile ?? false)) {
+												} else if (
+													item.type === 'text/plain' &&
+													($settings?.largeTextAsFile ?? false)
+												) {
 													const text = clipboardData.getData('text/plain');
 													if (text.length > PASTED_TEXT_CHARACTER_LIMIT) {
 														e.preventDefault();
