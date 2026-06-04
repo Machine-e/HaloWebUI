@@ -42,11 +42,11 @@ log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MAIN"])
 
 
-# Per-user base model cache: {user_id: (timestamp, models)}
+# Per-user base model cache: {user_id: (timestamp, models)}.
+# The timestamp is kept only for LRU eviction; model freshness is event-driven.
 _base_model_cache: dict[str, tuple[float, list]] = {}
 _base_model_stale_fallback_cache: dict[str, tuple[float, list]] = {}
 _base_model_refresh_tasks: dict[str, asyncio.Task[list]] = {}
-_BASE_MODEL_CACHE_TTL = 5 * 60  # seconds
 _BASE_MODEL_CACHE_MAX_ENTRIES = 64
 _BASE_MODEL_FETCH_TIMEOUT = (
     min(float(AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST), 5.0)
@@ -59,23 +59,7 @@ def _get_base_model_cache_key(user: Optional[UserModel]) -> str:
     return user.id if user else "anon"
 
 
-def _evict_stale_base_model_cache(now: float) -> None:
-    stale_keys = [
-        k
-        for k, (ts, _) in _base_model_cache.items()
-        if now - ts > (_BASE_MODEL_CACHE_TTL * 2)
-    ]
-    for k in stale_keys:
-        _base_model_cache.pop(k, None)
-
-    stale_fallback_keys = [
-        k
-        for k, (ts, _) in _base_model_stale_fallback_cache.items()
-        if now - ts > (_BASE_MODEL_CACHE_TTL * 2)
-    ]
-    for k in stale_fallback_keys:
-        _base_model_stale_fallback_cache.pop(k, None)
-
+def _evict_stale_base_model_cache(_now: float | None = None) -> None:
     overflow = len(_base_model_cache) - _BASE_MODEL_CACHE_MAX_ENTRIES
     if overflow > 0:
         oldest_keys = [
@@ -504,8 +488,8 @@ async def _fetch_all_base_models(
 
 
 async def get_all_base_models(request: Request, user: UserModel = None):
-    # Per-user cache + stale-while-revalidate keeps model-aware pages responsive even when
-    # one upstream connection is temporarily slow.
+    # Base model freshness is event-driven: connection/model mutations invalidate the cache,
+    # while normal reads reuse the cached list to avoid background refresh churn.
     cache_enabled = bool(
         getattr(getattr(request.app.state, "config", None), "ENABLE_BASE_MODELS_CACHE", True)
     )
@@ -517,10 +501,7 @@ async def get_all_base_models(request: Request, user: UserModel = None):
     _evict_stale_base_model_cache(now)
     cached = _base_model_cache.get(cache_key)
     if cached:
-        ts, models = cached
-        if now - ts < _BASE_MODEL_CACHE_TTL:
-            return models
-        _schedule_base_model_refresh(cache_key, request, user, fallback_models=models)
+        _, models = cached
         return models
 
     fallback = _base_model_stale_fallback_cache.get(cache_key)

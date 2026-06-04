@@ -495,6 +495,7 @@ from open_webui.utils.models import (
     get_all_models,
     get_all_base_models,
     check_model_access,
+    invalidate_base_model_cache,
 )
 from open_webui.utils.model_identity import resolve_model_from_lookup
 from open_webui.utils.chat import (
@@ -1445,7 +1446,16 @@ if audit_level != AuditLevel.NONE:
 
 
 @app.get("/api/models")
-async def get_models(request: Request, user=Depends(get_verified_user)):
+async def get_models(
+    request: Request,
+    refresh: bool = False,
+    user=Depends(get_verified_user),
+):
+    if refresh:
+        request.app.state.BASE_MODELS = None
+        request.app.state.MODELS = {}
+        invalidate_base_model_cache(user.id)
+
     all_models = await get_all_models(request, user=user)
 
     models = []
@@ -1549,7 +1559,16 @@ def _raise_preserving_http_exception(exc: Exception, default_status: int) -> Non
 
 
 @app.get("/api/models/base")
-async def get_base_models(request: Request, user=Depends(get_admin_user)):
+async def get_base_models(
+    request: Request,
+    refresh: bool = False,
+    user=Depends(get_admin_user),
+):
+    if refresh:
+        request.app.state.BASE_MODELS = None
+        request.app.state.MODELS = {}
+        invalidate_base_model_cache(user.id)
+
     models = await get_all_base_models(request, user=user)
     return {"data": models}
 

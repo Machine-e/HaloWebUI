@@ -206,6 +206,7 @@
 		--halo-switch-track-width: 1.875rem;
 		--halo-switch-track-height: 1.125rem;
 		--halo-switch-thumb-size: 0.875rem;
+		order: 2;
 
 		background: #d1d1d1;
 		box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.09);
@@ -286,6 +287,10 @@
 		white-space: nowrap;
 		color: currentColor;
 		font-weight: inherit;
+	}
+
+	:global(.halo-switch-field.halo-switch-secondary .halo-switch-label) {
+		order: 1;
 	}
 
 	:global(.halo-switch-field[data-state='checked'] .halo-switch-label) {

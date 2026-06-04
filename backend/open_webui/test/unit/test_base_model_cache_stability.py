@@ -38,6 +38,26 @@ def _make_user(connections):
     )
 
 
+def test_cached_base_models_are_reused_until_explicit_invalidation(monkeypatch):
+    _reset_base_model_caches()
+    request = _make_request()
+    user = _make_user(_connections(openai_prefix="oa1"))
+    cached_openai = _provider_model("openai", "oa1", "gpt-cached")
+    models_utils._base_model_cache[user.id] = (0, [cached_openai])
+
+    async def unexpected_fetch(*_args, **_kwargs):
+        raise AssertionError("cached base models should not be time-refreshed")
+
+    monkeypatch.setattr(models_utils, "_fetch_all_base_models", unexpected_fetch)
+
+    try:
+        models = asyncio.run(models_utils.get_all_base_models(request, user=user))
+    finally:
+        _reset_base_model_caches()
+
+    assert [model["id"] for model in models] == ["oa1.gpt-cached"]
+
+
 def _connections(
     *,
     openai_prefix: str | None = None,

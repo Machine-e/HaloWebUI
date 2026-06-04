@@ -124,10 +124,10 @@
 
 	const getOllamaRenderKey = (url: string, config: any) => config ?? url;
 
-	const updateHandler = async (refreshModels = true) => {
+	const updateHandler = async (shouldRefreshModels = true) => {
 		ensureAll();
 		try {
-			await saveSettings({ connections }, { refreshModels });
+			await saveSettings({ connections }, { refreshModels: shouldRefreshModels });
 			dispatch('save');
 			toast.success($i18n.t('Settings saved successfully!'));
 		} catch (error) {
@@ -264,6 +264,7 @@
 								</button>
 							{/each}
 						</div>
+
 					</div>
 
 				</div>
