@@ -19,9 +19,16 @@
 
 	onMount(async () => {
 		if ($user?.role !== 'admin') {
+			const pathname = $page.url.pathname;
+			const isPrivateAssistantCreate = pathname.includes('/workspace/models/create');
+
 			if ($page.url.pathname.includes('/terminal')) {
 				goto('/');
-			} else if ($page.url.pathname.includes('/models') && !$user?.permissions?.workspace?.models) {
+			} else if (
+				pathname.includes('/models') &&
+				!isPrivateAssistantCreate &&
+				!$user?.permissions?.workspace?.models
+			) {
 				goto('/');
 			} else if (
 				$page.url.pathname.includes('/knowledge') &&

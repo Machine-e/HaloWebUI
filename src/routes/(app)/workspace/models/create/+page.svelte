@@ -1,12 +1,11 @@
 <script>
-	import { v4 as uuidv4 } from 'uuid';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
-	import { models } from '$lib/stores';
+	import { models, user } from '$lib/stores';
 
-	import { onMount, tick, getContext } from 'svelte';
-	import { createNewModel, getModelById } from '$lib/apis/models';
-	import { refreshModels } from '$lib/services/models';
+	import { onMount, getContext } from 'svelte';
+	import { createNewModel } from '$lib/apis/models';
+	import { ensureModels, refreshModels } from '$lib/services/models';
 
 	import ModelEditor from '$lib/components/workspace/Models/ModelEditor.svelte';
 	import WorkspaceSubpageHeader from '$lib/components/workspace/shell/WorkspaceSubpageHeader.svelte';
@@ -45,7 +44,11 @@
 			if (res) {
 				await refreshModels(localStorage.token, { force: true, reason: 'workspace-models' });
 				toast.success($i18n.t('Assistant created successfully!'));
-				await goto('/workspace/models');
+				if ($user?.role === 'admin' || $user?.permissions?.workspace?.models) {
+					await goto('/workspace/models');
+				} else {
+					await goto(`/?models=${encodeURIComponent(res.id ?? modelInfo.id)}`);
+				}
 				return true;
 			}
 		}
@@ -56,6 +59,10 @@
 	let model = null;
 
 	onMount(async () => {
+		void ensureModels(localStorage.token, { reason: 'workspace-model-create' }).catch((error) => {
+			console.error('Failed to load models for assistant creation', error);
+		});
+
 		window.addEventListener('message', async (event) => {
 			if (
 				!['https://openwebui.com', 'https://www.openwebui.com', 'http://localhost:5173'].includes(
