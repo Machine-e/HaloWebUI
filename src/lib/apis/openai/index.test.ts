@@ -21,13 +21,13 @@ describe('generateOpenAIChatCompletion', () => {
 		const request = generateOpenAIChatCompletion('token', { model: 'gpt-test' }, 'http://test/api', {
 			timeoutMs: 25
 		});
-
-		await vi.advanceTimersByTimeAsync(30);
-
-		await expect(request).rejects.toMatchObject({
+		const timeoutExpectation = expect(request).rejects.toMatchObject({
 			type: 'request_timeout',
 			detail: 'Chat request did not start in time.'
 		});
+
+		await vi.advanceTimersByTimeAsync(30);
+		await timeoutExpectation;
 		expect(fetchMock).toHaveBeenCalledOnce();
 	});
 });

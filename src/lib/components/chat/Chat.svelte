@@ -419,7 +419,10 @@
 			}
 		}
 	};
-	const uploadInlineImageForPersistence = async (file: any) => {
+	const uploadInlineImageForPersistence = async (
+		file: any,
+		timeoutMs = SOFT_INLINE_IMAGE_TIMEOUT_MS
+	) => {
 		if (!file || typeof file !== 'object' || !isInlineDataImageUrl(file?.url)) {
 			return sanitizeImageFileRef(file) ?? structuredClone(file);
 		}
@@ -441,7 +444,7 @@
 				uploadFile(localStorage.token, new File([imageBlob], fileName, { type: mimeType }), {
 					process: false
 				}),
-				SOFT_INLINE_IMAGE_TIMEOUT_MS,
+				timeoutMs,
 				'inline image upload'
 			);
 
@@ -477,11 +480,12 @@
 
 		const normalizedHistory = structuredClone(historyState);
 		let changed = false;
+		let timedOut = false;
 
-		const startedAt = Date.now();
+		const deadlineAt = Date.now() + SOFT_INLINE_IMAGE_TOTAL_TIMEOUT_MS;
 		for (const [messageId, message] of Object.entries(normalizedHistory.messages ?? {}) as [string, any][]) {
-			if (Date.now() - startedAt > SOFT_INLINE_IMAGE_TOTAL_TIMEOUT_MS) {
-				console.warn('Inline image normalization timed out for chat persistence');
+			if (Date.now() >= deadlineAt) {
+				timedOut = true;
 				break;
 			}
 			if (!Array.isArray(message?.files) || message.files.length === 0) {
@@ -491,9 +495,20 @@
 			const normalizedFiles = [];
 			let messageChanged = false;
 
-			for (const file of message.files) {
+			for (let fileIndex = 0; fileIndex < message.files.length; fileIndex += 1) {
+				const file = message.files[fileIndex];
+				const remainingMs = deadlineAt - Date.now();
+				if (remainingMs <= 0) {
+					timedOut = true;
+					normalizedFiles.push(...message.files.slice(fileIndex).map((item) => structuredClone(item)));
+					break;
+				}
+
 				if (file?.type === 'image') {
-					const normalizedFile = await uploadInlineImageForPersistence(file);
+					const normalizedFile = await uploadInlineImageForPersistence(
+						file,
+						Math.max(1, Math.min(SOFT_INLINE_IMAGE_TIMEOUT_MS, remainingMs))
+					);
 					normalizedFiles.push(normalizedFile);
 					if (JSON.stringify(normalizedFile) !== JSON.stringify(file)) {
 						messageChanged = true;
@@ -510,6 +525,14 @@
 				};
 				changed = true;
 			}
+
+			if (timedOut) {
+				break;
+			}
+		}
+
+		if (timedOut) {
+			console.warn('Inline image normalization timed out for chat persistence');
 		}
 
 		return {
@@ -549,7 +572,9 @@
 
 	let chatIdUnsubscriber: Unsubscriber | undefined;
 	let selectedAssistantSceneUnsubscriber: Unsubscriber | undefined;
+	let socketEventUnsubscriber: Unsubscriber | undefined;
 	let socketReconnectUnsubscriber: Unsubscriber | undefined;
+	let chatEventSocket: any = null;
 
 	let selectedModels = [''];
 	let atSelectedModel: Model | undefined;
@@ -2940,6 +2965,17 @@
 		}
 	};
 
+	const bindChatEventSocket = (socketInstance: any) => {
+		if (chatEventSocket === socketInstance) {
+			return;
+		}
+
+		chatEventSocket?.off('chat-events', chatEventHandler);
+		chatEventSocket = socketInstance;
+		chatEventSocket?.off('chat-events', chatEventHandler);
+		chatEventSocket?.on('chat-events', chatEventHandler);
+	};
+
 	const onMessageHandler = async (event: {
 		origin: string;
 		data: { type: string; text: string };
@@ -3000,7 +3036,9 @@
 		window.addEventListener('keydown', handleMessageOutlineKeydown, true);
 		window.addEventListener('pointerup', clearMessageOutlineScrollbarDragPrime, true);
 		window.addEventListener('pointercancel', clearMessageOutlineScrollbarDragPrime, true);
-		$socket?.on('chat-events', chatEventHandler);
+		socketEventUnsubscriber = socket.subscribe((socketInstance) => {
+			bindChatEventSocket(socketInstance);
+		});
 
 		if (!chatIdProp && !$chatId) {
 			chatIdUnsubscriber = chatId.subscribe(async (value) => {
@@ -3109,6 +3147,7 @@
 	onDestroy(() => {
 		chatIdUnsubscriber?.();
 		selectedAssistantSceneUnsubscriber?.();
+		socketEventUnsubscriber?.();
 		socketReconnectUnsubscriber?.();
 		clearMessageOutlineHideTimer();
 		messageOutlineVisibleStore.set(false);
@@ -3133,7 +3172,8 @@
 		window.removeEventListener('keydown', handleMessageOutlineKeydown, true);
 		window.removeEventListener('pointerup', clearMessageOutlineScrollbarDragPrime, true);
 		window.removeEventListener('pointercancel', clearMessageOutlineScrollbarDragPrime, true);
-		$socket?.off('chat-events', chatEventHandler);
+		chatEventSocket?.off('chat-events', chatEventHandler);
+		chatEventSocket = null;
 		if (taskWatchdogTimer) {
 			clearInterval(taskWatchdogTimer);
 			taskWatchdogTimer = null;
@@ -3915,6 +3955,7 @@
 			...taskIdsByMessageId,
 			[messageId]: [...currentTaskIds]
 		};
+		taskIds = Array.from(new Set([...(Array.isArray(taskIds) ? taskIds : []), taskId]));
 		responseTaskWatchdogs = {
 			...responseTaskWatchdogs,
 			[messageId]: {
