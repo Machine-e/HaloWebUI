@@ -22,6 +22,11 @@ export const MODEL_DOWNLOAD_POOL = writable({});
 export const mobile = writable(false);
 
 export const socket: Writable<null | Socket> = writable(null);
+export type SocketConnectionState = 'connected' | 'disconnected' | 'reconnecting' | 'failed';
+export const socketConnectionState: Writable<SocketConnectionState> = writable('disconnected');
+export const socketReconnectRevision = writable(0);
+export const socketLastConnectedAt: Writable<number | null> = writable(null);
+export const socketLastDisconnectedAt: Writable<number | null> = writable(null);
 export const activeUserIds: Writable<null | string[]> = writable(null);
 export const USAGE_POOL: Writable<null | string[]> = writable(null);
 
