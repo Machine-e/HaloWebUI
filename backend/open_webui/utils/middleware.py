@@ -4339,6 +4339,7 @@ async def chat_image_generation_handler(
         task_id, _task = create_task(
             image_generation_task(),
             id=__metadata__["chat_id"],
+            message_id=__metadata__.get("message_id"),
         )
         try:
             Chats.upsert_message_to_chat_by_id_and_message_id(
@@ -9898,7 +9899,9 @@ async def process_chat_response(
 
         # background_tasks.add_task(post_response_handler, response, events)
         task_id, _ = create_task(
-            post_response_handler(response, events), id=metadata["chat_id"]
+            post_response_handler(response, events),
+            id=metadata["chat_id"],
+            message_id=metadata.get("message_id"),
         )
         return {"status": True, "task_id": task_id}
 

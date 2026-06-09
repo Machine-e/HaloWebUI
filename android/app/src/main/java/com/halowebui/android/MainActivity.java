@@ -128,6 +128,27 @@ public final class MainActivity extends Activity {
 	}
 
 	@Override
+	protected void onResume() {
+		super.onResume();
+		if (webView != null) {
+			webView.onResume();
+			webView.resumeTimers();
+			webView.evaluateJavascript(
+				"window.dispatchEvent(new CustomEvent('halo:android-resume'));",
+				null
+			);
+		}
+	}
+
+	@Override
+	protected void onPause() {
+		if (webView != null) {
+			webView.onPause();
+		}
+		super.onPause();
+	}
+
+	@Override
 	public void onBackPressed() {
 		if (webView != null && webView.canGoBack()) {
 			webView.goBack();
