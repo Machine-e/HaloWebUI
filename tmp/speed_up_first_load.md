@@ -2,23 +2,22 @@
 
 ## Scope
 
-Optimize one high-impact first-load issue on the mobile web app: remove the unused static `mermaid` import from the chat homepage bundle.
+Optimize one high-impact first-load issue on the mobile web app: remove the full built-in assistant template dataset from the initial chat homepage bundle.
 
 ## Why This One
 
-The `/` route renders the chat page on first open. In the current build, `src/lib/components/chat/Chat.svelte` statically imports `mermaid`, but that symbol is not used in the file. Mermaid is a large dependency and this import makes the chat homepage pull Mermaid into the initial route dependency graph even when the user has not opened or rendered a Mermaid code block.
-
-Mermaid rendering is already handled lazily by `renderMermaidSvg()` in `src/lib/utils/lobehub-chat-appearance.ts`, which dynamically imports `mermaid` only when a Mermaid code block is rendered. Keeping the top-level import in `Chat.svelte` defeats that lazy path.
+The `/` route renders the chat homepage. Its placeholder imports the featured assistant UI, which previously imported `src/lib/data/agents-zh.json` synchronously. That JSON is about 1.6 MB raw and was bundled into the initial route dependency graph even though the homepage only needs a small featured assistant strip, and the full library is only needed after the page has rendered or when the user opens the assistant picker.
 
 ## Change
 
-1. Remove the unused `import mermaid from 'mermaid';` line from `src/lib/components/chat/Chat.svelte`.
-2. Keep the existing dynamic Mermaid loading path in `renderMermaidSvg()` unchanged.
-3. Build the frontend and compare the `/` route initial dependency set before and after the change.
+1. Remove the static `agents-zh.json` dependency from shared chat assistant utilities.
+2. Load `agents-zh.json` from the homepage placeholder with a dynamic import scheduled after first render/idle time.
+3. Load the full assistant picker data only when the picker is opened.
+4. Keep assistant activation and featured assistant persistence behavior unchanged.
 
 ## Expected Impact
 
-The initial mobile web load should no longer parse and evaluate Mermaid as part of opening the chat homepage. Mermaid remains available when an actual Mermaid code block is shown.
+The initial mobile web load no longer has to download, parse, and evaluate the full built-in assistant template dataset as part of opening `/`. The assistant template data remains available after the initial UI is interactive and when the user opens assistant management.
 
 ## Validation
 
@@ -28,11 +27,11 @@ Run:
 npm run build
 ```
 
-Then inspect the SvelteKit generated route dependency graph for `/` and confirm the largest Mermaid chunk is no longer included in the initial `/` route dependency set.
+Then inspect the SvelteKit generated route dependency graph for `/` and confirm the large `agents-zh.json` chunk is not included in the initial `/` route dependency set.
 
 ## Out Of Scope
 
 - Deferring Sidebar API requests.
 - Deferring socket setup.
-- Refactoring `MessageInput`, TTS, KaTeX, Shiki, CodeMirror, or ProseMirror.
+- Refactoring `MessageInput`, TTS, KaTeX, Shiki, CodeMirror, ProseMirror, or Mermaid rendering.
 - Changing Android WebView behavior.
