@@ -1,5 +1,6 @@
 # tasks.py
 import asyncio
+import time
 from typing import Any, Dict
 from uuid import uuid4
 
@@ -23,7 +24,13 @@ def cleanup_task(task_id: str, id=None):
             chat_tasks.pop(id, None)
 
 
-def create_task(coroutine, id=None, *, blocks_completion: bool = True):
+def create_task(
+    coroutine,
+    id=None,
+    *,
+    blocks_completion: bool = True,
+    message_id: str | None = None,
+):
     """
     Create a new asyncio task and add it to the global task dictionary.
     """
@@ -36,6 +43,9 @@ def create_task(coroutine, id=None, *, blocks_completion: bool = True):
     task_metadata[task_id] = {
         "chat_id": id,
         "blocks_completion": blocks_completion,
+        "message_id": message_id,
+        "created_at": time.time(),
+        "updated_at": time.time(),
     }
 
     # If an ID is provided, associate the task with that ID
@@ -61,6 +71,7 @@ def set_current_task_blocks_completion(blocks_completion: bool) -> bool:
         if task is current_task:
             metadata = task_metadata.setdefault(task_id, {})
             metadata["blocks_completion"] = blocks_completion
+            metadata["updated_at"] = time.time()
             return True
 
     return False
@@ -95,13 +106,36 @@ def list_task_ids_by_chat_id(id, *, blocks_completion_only: bool = False):
     ]
 
 
+def list_tasks_by_chat_id(id, *, blocks_completion_only: bool = False):
+    result = []
+    for task_id in list_task_ids_by_chat_id(
+        id, blocks_completion_only=blocks_completion_only
+    ):
+        metadata = task_metadata.get(task_id, {})
+        result.append(
+            {
+                "id": task_id,
+                "chat_id": metadata.get("chat_id"),
+                "message_id": metadata.get("message_id"),
+                "created_at": metadata.get("created_at"),
+                "updated_at": metadata.get("updated_at"),
+                "blocks_completion": metadata.get("blocks_completion", True),
+            }
+        )
+    return result
+
+
 async def stop_task(task_id: str):
     """
     Cancel a running task and remove it from the global task list.
     """
     task = tasks.get(task_id)
     if not task:
-        raise ValueError(f"Task with ID {task_id} not found.")
+        return {
+            "status": True,
+            "already_finished": True,
+            "message": f"Task {task_id} is not running.",
+        }
 
     task.cancel()  # Request task cancellation
     try:
@@ -109,6 +143,7 @@ async def stop_task(task_id: str):
     except asyncio.CancelledError:
         # Task successfully canceled
         tasks.pop(task_id, None)  # Remove it from the dictionary
+        cleanup_task(task_id, task_metadata.get(task_id, {}).get("chat_id"))
         return {"status": True, "message": f"Task {task_id} successfully stopped."}
 
     return {"status": False, "message": f"Failed to stop task {task_id}."}

@@ -38,9 +38,16 @@
 	let renderTokens: RenderableHtmlToken[] = [];
 	$: renderTokens = mergeSvgMarkupTokens(tokens);
 
+	const SAFE_HTML_URI_REGEXP =
+		/^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$)|data:(?:text\/(?:plain|csv|markdown)|application\/(?:json|pdf|zip|vnd\.openxmlformats-officedocument\.(?:spreadsheetml\.sheet|wordprocessingml\.document))|image\/(?:png|jpeg|jpg|gif|webp))(?:[;,]|$))/i;
+
 	const resolveLinkHref = (href: string) => {
 		const resolved = resolveGeneratedFileDownloadUrl(href, generatedFiles) ?? href;
-		return resolveSafeMarkdownUrl(resolved, { allowHash: true, allowRelative: true });
+		return resolveSafeMarkdownUrl(resolved, {
+			allowHash: true,
+			allowRelative: true,
+			allowDataDownload: true
+		});
 	};
 
 	const resolveContentSrc = (href: string) =>
@@ -73,7 +80,10 @@
 		{@const iframeSrc = resolveLocalFileIframeSrcFromHtml(tokenText, WEBUI_BASE_URL)}
 		{@const html = rewriteDataUrlDownloadLinks(
 			rewriteGeneratedFileHtmlLinks(
-				DOMPurify.sanitize(tokenText, { ADD_ATTR: ['style'] }),
+				DOMPurify.sanitize(tokenText, {
+					ADD_ATTR: ['style', 'download', 'target', 'rel'],
+					ALLOWED_URI_REGEXP: SAFE_HTML_URI_REGEXP
+				}),
 				generatedFiles
 			)
 		)}
@@ -202,7 +212,8 @@
 		<SourceToken {id} {token} onClick={onSourceClick} />
 	{:else if token.type === 'text'}
 		{#if charAnimation}
-			{#each [...toText(token.raw ?? token.text)] as char}<span class="stream-char">{char}</span>{/each}
+			{#each [...toText(token.raw ?? token.text)] as char}<span class="stream-char">{char}</span
+				>{/each}
 		{:else}
 			{toText(token.raw ?? token.text)}
 		{/if}

@@ -13,7 +13,7 @@
 		getAllTags,
 		getChatList,
 		getPinnedChatList,
-		updateChatById
+		updateChatTitleById
 	} from '$lib/apis/chats';
 	import {
 		chatId,
@@ -115,23 +115,37 @@
 
 	let chatTitle = title;
 
-	const editChatTitle = async (id, title) => {
-		if (title === '') {
+	const editChatTitle = async (id, requestedTitle) => {
+		if (requestedTitle === '') {
 			toast.error($i18n.t('Title cannot be an empty string.'));
 		} else {
-			await updateChatById(localStorage.token, id, {
-				title: title
-			});
+			const updatedChat = await updateChatTitleById(localStorage.token, id, requestedTitle).catch(
+				(error) => {
+					toast.error(`${error}`);
+					return null;
+				}
+			);
 
-			if (id === $chatId) {
-				_chatTitle.set(title);
+			if (!updatedChat) {
+				return;
 			}
 
-			currentChatPage.set(1);
-			await chats.set(await getChatList(localStorage.token, $currentChatPage));
-			await pinnedChats.set(await getPinnedChatList(localStorage.token));
+			const nextTitle = updatedChat.title ?? requestedTitle;
 
-			dispatch('change');
+			if (id === $chatId) {
+				_chatTitle.set(nextTitle);
+			}
+
+			title = nextTitle;
+
+			chats.update((list) =>
+				list?.map((chat) => (chat.id === id ? { ...chat, title: nextTitle } : chat)) ?? list
+			);
+			pinnedChats.update((list) =>
+				list?.map((chat) => (chat.id === id ? { ...chat, title: nextTitle } : chat)) ?? list
+			);
+
+			dispatch('title-change', { id, title: nextTitle, chat: updatedChat });
 		}
 	};
 

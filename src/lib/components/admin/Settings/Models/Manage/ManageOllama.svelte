@@ -51,6 +51,7 @@
 	let createModelName = '';
 	let createModelObject = '';
 
+	let createModelTag = '';
 	let createModelDigest = '';
 	let createModelPullProgress = null;
 
@@ -447,8 +448,11 @@
 
 	const createModelHandler = async () => {
 		createModelLoading = true;
+		createModelTag = '';
+		createModelDigest = '';
+		createModelPullProgress = null;
 
-		let modelObject = {};
+		let modelObject: Record<string, unknown> = {};
 		// parse createModelObject
 		try {
 			modelObject = JSON.parse(createModelObject);
@@ -458,14 +462,17 @@
 			return;
 		}
 
-		const res = await createModel(
-			localStorage.token,
-			{
-				model: createModelName,
-				...modelObject
-			},
-			urlIdx
-		).catch((error) => {
+		const createModelPayload = {
+			model: createModelName,
+			...modelObject
+		};
+		const requestedModel = createModelPayload.model;
+		createModelTag =
+			typeof requestedModel === 'string' && requestedModel.trim() !== ''
+				? requestedModel
+				: createModelName;
+
+		const res = await createModel(localStorage.token, createModelPayload, urlIdx).catch((error) => {
 			showError(error);
 			return null;
 		});
@@ -531,6 +538,7 @@
 
 		createModelName = '';
 		createModelObject = '';
+		createModelTag = '';
 		createModelDigest = '';
 		createModelPullProgress = null;
 	};

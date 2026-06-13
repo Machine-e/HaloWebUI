@@ -12,6 +12,7 @@ from open_webui.models.chats import (
     ChatComposerStateForm,
     ChatImportForm,
     ChatResponse,
+    ChatTitleForm,
     Chats,
     ChatMessages,
     ChatTitleIdResponse,
@@ -835,6 +836,23 @@ async def get_chat_context_by_id(id: str, user=Depends(get_verified_user)):
 ############################
 
 
+@router.post("/{id}/title", response_model=Optional[ChatResponse])
+async def update_chat_title_by_id(
+    id: str,
+    form_data: ChatTitleForm,
+    user=Depends(get_verified_user),
+):
+    chat = Chats.get_chat_by_id_and_user_id(id, user.id)
+    if chat:
+        updated = Chats.update_chat_title_by_id(id, form_data.title)
+        return _chat_response(updated)
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+    )
+
+
 @router.post("/{id}", response_model=Optional[ChatResponse])
 async def update_chat_by_id(
     id: str,
@@ -843,6 +861,10 @@ async def update_chat_by_id(
 ):
     chat = Chats.get_chat_by_id_and_user_id(id, user.id)
     if chat:
+        if set(form_data.chat.keys()) == {"title"}:
+            updated = Chats.update_chat_title_by_id(id, form_data.chat["title"])
+            return _chat_response(updated)
+
         updated_chat = {**chat.chat, **form_data.chat}
         normalized_chat, changed_message_ids = await _normalize_chat_payload_images(
             updated_chat, user

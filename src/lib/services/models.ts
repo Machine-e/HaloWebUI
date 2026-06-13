@@ -1,13 +1,18 @@
 import { get } from 'svelte/store';
 
 import { getModels as apiGetModels } from '$lib/apis';
-import { config, models, modelsError, modelsStatus, settings } from '$lib/stores';
+import {
+	config,
+	models,
+	modelsError,
+	modelsStatus,
+	settings
+} from '$lib/stores';
 import type { Model } from '$lib/stores';
 
-const MODELS_TTL_MS = 5 * 60 * 1000;
-
 let inFlight: Promise<Model[]> | null = null;
-let lastFetchedAt = 0;
+let inFlightForce = false;
+let requestSeq = 0;
 
 const getDirectConnections = () => {
 	const cfg = get(config) as any;
@@ -43,31 +48,47 @@ export const refreshModels = async (
 	opts: { force?: boolean; reason?: string } = {}
 ) => {
 	const current = get(models) ?? [];
-	const isFresh = current.length > 0 && Date.now() - lastFetchedAt < MODELS_TTL_MS;
-	if (!opts.force && isFresh && !inFlight) return current;
+	if (!opts.force && current.length > 0 && !inFlight) return current;
 
-	// De-dup concurrent refreshes.
-	if (inFlight) return inFlight;
+	// Event-driven cache: only explicit force refreshes should bypass an existing model list.
+	// A force request must not be satisfied by an older non-force request.
+	if (inFlight) {
+		if (!opts.force || inFlightForce) {
+			return inFlight;
+		}
+	}
 
 	modelsStatus.set('loading');
 	modelsError.set(null);
 
-	inFlight = (async () => {
+	inFlightForce = !!opts.force;
+	const currentRequestSeq = ++requestSeq;
+	let request: Promise<Model[]>;
+	request = (async () => {
 		try {
-			const next = await apiGetModels(token, getDirectConnections());
-			models.set(next);
-			modelsStatus.set('ready');
-			modelsError.set(null);
-			lastFetchedAt = Date.now();
+			const next = await apiGetModels(token, getDirectConnections(), false, {
+				refresh: !!opts.force
+			});
+			if (currentRequestSeq === requestSeq) {
+				models.set(next);
+				modelsStatus.set('ready');
+				modelsError.set(null);
+			}
 			return next;
 		} catch (error) {
-			modelsStatus.set('error');
-			modelsError.set(stringifyError(error));
+			if (currentRequestSeq === requestSeq) {
+				modelsStatus.set('error');
+				modelsError.set(stringifyError(error));
+			}
 			throw error;
 		} finally {
-			inFlight = null;
+			if (inFlight === request) {
+				inFlight = null;
+				inFlightForce = false;
+			}
 		}
 	})();
+	inFlight = request;
 
 	return inFlight;
 };
@@ -75,15 +96,8 @@ export const refreshModels = async (
 export const ensureModels = async (token: string, opts: { reason?: string } = {}) => {
 	const current = get(models) ?? [];
 
+	if (current.length > 0) return current;
 	if (inFlight) return inFlight;
-
-	const isFresh = current.length > 0 && Date.now() - lastFetchedAt < MODELS_TTL_MS;
-	if (isFresh) return current;
-
-	if (current.length > 0) {
-		void refreshModels(token, { reason: opts.reason }).catch(() => {});
-		return current;
-	}
 
 	return refreshModels(token, { reason: opts.reason });
 };

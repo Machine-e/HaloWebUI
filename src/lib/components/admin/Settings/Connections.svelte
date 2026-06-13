@@ -737,9 +737,7 @@
 	});
 
 	const submitHandler = async () => {
-		// Don't refresh models on form submit - only save configs
-		// Wait for both saves to complete before dispatching success
-		await Promise.all([
+		const results = await Promise.all([
 			updateOpenAIHandler(false),
 			updateGeminiHandler(false),
 			updateGrokHandler(false),
@@ -747,9 +745,15 @@
 			updateOllamaHandler(false)
 		]);
 
-		dispatch('save');
+		if (results.some((ok) => !ok)) return;
 
 		await config.set(await getBackendConfig());
+		await refreshModelsStore(localStorage.token, {
+			force: true,
+			reason: 'admin-connections-submit'
+		});
+
+		dispatch('save');
 	};
 </script>
 
@@ -842,7 +846,7 @@
 										on:change={async () => {
 											if (ENABLE_OPENAI_API) {
 												expandedSections.openai = true;
-												updateOpenAIHandler(false);
+												updateOpenAIHandler();
 												return;
 											}
 
@@ -979,7 +983,7 @@
 										on:change={async () => {
 											if (ENABLE_GEMINI_API) {
 												expandedSections.gemini = true;
-												updateGeminiHandler(false);
+												updateGeminiHandler();
 												return;
 											}
 
@@ -1101,7 +1105,7 @@
 										on:change={async () => {
 											if (ENABLE_GROK_API) {
 												expandedSections.grok = true;
-												updateGrokHandler(false);
+												updateGrokHandler();
 												return;
 											}
 
@@ -1229,7 +1233,7 @@
 										on:change={async () => {
 											if (ENABLE_ANTHROPIC_API) {
 												expandedSections.anthropic = true;
-												updateAnthropicHandler(false);
+												updateAnthropicHandler();
 												return;
 											}
 
@@ -1359,7 +1363,7 @@
 										on:change={async () => {
 											if (ENABLE_OLLAMA_API) {
 												expandedSections.ollama = true;
-												updateOllamaHandler(false);
+												updateOllamaHandler();
 												return;
 											}
 
@@ -1557,7 +1561,7 @@
 		ENABLE_OPENAI_API = true;
 	}}
 	onConfirm={async () => {
-		await updateOpenAIHandler(false);
+		await updateOpenAIHandler();
 	}}
 />
 
@@ -1572,7 +1576,7 @@
 		ENABLE_GEMINI_API = true;
 	}}
 	onConfirm={async () => {
-		await updateGeminiHandler(false);
+		await updateGeminiHandler();
 	}}
 />
 
@@ -1587,7 +1591,7 @@
 		ENABLE_GROK_API = true;
 	}}
 	onConfirm={async () => {
-		await updateGrokHandler(false);
+		await updateGrokHandler();
 	}}
 />
 
@@ -1602,7 +1606,7 @@
 		ENABLE_ANTHROPIC_API = true;
 	}}
 	onConfirm={async () => {
-		await updateAnthropicHandler(false);
+		await updateAnthropicHandler();
 	}}
 />
 
@@ -1617,6 +1621,6 @@
 		ENABLE_OLLAMA_API = true;
 	}}
 	onConfirm={async () => {
-		await updateOllamaHandler(false);
+		await updateOllamaHandler();
 	}}
 />

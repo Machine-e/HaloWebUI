@@ -53,7 +53,10 @@ from open_webui.retrieval.web.brave import search_brave
 from open_webui.retrieval.web.kagi import search_kagi
 from open_webui.retrieval.web.mojeek import search_mojeek
 from open_webui.retrieval.web.bocha import search_bocha
-from open_webui.retrieval.web.duckduckgo import search_duckduckgo
+from open_webui.retrieval.web.duckduckgo import (
+    DuckDuckGoRateLimitError,
+    search_duckduckgo,
+)
 from open_webui.retrieval.web.google_pse import search_google_pse
 from open_webui.retrieval.web.jina_search import search_jina
 from open_webui.retrieval.web.searchapi import search_searchapi
@@ -117,6 +120,14 @@ from open_webui.utils.file_upload_diagnostics import (
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["RAG"])
+
+
+async def _search_web_async(
+    request: Request,
+    engine: str,
+    query: str,
+) -> list[SearchResult]:
+    return await run_in_threadpool(search_web, request, engine, query)
 
 ##########################################
 #
@@ -2695,9 +2706,17 @@ def _build_direct_docs_from_web_results(
             "name": title,
             "query": query,
             "engine": engine,
+            "content": content,
+            "snippet": content,
         }
         if link:
             metadata["url"] = link
+            metadata["source_type"] = "web_page"
+            metadata["internal_source"] = False
+        else:
+            metadata["source_type"] = "search_summary"
+            metadata["internal_source"] = True
+            metadata["display_source"] = f"{engine or '网页'} 搜索摘要"
 
         docs.append(
             {
@@ -2729,7 +2748,24 @@ async def process_web_search(
     loader_engine = str(request.app.state.config.WEB_LOADER_ENGINE or "").strip()
     try:
         logging.info(f"trying to web search with {engine, form_data.query}")
-        web_results = _fill_favicons(search_web(request, engine, form_data.query))
+        web_results = _fill_favicons(
+            await _search_web_async(request, engine, form_data.query)
+        )
+    except DuckDuckGoRateLimitError as e:
+        log.warning(
+            "DuckDuckGo rate limited web search (query=%s): %s",
+            form_data.query,
+            e,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "duckduckgo_rate_limit",
+                "message": "DuckDuckGo 当前限流，已跳过该搜索词。",
+                "engine": engine,
+                "query": form_data.query,
+            },
+        ) from e
     except Exception as e:
         log.exception(e)
 

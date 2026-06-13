@@ -157,6 +157,39 @@ export type DatabaseRestoreInspectResponse = {
 	confirmation: string;
 };
 
+export type DatabaseMergePlan = {
+	mode: 'insert_only';
+	table_count: number;
+	source_rows: number;
+	insert_rows: number;
+	skip_existing_rows: number;
+	skip_conflict_rows: number;
+	blocked_tables: Array<Record<string, any>>;
+	chat_messages_merged: number;
+	file_ids_remapped?: number;
+	tables: Array<{
+		name: string;
+		source_rows: number;
+		insert_rows: number;
+		skip_existing_rows: number;
+		skip_conflict_rows: number;
+		chat_messages_merged?: number;
+		blocked?: boolean;
+		reason?: string | null;
+	}>;
+	uploads: {
+		copy_count: number;
+		reuse_count: number;
+		rename_count: number;
+		missing_count: number;
+		bytes_to_copy: number;
+	};
+};
+
+export type DatabaseMergeInspectResponse = DatabaseRestoreInspectResponse & {
+	merge: DatabaseMergePlan;
+};
+
 export const downloadDatabase = async (token: string, kind: DatabaseBackupKind = 'sqlite') => {
 	try {
 		const response = await fetch(`${WEBUI_API_BASE_URL}/utils/db/download?kind=${kind}`, {
@@ -218,6 +251,43 @@ export const inspectDatabaseRestore = async (
 	return res;
 };
 
+export const inspectDatabaseMerge = async (
+	token: string,
+	file: File,
+	kind: DatabaseBackupKind = 'sqlite',
+	signal?: AbortSignal
+): Promise<DatabaseMergeInspectResponse> => {
+	let error: any = null;
+	const formData = new FormData();
+	formData.append('file', file);
+	formData.append('expected_kind', kind);
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/utils/db/merge/inspect`, {
+		method: 'POST',
+		headers: {
+			Authorization: `Bearer ${token}`
+		},
+		body: formData,
+		signal
+	})
+		.then((response) => parseJsonResponse<DatabaseMergeInspectResponse>(response))
+		.catch((err) => {
+			console.log(err);
+			error = err;
+			return null;
+		});
+
+	if (error) {
+		throw error?.detail ?? error;
+	}
+
+	if (!res) {
+		throw 'No merge inspection response returned.';
+	}
+
+	return res;
+};
+
 export const restoreDatabase = async (
 	token: string,
 	payload: {
@@ -228,6 +298,37 @@ export const restoreDatabase = async (
 	let error = null;
 
 	const res = await fetch(`${WEBUI_API_BASE_URL}/utils/db/restore`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify(payload)
+	})
+		.then(parseJsonResponse)
+		.catch((err) => {
+			console.log(err);
+			error = err;
+			return null;
+		});
+
+	if (error) {
+		throw error?.detail ?? error;
+	}
+
+	return res;
+};
+
+export const mergeDatabaseBackup = async (
+	token: string,
+	payload: {
+		token: string;
+		confirmation: string;
+	}
+) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/utils/db/merge`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',

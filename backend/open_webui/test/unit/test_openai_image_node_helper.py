@@ -232,6 +232,81 @@ def test_build_openai_image_usage_preserves_upstream_tokens_and_speed():
     assert usage["response_token/s"] == 10
 
 
+def test_openai_stream_diagnostics_include_reasoning_and_finish_reason():
+    fragments = []
+    event = {
+        "choices": [
+            {
+                "delta": {"reasoning_content": "thinking about why no image"},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"completion_tokens": 12, "total_tokens": 34},
+    }
+
+    images_router._collect_openai_stream_text_fragments(event, fragments)
+    summary = images_router._summarize_openai_stream_event(event)
+
+    assert "thinking about why no image" in "".join(fragments)
+    assert summary["delta_reasoning_len"] == len("thinking about why no image")
+    assert summary["delta_reasoning_preview"] == "thinking about why no image"
+    assert summary["finish_reason"] == "stop"
+    assert summary["usage"] == {"completion_tokens": 12, "total_tokens": 34}
+
+
+def test_openai_empty_image_context_classifies_zero_output_stream():
+    context = images_router._build_openai_empty_image_context(
+        route_label="chat",
+        status_code=200,
+        headers={"x-generation-id": "gen-test"},
+        event_count=2,
+        event_summaries=[
+            {
+                "finish_reason": "stop",
+                "provider": "test-provider",
+                "model": "test-model",
+                "usage": {
+                    "prompt_tokens": 554,
+                    "completion_tokens": 0,
+                    "total_tokens": 554,
+                },
+            }
+        ],
+        text_fragments=[],
+    )
+
+    assert context["category"] == "empty_stream_zero_output"
+    assert "输出 token 为 0" in context["reason"]
+    assert context["finish_reasons"] == ["stop"]
+    assert context["providers"] == ["test-provider"]
+    assert context["models"] == ["test-model"]
+    assert context["usage"] == {"completion_tokens": 0, "total_tokens": 554}
+    assert context["upstream_request_ids"] == {"x-generation-id": "gen-test"}
+
+
+def test_openai_empty_image_error_detail_includes_actionable_context():
+    detail = images_router._build_openai_empty_image_error_detail(
+        {
+            "reason": "上游请求已结束，但输出 token 为 0，且没有返回文本、图片链接或图片数据。",
+            "providers": ["test-provider"],
+            "finish_reasons": ["stop"],
+            "usage": {"completion_tokens": 0, "total_tokens": 554},
+            "upstream_request_ids": {"x-generation-id": "gen-test"},
+        }
+    )
+
+    assert detail.startswith(
+        "上游图片生成请求已完成，但输出 token 为 0，且没有返回任何文本、图片链接或图片数据。"
+    )
+    assert "上游供应商: test-provider" in detail
+    assert "结束原因: stop" in detail
+    assert "completion_tokens=0" in detail
+    assert "total_tokens=554" in detail
+    assert "建议调整提示词或切换到更稳定的图片模型/中转站。" in detail
+    assert "x-generation-id=gen-test" not in detail
+    assert "openai_chat_image_empty_response" not in detail
+
+
 def test_send_openai_image_request_uses_httpx_multipart(monkeypatch):
     captured = {}
 
@@ -293,6 +368,386 @@ def test_node_openai_image_helper_does_not_require_open_as_blob():
     assert "new Blob" in helper_source
 
 
+def test_generate_via_openai_image_edits_endpoint_sends_all_reference_images(
+    monkeypatch,
+):
+    captured = {}
+    first_image = "data:image/png;base64," + base64.b64encode(b"ref-1").decode("utf-8")
+    second_image = "data:image/jpeg;base64," + base64.b64encode(b"ref-2").decode(
+        "utf-8"
+    )
+    generated_b64 = base64.b64encode(b"generated" * 32).decode("utf-8")
+
+    async def fake_send_with_key_pool(**kwargs):
+        captured.update(kwargs)
+        return (
+            {
+                "status": 200,
+                "headers": {"content-type": "application/json"},
+                "response_body": json.dumps({"data": [{"b64_json": generated_b64}]}),
+                "elapsed_ms": 25,
+            },
+            {"content-type": "application/json"},
+        )
+
+    monkeypatch.setattr(
+        images_router,
+        "_send_openai_image_request_with_key_pool",
+        fake_send_with_key_pool,
+    )
+    monkeypatch.setattr(
+        images_router,
+        "upload_image",
+        lambda request, payload, image_data, content_type, user: "/images/generated.png",
+    )
+
+    result = asyncio.run(
+        images_router._generate_via_openai_image_edits_endpoint(
+            request=SimpleNamespace(),
+            user=_make_user(),
+            model_id="gpt-image-2",
+            prompt="use both references",
+            stream=False,
+            image_url=first_image,
+            image_urls=[first_image, second_image],
+            n=1,
+            size=None,
+            background=None,
+            source={
+                "base_url": "https://api.openai.com/v1",
+                "key": "sk-test",
+                "api_config": {},
+            },
+        )
+    )
+
+    assert captured["url"] == "https://api.openai.com/v1/images/edits"
+    assert captured["request_kind"] == "multipart"
+    assert captured["form_fields"]["model"] == "gpt-image-2"
+    assert captured["form_fields"]["prompt"] == "use both references"
+    assert captured["files"] == [
+        {
+            "field_name": "image",
+            "filename": "image-1.png",
+            "mime": "image/png",
+            "data": b"ref-1",
+        },
+        {
+            "field_name": "image",
+            "filename": "image-2.jpg",
+            "mime": "image/jpeg",
+            "data": b"ref-2",
+        },
+    ]
+    assert result[0]["url"] == "/images/generated.png"
+
+
+def test_generate_via_openai_chat_image_sends_all_reference_images(monkeypatch):
+    captured = {}
+    first_image = "data:image/png;base64," + base64.b64encode(b"ref-1").decode("utf-8")
+    second_image = "data:image/jpeg;base64," + base64.b64encode(b"ref-2").decode(
+        "utf-8"
+    )
+    generated_b64 = base64.b64encode(b"generated" * 32).decode("utf-8")
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"content-type": "application/json"}
+        text = json.dumps({"data": [{"b64_json": generated_b64}]})
+
+        def json(self):
+            return json.loads(self.text)
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            captured["client_kwargs"] = kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, url, **kwargs):
+            captured["url"] = url
+            captured["post_kwargs"] = kwargs
+            return FakeResponse()
+
+    uploaded = {}
+
+    def fake_upload_image(request, payload, image_data, content_type, user):
+        uploaded["payload"] = payload
+        uploaded["image_data"] = image_data
+        uploaded["content_type"] = content_type
+        return "/images/generated.png"
+
+    monkeypatch.setattr(images_router.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(images_router, "upload_image", fake_upload_image)
+    monkeypatch.setattr(
+        images_router.openai_router,
+        "_should_use_responses_api",
+        lambda *_args, **_kwargs: False,
+    )
+
+    result = asyncio.run(
+        images_router._generate_via_openai_chat_image(
+            request=SimpleNamespace(),
+            user=_make_user(),
+            model_id="gpt-image-2",
+            prompt="combine both references",
+            source={
+                "base_url": "https://api.openai.com/v1",
+                "key": "sk-test",
+                "api_config": {},
+            },
+            stream=False,
+            image_url=first_image,
+            image_urls=[first_image, second_image],
+        )
+    )
+
+    content = captured["post_kwargs"]["json"]["messages"][0]["content"]
+    image_parts = [part for part in content if part["type"] == "image_url"]
+    assert [part["image_url"]["url"] for part in image_parts] == [
+        first_image,
+        second_image,
+    ]
+    assert uploaded["payload"]["input_image_count"] == 2
+    assert uploaded["payload"]["input_image_mimes"] == ["image/png", "image/jpeg"]
+    assert uploaded["payload"]["input_image_bytes"] == [5, 5]
+    assert uploaded["image_data"] == b"generated" * 32
+    assert uploaded["content_type"] == "image/png"
+    assert result == [{"url": "/images/generated.png"}]
+
+
+def test_generate_via_openai_chat_image_stream_parses_split_image_url(monkeypatch):
+    captured = {}
+    generated_url = "https://cdn.example.com/generated.png?token=abc"
+
+    class FakeStreamResponse:
+        status_code = 200
+        headers = {"content-type": "text/event-stream"}
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def aiter_lines(self):
+            yield 'data: {"choices":[{"delta":{"content":"![result]("}}]}'
+            yield (
+                "data: "
+                + json.dumps({"choices": [{"delta": {"content": generated_url[:24]}}]})
+            )
+            yield (
+                "data: "
+                + json.dumps(
+                    {"choices": [{"delta": {"content": generated_url[24:] + ")"}}]}
+                )
+            )
+            yield "data: [DONE]"
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            captured["client_kwargs"] = kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def stream(self, method, url, **kwargs):
+            captured["method"] = method
+            captured["url"] = url
+            captured["stream_kwargs"] = kwargs
+            return FakeStreamResponse()
+
+    uploaded = {}
+
+    def fake_upload_image(request, payload, image_data, content_type, user):
+        uploaded["payload"] = payload
+        uploaded["image_data"] = image_data
+        uploaded["content_type"] = content_type
+        return "/images/generated-from-stream.png"
+
+    monkeypatch.setattr(images_router.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(
+        images_router,
+        "load_url_image_data",
+        lambda url, headers=None, allowed_base_urls=None: (
+            b"stream-image",
+            "image/png",
+        ),
+    )
+    monkeypatch.setattr(images_router, "upload_image", fake_upload_image)
+    monkeypatch.setattr(
+        images_router.openai_router,
+        "_should_use_responses_api",
+        lambda *_args, **_kwargs: False,
+    )
+
+    result = asyncio.run(
+        images_router._generate_via_openai_chat_image(
+            request=SimpleNamespace(),
+            user=_make_user(),
+            model_id="gpt-image-2",
+            prompt="generate from references",
+            source={
+                "base_url": "https://api.openai.com/v1",
+                "key": "sk-test",
+                "api_config": {},
+            },
+            stream=True,
+        )
+    )
+
+    assert captured["url"] == "https://api.openai.com/v1/chat/completions"
+    assert uploaded["image_data"] == b"stream-image"
+    assert uploaded["content_type"] == "image/png"
+    assert result == [{"url": "/images/generated-from-stream.png"}]
+
+
+def test_generate_via_openai_responses_image_sends_all_reference_images(monkeypatch):
+    captured = {}
+    first_image = "data:image/png;base64," + base64.b64encode(b"ref-1").decode("utf-8")
+    second_image = "data:image/png;base64," + base64.b64encode(b"ref-2").decode("utf-8")
+    generated_b64 = base64.b64encode(b"generated" * 32).decode("utf-8")
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"content-type": "application/json"}
+        text = json.dumps(
+            {
+                "output": [
+                    {
+                        "type": "image_generation_call",
+                        "result": generated_b64,
+                    }
+                ],
+                "usage": {"output_tokens": 1},
+            }
+        )
+
+        def json(self):
+            return json.loads(self.text)
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            captured["client_kwargs"] = kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, url, **kwargs):
+            captured["url"] = url
+            captured["post_kwargs"] = kwargs
+            return FakeResponse()
+
+    monkeypatch.setattr(images_router.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(
+        images_router,
+        "upload_image",
+        lambda request, payload, image_data, content_type, user: "/images/generated.png",
+    )
+    monkeypatch.setattr(
+        images_router.openai_router,
+        "_should_use_responses_api",
+        lambda *_args, **_kwargs: False,
+    )
+
+    result = asyncio.run(
+        images_router._generate_via_openai_chat_image(
+            request=SimpleNamespace(),
+            user=_make_user(),
+            model_id="gpt-image-2",
+            prompt="combine both references",
+            source={
+                "base_url": "https://api.openai.com/v1",
+                "key": "sk-test",
+                "api_config": {},
+            },
+            stream=False,
+            image_url=first_image,
+            image_urls=[first_image, second_image],
+            prefer_responses=True,
+        )
+    )
+
+    content = captured["post_kwargs"]["json"]["input"][0]["content"]
+    image_parts = [part for part in content if part["type"] == "input_image"]
+    assert [part["image_url"] for part in image_parts] == [
+        first_image,
+        second_image,
+    ]
+    assert result == [{"url": "/images/generated.png", "usage": {"output_tokens": 1}}]
+
+
+def test_generate_via_gemini_generate_content_sends_all_reference_images(monkeypatch):
+    captured = {}
+    first_image = "data:image/png;base64," + base64.b64encode(b"ref-1").decode("utf-8")
+    second_image = "data:image/jpeg;base64," + base64.b64encode(b"ref-2").decode(
+        "utf-8"
+    )
+
+    def fake_post_json_with_attempts(attempts, payload):
+        captured["attempts"] = attempts
+        captured["payload"] = payload
+        return SimpleNamespace(), "https://generativelanguage.googleapis.com/v1beta"
+
+    monkeypatch.setattr(
+        images_router,
+        "_post_json_with_attempts",
+        fake_post_json_with_attempts,
+    )
+    monkeypatch.setattr(
+        images_router,
+        "_parse_upstream_json_response",
+        lambda response, default_message: {},
+    )
+    monkeypatch.setattr(
+        images_router,
+        "_extract_generated_images_from_gemini_response",
+        lambda body: [(b"generated", "image/png")],
+    )
+    monkeypatch.setattr(
+        images_router,
+        "upload_image",
+        lambda request, payload, image_data, content_type, user: "/images/generated.png",
+    )
+
+    result = asyncio.run(
+        images_router._generate_via_gemini_generate_content(
+            request=SimpleNamespace(),
+            user=_make_user(),
+            model_id="gemini-3.1-flash-image-preview",
+            prompt="combine both references",
+            image_size=None,
+            aspect_ratio=None,
+            source={
+                "base_url": "https://generativelanguage.googleapis.com/v1beta",
+                "key": "gemini-key",
+                "api_config": {},
+            },
+            image_url=first_image,
+            image_urls=[first_image, second_image],
+        )
+    )
+
+    parts = captured["payload"]["contents"][0]["parts"]
+    image_parts = [part["inline_data"] for part in parts if "inline_data" in part]
+    assert [part["mime_type"] for part in image_parts] == ["image/png", "image/jpeg"]
+    assert [base64.b64decode(part["data"]) for part in image_parts] == [
+        b"ref-1",
+        b"ref-2",
+    ]
+    assert result == [{"url": "/images/generated.png"}]
+
+
 def test_generate_via_openai_images_endpoint_uses_native_request(monkeypatch):
     captured = {}
 
@@ -305,7 +760,9 @@ def test_generate_via_openai_images_endpoint_uses_native_request(monkeypatch):
                 {
                     "data": [
                         {
-                            "b64_json": base64.b64encode(b"generated" * 32).decode("utf-8")
+                            "b64_json": base64.b64encode(b"generated" * 32).decode(
+                                "utf-8"
+                            )
                         }
                     ]
                 }
@@ -357,7 +814,9 @@ def test_generate_via_openai_images_endpoint_honors_non_stream_request(monkeypat
                 {
                     "data": [
                         {
-                            "b64_json": base64.b64encode(b"generated" * 32).decode("utf-8")
+                            "b64_json": base64.b64encode(b"generated" * 32).decode(
+                                "utf-8"
+                            )
                         }
                     ]
                 }
@@ -407,7 +866,9 @@ def test_generate_via_openai_images_endpoint_uses_configured_size(monkeypatch):
                 {
                     "data": [
                         {
-                            "b64_json": base64.b64encode(b"generated" * 32).decode("utf-8")
+                            "b64_json": base64.b64encode(b"generated" * 32).decode(
+                                "utf-8"
+                            )
                         }
                     ]
                 }
@@ -460,7 +921,9 @@ def test_generate_via_openai_images_endpoint_retries_api_key_pool(monkeypatch):
                 {
                     "data": [
                         {
-                            "b64_json": base64.b64encode(b"generated" * 32).decode("utf-8")
+                            "b64_json": base64.b64encode(b"generated" * 32).decode(
+                                "utf-8"
+                            )
                         }
                     ]
                 }
@@ -508,7 +971,9 @@ def test_generate_via_openai_images_endpoint_retries_api_key_pool(monkeypatch):
     assert calls[1]["headers"]["Authorization"] == "Bearer sk-b"
 
 
-def test_generate_via_openai_images_endpoint_splits_batch_into_single_requests(monkeypatch):
+def test_generate_via_openai_images_endpoint_splits_batch_into_single_requests(
+    monkeypatch,
+):
     calls = []
 
     async def fake_send(**kwargs):
@@ -518,13 +983,7 @@ def test_generate_via_openai_images_endpoint_splits_batch_into_single_requests(m
             "status": 200,
             "headers": {"content-type": "application/json"},
             "response_body": json.dumps(
-                {
-                    "data": [
-                        {
-                            "b64_json": base64.b64encode(image_bytes).decode("utf-8")
-                        }
-                    ]
-                }
+                {"data": [{"b64_json": base64.b64encode(image_bytes).decode("utf-8")}]}
             ),
         }
 
@@ -565,7 +1024,9 @@ def test_generate_via_openai_images_endpoint_splits_batch_into_single_requests(m
     ]
 
 
-def test_generate_via_openai_images_endpoint_uses_b64_response_format_for_dalle(monkeypatch):
+def test_generate_via_openai_images_endpoint_uses_b64_response_format_for_dalle(
+    monkeypatch,
+):
     captured = {}
 
     async def fake_send(**kwargs):
@@ -577,7 +1038,9 @@ def test_generate_via_openai_images_endpoint_uses_b64_response_format_for_dalle(
                 {
                     "data": [
                         {
-                            "b64_json": base64.b64encode(b"generated" * 32).decode("utf-8")
+                            "b64_json": base64.b64encode(b"generated" * 32).decode(
+                                "utf-8"
+                            )
                         }
                     ]
                 }
@@ -624,7 +1087,9 @@ def test_generate_via_openai_images_endpoint_strips_connection_prefix(monkeypatc
                 {
                     "data": [
                         {
-                            "b64_json": base64.b64encode(b"generated" * 32).decode("utf-8")
+                            "b64_json": base64.b64encode(b"generated" * 32).decode(
+                                "utf-8"
+                            )
                         }
                     ]
                 }
@@ -661,7 +1126,9 @@ def test_generate_via_openai_images_endpoint_strips_connection_prefix(monkeypatc
     assert "response_format" not in captured["json_body"]
 
 
-def test_generate_via_openai_images_endpoint_strips_internal_prefix_without_config_prefix(monkeypatch):
+def test_generate_via_openai_images_endpoint_strips_internal_prefix_without_config_prefix(
+    monkeypatch,
+):
     captured = {}
 
     async def fake_send(**kwargs):
@@ -673,7 +1140,9 @@ def test_generate_via_openai_images_endpoint_strips_internal_prefix_without_conf
                 {
                     "data": [
                         {
-                            "b64_json": base64.b64encode(b"generated" * 32).decode("utf-8")
+                            "b64_json": base64.b64encode(b"generated" * 32).decode(
+                                "utf-8"
+                            )
                         }
                     ]
                 }
@@ -718,9 +1187,7 @@ def test_generate_via_openai_image_edits_endpoint_uses_native_request(monkeypatc
             "response_body": json.dumps(
                 {
                     "data": [
-                        {
-                            "b64_json": base64.b64encode(b"edited" * 32).decode("utf-8")
-                        }
+                        {"b64_json": base64.b64encode(b"edited" * 32).decode("utf-8")}
                     ]
                 }
             ),
@@ -766,7 +1233,9 @@ def test_generate_via_openai_image_edits_endpoint_uses_native_request(monkeypatc
     assert result == [{"url": "/images/edited.png"}]
 
 
-def test_generate_via_openai_image_edits_endpoint_splits_batch_into_single_requests(monkeypatch):
+def test_generate_via_openai_image_edits_endpoint_splits_batch_into_single_requests(
+    monkeypatch,
+):
     calls = []
 
     async def fake_send(**kwargs):
@@ -776,13 +1245,7 @@ def test_generate_via_openai_image_edits_endpoint_splits_batch_into_single_reque
             "status": 200,
             "headers": {"content-type": "application/json"},
             "response_body": json.dumps(
-                {
-                    "data": [
-                        {
-                            "b64_json": base64.b64encode(image_bytes).decode("utf-8")
-                        }
-                    ]
-                }
+                {"data": [{"b64_json": base64.b64encode(image_bytes).decode("utf-8")}]}
             ),
         }
 
@@ -841,9 +1304,7 @@ def test_generate_via_openai_image_edits_endpoint_strips_connection_prefix(monke
             "response_body": json.dumps(
                 {
                     "data": [
-                        {
-                            "b64_json": base64.b64encode(b"edited" * 32).decode("utf-8")
-                        }
+                        {"b64_json": base64.b64encode(b"edited" * 32).decode("utf-8")}
                     ]
                 }
             ),

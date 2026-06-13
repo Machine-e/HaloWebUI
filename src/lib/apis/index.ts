@@ -9,10 +9,12 @@ import { parseJsonResponse, parseTextResponse } from './response';
 export const getModels = async (
 	token: string = '',
 	connections: object | null = null,
-	base: boolean = false
+	base: boolean = false,
+	opts: { refresh?: boolean } = {}
 ) => {
 	let error = null;
-	const res = await fetch(`${WEBUI_BASE_URL}/api/models${base ? '/base' : ''}`, {
+	const query = opts.refresh ? '?refresh=true' : '';
+	const res = await fetch(`${WEBUI_BASE_URL}/api/models${base ? '/base' : ''}${query}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',

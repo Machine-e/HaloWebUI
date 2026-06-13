@@ -50,6 +50,14 @@ from open_webui.utils.shared_tool_servers import (
 router = APIRouter()
 
 
+def _invalidate_model_cache_for_config_change(request: Request) -> None:
+    from open_webui.utils.models import invalidate_base_model_cache
+
+    request.app.state.BASE_MODELS = None
+    request.app.state.MODELS = {}
+    invalidate_base_model_cache()
+
+
 def _sanitize_connection_shared_fields(connection: dict) -> dict:
     payload = strip_connection_share_runtime_fields(connection)
     shared_id = get_connection_shared_id(connection)
@@ -237,9 +245,13 @@ async def set_direct_connections_config(
     form_data: DirectConnectionsConfigForm,
     user=Depends(get_admin_user),
 ):
+    prev_direct_enabled = request.app.state.config.ENABLE_DIRECT_CONNECTIONS
     request.app.state.config.ENABLE_DIRECT_CONNECTIONS = (
         form_data.ENABLE_DIRECT_CONNECTIONS
     )
+    if prev_direct_enabled != form_data.ENABLE_DIRECT_CONNECTIONS:
+        _invalidate_model_cache_for_config_change(request)
+
     return {
         "ENABLE_DIRECT_CONNECTIONS": request.app.state.config.ENABLE_DIRECT_CONNECTIONS,
     }
@@ -267,19 +279,24 @@ async def get_connections_config(request: Request, user=Depends(get_admin_user))
 async def set_connections_config(
     request: Request, form_data: ConnectionsConfigForm, user=Depends(get_admin_user)
 ):
+    prev_direct_enabled = request.app.state.config.ENABLE_DIRECT_CONNECTIONS
     prev_cache_enabled = request.app.state.config.ENABLE_BASE_MODELS_CACHE
 
     request.app.state.config.ENABLE_DIRECT_CONNECTIONS = form_data.ENABLE_DIRECT_CONNECTIONS
     request.app.state.config.ENABLE_BASE_MODELS_CACHE = form_data.ENABLE_BASE_MODELS_CACHE
 
+    config_changed = (
+        prev_direct_enabled != form_data.ENABLE_DIRECT_CONNECTIONS
+        or prev_cache_enabled != form_data.ENABLE_BASE_MODELS_CACHE
+    )
+
+    if config_changed:
+        _invalidate_model_cache_for_config_change(request)
+
     # If the cache is (re-)enabled, warm it once at save time (in background).
     if request.app.state.config.ENABLE_BASE_MODELS_CACHE and (
-        not prev_cache_enabled or getattr(request.app.state, "BASE_MODELS", None) is None
+        config_changed or getattr(request.app.state, "BASE_MODELS", None) is None
     ):
-        from open_webui.utils.models import invalidate_base_model_cache
-
-        request.app.state.BASE_MODELS = None
-        invalidate_base_model_cache()
         try:
             from open_webui.utils.models import get_all_base_models
 

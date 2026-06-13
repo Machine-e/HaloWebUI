@@ -23,9 +23,12 @@
 	import { exportConfig, importConfig } from '$lib/apis/configs';
 	import {
 		downloadDatabase,
+		inspectDatabaseMerge,
 		inspectDatabaseRestore,
+		mergeDatabaseBackup,
 		restoreDatabase,
-		type DatabaseBackupKind
+		type DatabaseBackupKind,
+		type DatabaseMergePlan
 	} from '$lib/apis/utils';
 	import { convertOpenAIChats, getImportOrigin } from '$lib/utils';
 
@@ -34,12 +37,14 @@
 
 	type DataManagementTab = 'chatManagement' | 'backups' | 'dangerZone';
 	type ImportMode = 'merge' | 'replace';
+	type DatabaseBackupApplyMode = 'merge' | 'restore';
 	type OperationKey =
 		| 'chatImport'
 		| 'chatExport'
 		| 'configImport'
 		| 'configExport'
 		| 'databaseExport'
+		| 'databaseMerge'
 		| 'databaseRestore'
 		| 'allUserChatsExport'
 		| 'archiveAll'
@@ -84,12 +89,14 @@
 		fileName: string;
 		fileSize: number;
 		kind: DatabaseBackupKind;
+		mode: DatabaseBackupApplyMode;
 	};
 
 	type DatabaseRestoreDraft = {
 		fileName: string;
 		fileSize: number;
 		kind: DatabaseBackupKind;
+		mode: DatabaseBackupApplyMode;
 		token: string;
 		warnings: string[];
 		summary: {
@@ -103,7 +110,9 @@
 			missing_upload_count?: number;
 			orphan_upload_count?: number;
 		};
+		merge?: DatabaseMergePlan;
 		confirmationPhrase: string;
+		confirmMerge: boolean;
 		confirmOverwrite: boolean;
 	};
 
@@ -120,6 +129,7 @@
 		configImport: createInitialOperationState(),
 		configExport: createInitialOperationState(),
 		databaseExport: createInitialOperationState(),
+		databaseMerge: createInitialOperationState(),
 		databaseRestore: createInitialOperationState(),
 		allUserChatsExport: createInitialOperationState(),
 		archiveAll: createInitialOperationState(),
@@ -175,6 +185,7 @@
 	let showArchivedChatsModal = false;
 	let showDatabaseExportModal = false;
 	let showDatabaseRestoreModal = false;
+	let databaseBackupApplyMode: DatabaseBackupApplyMode = 'merge';
 	let databaseExportKind: DatabaseBackupKind = 'sqlite';
 
 	let chatImportDraft: ChatImportDraft | null = null;
@@ -291,8 +302,7 @@
 						meta: isRecord(item.meta) ? item.meta : {},
 						pinned: Boolean(item.pinned),
 						folder_id: typeof item.folder_id === 'string' ? item.folder_id : null,
-						assistant_id:
-							typeof item.assistant_id === 'string' ? item.assistant_id : null,
+						assistant_id: typeof item.assistant_id === 'string' ? item.assistant_id : null,
 						title:
 							typeof item.title === 'string'
 								? item.title
@@ -347,15 +357,22 @@
 		databaseRestoreDraft = null;
 	};
 
+	const getDatabaseOperationKey = (mode: DatabaseBackupApplyMode) =>
+		mode === 'merge' ? 'databaseMerge' : 'databaseRestore';
+
 	const cancelDatabaseRestoreInspection = () => {
+		const mode = databaseRestoreInspectingFile?.mode ?? databaseBackupApplyMode;
+		const operationKey = getDatabaseOperationKey(mode);
 		databaseRestoreInspectionController?.abort();
 		databaseRestoreInspectionController = null;
 		databaseRestoreInspectingFile = null;
 		setOperationState(
-			'databaseRestore',
+			operationKey,
 			'warning',
 			$i18n.t('Database backup inspection cancelled.'),
-			$i18n.t('No restore has been performed.')
+			$i18n.t(
+				mode === 'merge' ? 'No merge import has been performed.' : 'No restore has been performed.'
+			)
 		);
 	};
 
@@ -368,12 +385,7 @@
 		const file = target?.files?.[0];
 		if (!file) return;
 
-		setOperationState(
-			'chatImport',
-			'validating',
-			$i18n.t('Checking chat file...'),
-			file.name
-		);
+		setOperationState('chatImport', 'validating', $i18n.t('Checking chat file...'), file.name);
 
 		try {
 			const rawContent = JSON.parse(await readFileText(file));
@@ -688,6 +700,20 @@
 			? $i18n.t('Full backup restore expects a .hwbk or .zip package.')
 			: $i18n.t('Database-only restore expects a SQLite backup file.');
 
+	const getDatabaseApplyKindTitle = () => $i18n.t('Import Database Backup');
+
+	const getDatabaseApplyKindDescription = () =>
+		$i18n.t('Choose import mode and backup type before selecting a backup file.');
+
+	const getDatabaseApplyKindGuardText = () =>
+		databaseBackupApplyMode === 'merge'
+			? $i18n.t(
+					'If the file type does not match the selected merge import type, the import will be blocked before any data is changed.'
+				)
+			: $i18n.t(
+					'If the file type does not match the selected restore type, the restore will be blocked before any data is changed.'
+				);
+
 	const getDatabaseRestoreSummaryDetail = (draft: DatabaseRestoreDraft) => {
 		const tableDetail = $i18n.t('Found {{count}} tables in the backup.', {
 			count: draft.summary.table_count
@@ -702,6 +728,26 @@
 			size: formatBytes(draft.summary.upload_bytes ?? 0)
 		})}`;
 	};
+
+	const getDatabaseMergeSummaryDetail = (draft: DatabaseRestoreDraft) => {
+		if (!draft.merge) {
+			return getDatabaseRestoreSummaryDetail(draft);
+		}
+
+		return $i18n.t(
+			'Merge preview: {{insertRows}} new rows, {{existingRows}} existing rows skipped, {{chatMessages}} chat messages added.',
+			{
+				insertRows: draft.merge.insert_rows,
+				existingRows: draft.merge.skip_existing_rows,
+				chatMessages: draft.merge.chat_messages_merged
+			}
+		);
+	};
+
+	const getDatabaseApplySummaryDetail = (draft: DatabaseRestoreDraft) =>
+		draft.mode === 'merge'
+			? getDatabaseMergeSummaryDetail(draft)
+			: getDatabaseRestoreSummaryDetail(draft);
 
 	const backupChoiceClass = (active: boolean) =>
 		`w-full rounded-lg border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/20 ${
@@ -721,6 +767,24 @@
 				? 'border-emerald-300 bg-white dark:border-emerald-700 dark:bg-gray-900'
 				: 'border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900'
 		}`;
+	const databaseApplyPanelClass = (mode: DatabaseBackupApplyMode) =>
+		`rounded-2xl border p-3 space-y-3 ${
+			mode === 'merge'
+				? 'border-emerald-200/70 bg-emerald-50/40 dark:border-emerald-800/40 dark:bg-emerald-950/10'
+				: 'border-red-200/70 bg-red-50/40 dark:border-red-800/40 dark:bg-red-950/10'
+		}`;
+	const databaseApplyTextClass = (mode: DatabaseBackupApplyMode) =>
+		mode === 'merge' ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300';
+	const databaseApplyNoticeClass = (mode: DatabaseBackupApplyMode) =>
+		`rounded-xl border bg-white/80 px-3 py-2 text-xs dark:bg-gray-900/60 ${
+			mode === 'merge'
+				? 'border-emerald-200/70 text-emerald-700 dark:border-emerald-800/40 dark:text-emerald-300'
+				: 'border-red-200/70 text-red-700 dark:border-red-800/40 dark:text-red-300'
+		}`;
+	const databaseApplyBadgeClass = (mode: DatabaseBackupApplyMode) =>
+		mode === 'merge'
+			? 'border-emerald-200/70 bg-white/80 text-emerald-700 dark:border-emerald-800/40 dark:bg-gray-900/60 dark:text-emerald-300'
+			: 'border-red-200/70 bg-white/80 text-red-700 dark:border-red-800/40 dark:bg-gray-900/60 dark:text-red-300';
 
 	const openDatabaseExportModal = () => {
 		databaseExportKind = 'sqlite';
@@ -748,9 +812,7 @@
 		try {
 			await downloadDatabase(localStorage.token, kind);
 			const detail = $i18n.t(
-				kind === 'full'
-					? 'Full backup download started.'
-					: 'Database backup download started.'
+				kind === 'full' ? 'Full backup download started.' : 'Database backup download started.'
 			);
 			setOperationState(
 				'databaseExport',
@@ -771,7 +833,8 @@
 		}
 	};
 
-	const openDatabaseRestoreModal = () => {
+	const openDatabaseRestoreModal = (mode: DatabaseBackupApplyMode = 'merge') => {
+		databaseBackupApplyMode = mode;
 		databaseRestoreKind = 'sqlite';
 		showDatabaseRestoreModal = true;
 	};
@@ -792,10 +855,13 @@
 		const file = target?.files?.[0];
 		if (!file) return;
 
+		const applyMode = databaseBackupApplyMode;
+		const operationKey = getDatabaseOperationKey(applyMode);
+
 		if (!isDatabaseRestoreFileAllowed(file.name, databaseRestoreKind)) {
 			const detail = getDatabaseRestoreKindMismatchMessage(databaseRestoreKind);
 			resetDatabaseRestoreDraft();
-			setOperationState('databaseRestore', 'error', $i18n.t('Backup type does not match.'), detail);
+			setOperationState(operationKey, 'error', $i18n.t('Backup type does not match.'), detail);
 			toast.error(detail);
 			if (target) {
 				target.value = '';
@@ -808,7 +874,8 @@
 		databaseRestoreInspectingFile = {
 			fileName: file.name,
 			fileSize: file.size,
-			kind: databaseRestoreKind
+			kind: databaseRestoreKind,
+			mode: applyMode
 		};
 		const controller = new AbortController();
 		databaseRestoreInspectionController = controller;
@@ -817,36 +884,53 @@
 		}, DATABASE_RESTORE_INSPECT_TIMEOUT_MS);
 
 		setOperationState(
-			'databaseRestore',
+			operationKey,
 			'validating',
-			$i18n.t('Inspecting database backup...'),
+			$i18n.t(
+				applyMode === 'merge'
+					? 'Inspecting backup for merge import...'
+					: 'Inspecting database backup...'
+			),
 			`${getBackupKindLabel(databaseRestoreKind)} · ${file.name}`
 		);
 
 		try {
-			const response = await inspectDatabaseRestore(
-				localStorage.token,
-				file,
-				databaseRestoreKind,
-				controller.signal
-			);
+			const response =
+				applyMode === 'merge'
+					? await inspectDatabaseMerge(
+							localStorage.token,
+							file,
+							databaseRestoreKind,
+							controller.signal
+						)
+					: await inspectDatabaseRestore(
+							localStorage.token,
+							file,
+							databaseRestoreKind,
+							controller.signal
+						);
 			databaseRestoreInspectingFile = null;
 			databaseRestoreDraft = {
 				fileName: response.filename,
 				fileSize: response.size,
 				kind: response.kind,
+				mode: applyMode,
 				token: response.token,
 				warnings: response.warnings ?? [],
 				summary: response.summary,
+				merge: applyMode === 'merge' ? response.merge : undefined,
 				confirmationPhrase: response.confirmation,
+				confirmMerge: false,
 				confirmOverwrite: false
 			};
 
 			setOperationState(
-				'databaseRestore',
+				operationKey,
 				response.warnings?.length ? 'warning' : 'success',
-				$i18n.t('Database backup verified.'),
-				getDatabaseRestoreSummaryDetail(databaseRestoreDraft)
+				$i18n.t(
+					applyMode === 'merge' ? 'Backup is ready to merge import.' : 'Database backup verified.'
+				),
+				getDatabaseApplySummaryDetail(databaseRestoreDraft)
 			);
 		} catch (error) {
 			if (controller.signal.aborted) {
@@ -854,20 +938,35 @@
 
 				databaseRestoreInspectingFile = null;
 				setOperationState(
-					'databaseRestore',
+					operationKey,
 					'warning',
 					$i18n.t('Database backup inspection cancelled.'),
-					$i18n.t('No restore has been performed.')
+					$i18n.t(
+						applyMode === 'merge'
+							? 'No merge import has been performed.'
+							: 'No restore has been performed.'
+					)
 				);
 				return;
 			}
 
 			resetDatabaseRestoreDraft();
-			const detail = formatError(error, $i18n.t('Failed to inspect database backup.'));
+			const detail = formatError(
+				error,
+				$i18n.t(
+					applyMode === 'merge'
+						? 'Failed to inspect backup for merge import.'
+						: 'Failed to inspect database backup.'
+				)
+			);
 			setOperationState(
-				'databaseRestore',
+				operationKey,
 				'error',
-				$i18n.t('Failed to inspect database backup.'),
+				$i18n.t(
+					applyMode === 'merge'
+						? 'Failed to inspect backup for merge import.'
+						: 'Failed to inspect database backup.'
+				),
 				detail
 			);
 			toast.error(detail);
@@ -884,32 +983,55 @@
 
 	const runDatabaseRestore = async () => {
 		if (!databaseRestoreDraft) return;
+		const operationKey = getDatabaseOperationKey(databaseRestoreDraft.mode);
 
-		if (!databaseRestoreDraft.confirmOverwrite) {
+		if (databaseRestoreDraft.mode === 'merge' && !databaseRestoreDraft.confirmMerge) {
+			databaseRestoreDraft = { ...databaseRestoreDraft, confirmMerge: true };
+			return;
+		}
+
+		if (databaseRestoreDraft.mode === 'restore' && !databaseRestoreDraft.confirmOverwrite) {
 			databaseRestoreDraft = { ...databaseRestoreDraft, confirmOverwrite: true };
 			return;
 		}
 
 		setOperationState(
-			'databaseRestore',
+			operationKey,
 			'running',
-			$i18n.t('Restoring database...'),
-			$i18n.t('The page will refresh after the restore finishes.')
+			$i18n.t(
+				databaseRestoreDraft.mode === 'merge' ? 'Merging backup data...' : 'Restoring database...'
+			),
+			$i18n.t('The page will refresh after the operation finishes.')
 		);
 
 		try {
-			await restoreDatabase(localStorage.token, {
+			const payload = {
 				token: databaseRestoreDraft.token,
 				confirmation: databaseRestoreDraft.confirmationPhrase
-			});
+			};
+			if (databaseRestoreDraft.mode === 'merge') {
+				await mergeDatabaseBackup(localStorage.token, payload);
+			} else {
+				await restoreDatabase(localStorage.token, payload);
+			}
 
 			setOperationState(
-				'databaseRestore',
+				operationKey,
 				'success',
-				$i18n.t('Database restored. Refreshing the page...'),
-				$i18n.t('The page will refresh after the restore finishes.')
+				$i18n.t(
+					databaseRestoreDraft.mode === 'merge'
+						? 'Backup merge import finished. Refreshing the page...'
+						: 'Database restored. Refreshing the page...'
+				),
+				$i18n.t('The page will refresh after the operation finishes.')
 			);
-			toast.success($i18n.t('Database restored. Refreshing the page...'));
+			toast.success(
+				$i18n.t(
+					databaseRestoreDraft.mode === 'merge'
+						? 'Backup merge import finished. Refreshing the page...'
+						: 'Database restored. Refreshing the page...'
+				)
+			);
 
 			setTimeout(() => {
 				if (typeof window !== 'undefined') {
@@ -917,11 +1039,22 @@
 				}
 			}, 500);
 		} catch (error) {
-			const detail = formatError(error, $i18n.t('Failed to restore database.'));
+			const detail = formatError(
+				error,
+				$i18n.t(
+					databaseRestoreDraft.mode === 'merge'
+						? 'Failed to merge import backup.'
+						: 'Failed to restore database.'
+				)
+			);
 			setOperationState(
-				'databaseRestore',
+				operationKey,
 				'error',
-				$i18n.t('Failed to restore database.'),
+				$i18n.t(
+					databaseRestoreDraft.mode === 'merge'
+						? 'Failed to merge import backup.'
+						: 'Failed to restore database.'
+				),
 				detail
 			);
 			toast.error(detail);
@@ -1072,7 +1205,9 @@
 							</div>
 						</div>
 						<div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
-							{$i18n.t('Exports the SQLite database only. Chat images and uploaded files are not included.')}
+							{$i18n.t(
+								'Exports the SQLite database only. Chat images and uploaded files are not included.'
+							)}
 						</div>
 					</div>
 				</div>
@@ -1098,15 +1233,23 @@
 							</div>
 						</div>
 						<div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
-							{$i18n.t('Exports the database and local uploaded files that are still referenced by the database.')}
+							{$i18n.t(
+								'Exports the database and local uploaded files that are still referenced by the database.'
+							)}
 						</div>
 					</div>
 				</div>
 			</button>
 		</div>
 
-		<div class="flex items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
-			<button class={modalSecondaryButton} type="button" on:click={() => (showDatabaseExportModal = false)}>
+		<div
+			class="flex items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800"
+		>
+			<button
+				class={modalSecondaryButton}
+				type="button"
+				on:click={() => (showDatabaseExportModal = false)}
+			>
 				{$i18n.t('Cancel')}
 			</button>
 			<button class={modalPrimaryButton} type="button" on:click={confirmDatabaseExport}>
@@ -1121,10 +1264,10 @@
 		<div class="flex items-start justify-between gap-4">
 			<div class="min-w-0 space-y-1">
 				<div class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-					{$i18n.t('Choose restore type')}
+					{getDatabaseApplyKindTitle()}
 				</div>
 				<div class="text-sm leading-5 text-gray-500 dark:text-gray-400">
-					{$i18n.t('Choose the backup type first. The uploaded file must match this choice.')}
+					{getDatabaseApplyKindDescription()}
 				</div>
 			</div>
 			<button
@@ -1137,70 +1280,144 @@
 			</button>
 		</div>
 
-		<div class="grid gap-2.5">
-			<button
-				class={backupChoiceClass(databaseRestoreKind === 'sqlite')}
-				type="button"
-				on:click={() => (databaseRestoreKind = 'sqlite')}
-			>
-				<div class="flex items-start gap-3">
-					<div class={backupChoiceIconClass(databaseRestoreKind === 'sqlite')}>
-						<Database className="size-4" strokeWidth={1.8} />
-					</div>
-					<div class="min-w-0 flex-1">
-						<div class="flex items-center justify-between gap-3">
+		<div class="space-y-2">
+			<div class="text-xs font-medium text-gray-500 dark:text-gray-400">
+				{$i18n.t('Import mode')}
+			</div>
+			<div class="grid gap-2 sm:grid-cols-2">
+				<button
+					type="button"
+					class={`w-full rounded-lg border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/20 ${databaseBackupApplyMode === 'merge' ? 'border-emerald-200 bg-emerald-50/35 shadow-sm shadow-emerald-100/30 dark:border-emerald-800/60 dark:bg-emerald-950/15 dark:shadow-none' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:border-gray-700 dark:hover:bg-gray-800/50'}`}
+					on:click={() => (databaseBackupApplyMode = 'merge')}
+				>
+					<div class="flex items-start justify-between gap-3">
+						<div class="min-w-0 space-y-1">
 							<div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-								{$i18n.t('Database only')}
+								{$i18n.t('Merge import')}
 							</div>
-							<div class={backupChoiceMarkClass(databaseRestoreKind === 'sqlite')}>
-								{#if databaseRestoreKind === 'sqlite'}
-									<span class="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
-								{/if}
+							<div class="text-xs leading-5 text-gray-500 dark:text-gray-400">
+								{$i18n.t(
+									'Add missing data from the backup without overwriting or deleting current data.'
+								)}
 							</div>
 						</div>
-						<div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
-							{$i18n.t('Use this for .db, .sqlite, .sqlite3, .backup, or .bak files.')}
+						<div class={backupChoiceMarkClass(databaseBackupApplyMode === 'merge')}>
+							{#if databaseBackupApplyMode === 'merge'}
+								<span class="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+							{/if}
 						</div>
 					</div>
-				</div>
-			</button>
-			<button
-				class={backupChoiceClass(databaseRestoreKind === 'full')}
-				type="button"
-				on:click={() => (databaseRestoreKind = 'full')}
-			>
-				<div class="flex items-start gap-3">
-					<div class={backupChoiceIconClass(databaseRestoreKind === 'full')}>
-						<Package className="size-4" strokeWidth={1.8} />
-					</div>
-					<div class="min-w-0 flex-1">
-						<div class="flex items-center justify-between gap-3">
+				</button>
+				<button
+					type="button"
+					class={`w-full rounded-lg border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/20 ${databaseBackupApplyMode === 'restore' ? 'border-red-200 bg-red-50/40 shadow-sm shadow-red-100/30 dark:border-red-800/60 dark:bg-red-950/15 dark:shadow-none' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:border-gray-700 dark:hover:bg-gray-800/50'}`}
+					on:click={() => (databaseBackupApplyMode = 'restore')}
+				>
+					<div class="flex items-start justify-between gap-3">
+						<div class="min-w-0 space-y-1">
 							<div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-								{$i18n.t('Full backup')}
+								{$i18n.t('Full restore')}
 							</div>
-							<div class={backupChoiceMarkClass(databaseRestoreKind === 'full')}>
-								{#if databaseRestoreKind === 'full'}
-									<span class="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
-								{/if}
+							<div class="text-xs leading-5 text-gray-500 dark:text-gray-400">
+								{$i18n.t(
+									'Overwrite current database with the selected backup. Use only when you need a full rollback.'
+								)}
 							</div>
 						</div>
-						<div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
-							{$i18n.t('Use this for .hwbk or .zip packages that include database and referenced local uploads.')}
+						<div class={backupChoiceMarkClass(databaseBackupApplyMode === 'restore')}>
+							{#if databaseBackupApplyMode === 'restore'}
+								<span class="size-1.5 rounded-full bg-red-500 dark:bg-red-400" />
+							{/if}
 						</div>
 					</div>
-				</div>
-			</button>
+				</button>
+			</div>
 		</div>
 
-		<div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600 dark:border-gray-800 dark:bg-gray-900/50 dark:text-gray-400">
-			{$i18n.t('If the file type does not match the selected restore type, the restore will be blocked before any data is changed.')}
+		<div class="space-y-2">
+			<div class="text-xs font-medium text-gray-500 dark:text-gray-400">
+				{$i18n.t('Backup type')}
+			</div>
+			<div class="grid gap-2.5">
+				<button
+					class={backupChoiceClass(databaseRestoreKind === 'sqlite')}
+					type="button"
+					on:click={() => (databaseRestoreKind = 'sqlite')}
+				>
+					<div class="flex items-start gap-3">
+						<div class={backupChoiceIconClass(databaseRestoreKind === 'sqlite')}>
+							<Database className="size-4" strokeWidth={1.8} />
+						</div>
+						<div class="min-w-0 flex-1">
+							<div class="flex items-center justify-between gap-3">
+								<div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+									{$i18n.t('Database only')}
+								</div>
+								<div class={backupChoiceMarkClass(databaseRestoreKind === 'sqlite')}>
+									{#if databaseRestoreKind === 'sqlite'}
+										<span class="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+									{/if}
+								</div>
+							</div>
+							<div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+								{$i18n.t('Use this for .db, .sqlite, .sqlite3, .backup, or .bak files.')}
+							</div>
+						</div>
+					</div>
+				</button>
+				<button
+					class={backupChoiceClass(databaseRestoreKind === 'full')}
+					type="button"
+					on:click={() => (databaseRestoreKind = 'full')}
+				>
+					<div class="flex items-start gap-3">
+						<div class={backupChoiceIconClass(databaseRestoreKind === 'full')}>
+							<Package className="size-4" strokeWidth={1.8} />
+						</div>
+						<div class="min-w-0 flex-1">
+							<div class="flex items-center justify-between gap-3">
+								<div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+									{$i18n.t('Full backup')}
+								</div>
+								<div class={backupChoiceMarkClass(databaseRestoreKind === 'full')}>
+									{#if databaseRestoreKind === 'full'}
+										<span class="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+									{/if}
+								</div>
+							</div>
+							<div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+								{$i18n.t(
+									'Use this for .hwbk or .zip packages that include database and referenced local uploads.'
+								)}
+							</div>
+						</div>
+					</div>
+				</button>
+			</div>
 		</div>
 
-		<div class="flex items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
-			<button class={modalSecondaryButton} type="button" on:click={() => (showDatabaseRestoreModal = false)}>
+		<div
+			class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600 dark:border-gray-800 dark:bg-gray-900/50 dark:text-gray-400"
+		>
+			{getDatabaseApplyKindGuardText()}
+		</div>
+
+		<div
+			class="flex items-center justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800"
+		>
+			<button
+				class={modalSecondaryButton}
+				type="button"
+				on:click={() => (showDatabaseRestoreModal = false)}
+			>
 				{$i18n.t('Cancel')}
 			</button>
-			<button class={modalPrimaryButton} type="button" on:click={confirmDatabaseRestoreKind} disabled={!databaseRestoreSupport.supported}>
+			<button
+				class={modalPrimaryButton}
+				type="button"
+				on:click={confirmDatabaseRestoreKind}
+				disabled={!databaseRestoreSupport.supported}
+			>
 				{$i18n.t('Choose file')}
 			</button>
 		</div>
@@ -1216,17 +1433,54 @@
 						<div class="flex items-start gap-3">
 							<div class="glass-icon-badge {activeTabMeta.badgeColor}">
 								{#if selectedTab === 'chatManagement'}
-									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-[18px] {activeTabMeta.iconColor}">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M14 9a2 2 0 0 1-2 2H6l-4 4V4c0-1.1.9-2 2-2h8a2 2 0 0 1 2 2z" />
-										<path stroke-linecap="round" stroke-linejoin="round" d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1" />
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke-width="1.5"
+										stroke="currentColor"
+										class="size-[18px] {activeTabMeta.iconColor}"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M14 9a2 2 0 0 1-2 2H6l-4 4V4c0-1.1.9-2 2-2h8a2 2 0 0 1 2 2z"
+										/>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"
+										/>
 									</svg>
 								{:else if selectedTab === 'backups'}
-									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-[18px] {activeTabMeta.iconColor}">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke-width="1.5"
+										stroke="currentColor"
+										class="size-[18px] {activeTabMeta.iconColor}"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"
+										/>
 									</svg>
 								{:else}
-									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-[18px] {activeTabMeta.iconColor}">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke-width="1.5"
+										stroke="currentColor"
+										class="size-[18px] {activeTabMeta.iconColor}"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+										/>
 									</svg>
 								{/if}
 							</div>
@@ -1241,21 +1495,66 @@
 						</div>
 					</div>
 
-					<div class="inline-flex max-w-full flex-wrap items-center gap-1.5 self-start rounded-xl bg-gray-100/70 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:bg-gray-850/80 dark:shadow-none @[64rem]:flex-nowrap @[64rem]:shrink-0">
+					<div
+						class="inline-flex max-w-full flex-wrap items-center gap-1.5 self-start rounded-xl bg-gray-100/70 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:bg-gray-850/80 dark:shadow-none @[64rem]:flex-nowrap @[64rem]:shrink-0"
+					>
 						{#each visibleTabs as tab}
-							<button type="button" class={`flex min-w-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${selectedTab === tab ? 'bg-white text-gray-900 shadow-[0_1px_3px_rgba(15,23,42,0.08)] dark:bg-gray-800 dark:text-white' : 'text-gray-500 hover:bg-white/50 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'}`} on:click={() => { selectedTab = tab; }}>
+							<button
+								type="button"
+								class={`flex min-w-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${selectedTab === tab ? 'bg-white text-gray-900 shadow-[0_1px_3px_rgba(15,23,42,0.08)] dark:bg-gray-800 dark:text-white' : 'text-gray-500 hover:bg-white/50 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'}`}
+								on:click={() => {
+									selectedTab = tab;
+								}}
+							>
 								{#if tab === 'chatManagement'}
-									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M14 9a2 2 0 0 1-2 2H6l-4 4V4c0-1.1.9-2 2-2h8a2 2 0 0 1 2 2z" />
-										<path stroke-linecap="round" stroke-linejoin="round" d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1" />
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke-width="1.5"
+										stroke="currentColor"
+										class="size-4"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M14 9a2 2 0 0 1-2 2H6l-4 4V4c0-1.1.9-2 2-2h8a2 2 0 0 1 2 2z"
+										/>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"
+										/>
 									</svg>
 								{:else if tab === 'backups'}
-									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke-width="1.5"
+										stroke="currentColor"
+										class="size-4"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"
+										/>
 									</svg>
 								{:else}
-									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke-width="1.5"
+										stroke="currentColor"
+										class="size-4"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+										/>
 									</svg>
 								{/if}
 								<span>{tabMeta[tab].label}</span>
@@ -1273,7 +1572,9 @@
 						<div class="text-sm font-medium text-gray-500 dark:text-gray-400">
 							{$i18n.t('Import / Export')}
 						</div>
-						<span class="{badgeClass} border-blue-200/70 bg-blue-50/80 text-blue-700 dark:border-blue-800/40 dark:bg-blue-950/20 dark:text-blue-300">
+						<span
+							class="{badgeClass} border-blue-200/70 bg-blue-50/80 text-blue-700 dark:border-blue-800/40 dark:bg-blue-950/20 dark:text-blue-300"
+						>
 							{$i18n.t('Current user only')}
 						</span>
 					</div>
@@ -1286,13 +1587,20 @@
 										{$i18n.t('Import chat history from a JSON file')}
 									</div>
 								</div>
-								<button class={btnNeutral} type="button" on:click={() => chatImportInputElement?.click()} disabled={operationStates.chatImport.phase === 'running'}>
+								<button
+									class={btnNeutral}
+									type="button"
+									on:click={() => chatImportInputElement?.click()}
+									disabled={operationStates.chatImport.phase === 'running'}
+								>
 									{$i18n.t('Select File')}
 								</button>
 							</div>
 
 							{#if chatImportDraft}
-								<div class="rounded-2xl border border-gray-200/70 bg-white/70 p-3 space-y-3 dark:border-gray-800/40 dark:bg-gray-900/40">
+								<div
+									class="rounded-2xl border border-gray-200/70 bg-white/70 p-3 space-y-3 dark:border-gray-800/40 dark:bg-gray-900/40"
+								>
 									<div class="space-y-1">
 										<div class="text-xs font-medium text-gray-500 dark:text-gray-400">
 											{$i18n.t('Selected file')}
@@ -1301,7 +1609,9 @@
 											{chatImportDraft.fileName}
 										</div>
 										<div class="text-xs text-gray-500 dark:text-gray-400">
-											{$i18n.t('Source')}: {chatImportDraft.origin === 'openai' ? 'OpenAI' : 'Halo WebUI'}
+											{$i18n.t('Source')}: {chatImportDraft.origin === 'openai'
+												? 'OpenAI'
+												: 'Halo WebUI'}
 											· {$i18n.t('Found {{count}} chats.', { count: chatImportDraft.count })}
 										</div>
 									</div>
@@ -1315,7 +1625,11 @@
 												type="button"
 												class={`${modeButtonBase} ${chatImportDraft.mode === 'merge' ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800/40 dark:bg-blue-950/20 dark:text-blue-300' : 'border-gray-200 bg-white text-gray-600 dark:border-gray-800/40 dark:bg-gray-900/40 dark:text-gray-300'}`}
 												on:click={() => {
-													chatImportDraft = { ...chatImportDraft, mode: 'merge', confirmReplace: false };
+													chatImportDraft = {
+														...chatImportDraft,
+														mode: 'merge',
+														confirmReplace: false
+													};
 												}}
 											>
 												{$i18n.t('Merge with current chats')}
@@ -1333,7 +1647,9 @@
 									</div>
 
 									{#if chatImportDraft.invalidCount > 0}
-										<div class="rounded-xl border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300">
+										<div
+											class="rounded-xl border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300"
+										>
 											{$i18n.t('Skipped {{count}} invalid entries during precheck.', {
 												count: chatImportDraft.invalidCount
 											})}
@@ -1341,17 +1657,25 @@
 									{/if}
 
 									{#if chatImportDraft.mode === 'replace'}
-										<div class="rounded-xl border border-orange-200/70 bg-orange-50/80 px-3 py-2 space-y-2 dark:border-orange-800/40 dark:bg-orange-950/20">
+										<div
+											class="rounded-xl border border-orange-200/70 bg-orange-50/80 px-3 py-2 space-y-2 dark:border-orange-800/40 dark:bg-orange-950/20"
+										>
 											<div class="text-xs font-medium text-orange-700 dark:text-orange-300">
 												{$i18n.t('This will replace all current chats for your account.')}
 											</div>
-											<label class="flex items-center gap-2 text-xs text-orange-700 dark:text-orange-300">
+											<label
+												class="flex items-center gap-2 text-xs text-orange-700 dark:text-orange-300"
+											>
 												<input
 													type="checkbox"
 													class="rounded border-orange-300 text-orange-600 focus:ring-orange-200 dark:border-orange-700 dark:bg-gray-900"
 													bind:checked={chatImportDraft.confirmReplace}
 												/>
-												<span>{$i18n.t('I understand that this operation cannot be undone from the UI.')}</span>
+												<span
+													>{$i18n.t(
+														'I understand that this operation cannot be undone from the UI.'
+													)}</span
+												>
 											</label>
 										</div>
 									{/if}
@@ -1366,7 +1690,9 @@
 											on:click={runChatImport}
 											disabled={operationStates.chatImport.phase === 'running'}
 										>
-											{$i18n.t(chatImportDraft.mode === 'replace' ? 'Start restore' : 'Start import')}
+											{$i18n.t(
+												chatImportDraft.mode === 'replace' ? 'Start restore' : 'Start import'
+											)}
 										</button>
 									</div>
 								</div>
@@ -1388,8 +1714,15 @@
 										{$i18n.t('Export your chat history to a JSON file')}
 									</div>
 								</div>
-								<button class={btnNeutral} type="button" on:click={exportChats} disabled={operationStates.chatExport.phase === 'running'}>
-									{$i18n.t(operationStates.chatExport.phase === 'running' ? 'Exporting...' : 'Export')}
+								<button
+									class={btnNeutral}
+									type="button"
+									on:click={exportChats}
+									disabled={operationStates.chatExport.phase === 'running'}
+								>
+									{$i18n.t(
+										operationStates.chatExport.phase === 'running' ? 'Exporting...' : 'Export'
+									)}
 								</button>
 							</div>
 							<DataManagementStatus
@@ -1405,7 +1738,9 @@
 						<div class="text-sm font-medium text-gray-500 dark:text-gray-400">
 							{$i18n.t('Chat Archive')}
 						</div>
-						<span class="{badgeClass} border-blue-200/70 bg-blue-50/80 text-blue-700 dark:border-blue-800/40 dark:bg-blue-950/20 dark:text-blue-300">
+						<span
+							class="{badgeClass} border-blue-200/70 bg-blue-50/80 text-blue-700 dark:border-blue-800/40 dark:bg-blue-950/20 dark:text-blue-300"
+						>
 							{$i18n.t('Current user only')}
 						</span>
 					</div>
@@ -1417,7 +1752,11 @@
 									{$i18n.t('View and manage your archived conversations')}
 								</div>
 							</div>
-							<button class={btnNeutral} type="button" on:click={() => (showArchivedChatsModal = true)}>
+							<button
+								class={btnNeutral}
+								type="button"
+								on:click={() => (showArchivedChatsModal = true)}
+							>
 								{$i18n.t('View')}
 							</button>
 						</div>
@@ -1432,10 +1771,16 @@
 								</div>
 								{#if showArchiveConfirm}
 									<div class="shrink-0 flex items-center gap-1.5">
-										<span class="text-xs text-orange-600/80 dark:text-orange-400/80 whitespace-nowrap">
+										<span
+											class="text-xs text-orange-600/80 dark:text-orange-400/80 whitespace-nowrap"
+										>
 											{$i18n.t('Are you sure?')}
 										</span>
-										<button class={btnSmall} type="button" on:click={() => (showArchiveConfirm = false)}>
+										<button
+											class={btnSmall}
+											type="button"
+											on:click={() => (showArchiveConfirm = false)}
+										>
 											{$i18n.t('Cancel')}
 										</button>
 										<button
@@ -1450,7 +1795,12 @@
 										</button>
 									</div>
 								{:else}
-									<button class={btnWarn} type="button" on:click={() => (showArchiveConfirm = true)} disabled={operationStates.archiveAll.phase === 'running'}>
+									<button
+										class={btnWarn}
+										type="button"
+										on:click={() => (showArchiveConfirm = true)}
+										disabled={operationStates.archiveAll.phase === 'running'}
+									>
 										{$i18n.t('Archive All')}
 									</button>
 								{/if}
@@ -1472,7 +1822,9 @@
 						<div class="text-sm font-medium text-gray-500 dark:text-gray-400">
 							{$i18n.t('Configuration')}
 						</div>
-						<span class="{badgeClass} border-emerald-200/70 bg-emerald-50/80 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/20 dark:text-emerald-300">
+						<span
+							class="{badgeClass} border-emerald-200/70 bg-emerald-50/80 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/20 dark:text-emerald-300"
+						>
 							{$i18n.t('Admin only')}
 						</span>
 					</div>
@@ -1485,13 +1837,20 @@
 										{$i18n.t('Import your application configuration from a JSON file')}
 									</div>
 								</div>
-								<button class={btnNeutral} type="button" on:click={() => configImportInputElement?.click()} disabled={operationStates.configImport.phase === 'running'}>
+								<button
+									class={btnNeutral}
+									type="button"
+									on:click={() => configImportInputElement?.click()}
+									disabled={operationStates.configImport.phase === 'running'}
+								>
 									{$i18n.t('Select File')}
 								</button>
 							</div>
 
 							{#if configImportDraft}
-								<div class="rounded-2xl border border-gray-200/70 bg-white/70 p-3 space-y-3 dark:border-gray-800/40 dark:bg-gray-900/40">
+								<div
+									class="rounded-2xl border border-gray-200/70 bg-white/70 p-3 space-y-3 dark:border-gray-800/40 dark:bg-gray-900/40"
+								>
 									<div class="space-y-1">
 										<div class="text-xs font-medium text-gray-500 dark:text-gray-400">
 											{$i18n.t('Selected file')}
@@ -1509,7 +1868,9 @@
 									{#if configImportDraft.topLevelKeys.length > 0}
 										<div class="flex flex-wrap gap-2">
 											{#each configImportDraft.topLevelKeys.slice(0, 6) as key}
-												<span class="{badgeClass} border-gray-200/70 bg-gray-50/80 text-gray-600 dark:border-gray-800/40 dark:bg-gray-900/50 dark:text-gray-300">
+												<span
+													class="{badgeClass} border-gray-200/70 bg-gray-50/80 text-gray-600 dark:border-gray-800/40 dark:bg-gray-900/50 dark:text-gray-300"
+												>
 													{key}
 												</span>
 											{/each}
@@ -1525,7 +1886,11 @@
 												type="button"
 												class={`${modeButtonBase} ${configImportDraft.mode === 'merge' ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800/40 dark:bg-blue-950/20 dark:text-blue-300' : 'border-gray-200 bg-white text-gray-600 dark:border-gray-800/40 dark:bg-gray-900/40 dark:text-gray-300'}`}
 												on:click={() => {
-													configImportDraft = { ...configImportDraft, mode: 'merge', confirmReplace: false };
+													configImportDraft = {
+														...configImportDraft,
+														mode: 'merge',
+														confirmReplace: false
+													};
 												}}
 											>
 												{$i18n.t('Merge with current config')}
@@ -1543,17 +1908,25 @@
 									</div>
 
 									{#if configImportDraft.mode === 'replace'}
-										<div class="rounded-xl border border-orange-200/70 bg-orange-50/80 px-3 py-2 space-y-2 dark:border-orange-800/40 dark:bg-orange-950/20">
+										<div
+											class="rounded-xl border border-orange-200/70 bg-orange-50/80 px-3 py-2 space-y-2 dark:border-orange-800/40 dark:bg-orange-950/20"
+										>
 											<div class="text-xs font-medium text-orange-700 dark:text-orange-300">
 												{$i18n.t('This will replace the current application configuration.')}
 											</div>
-											<label class="flex items-center gap-2 text-xs text-orange-700 dark:text-orange-300">
+											<label
+												class="flex items-center gap-2 text-xs text-orange-700 dark:text-orange-300"
+											>
 												<input
 													type="checkbox"
 													class="rounded border-orange-300 text-orange-600 focus:ring-orange-200 dark:border-orange-700 dark:bg-gray-900"
 													bind:checked={configImportDraft.confirmReplace}
 												/>
-												<span>{$i18n.t('I understand that this operation can change system behavior immediately.')}</span>
+												<span
+													>{$i18n.t(
+														'I understand that this operation can change system behavior immediately.'
+													)}</span
+												>
 											</label>
 										</div>
 									{/if}
@@ -1568,7 +1941,9 @@
 											on:click={runConfigImport}
 											disabled={operationStates.configImport.phase === 'running'}
 										>
-											{$i18n.t(configImportDraft.mode === 'replace' ? 'Start restore' : 'Start import')}
+											{$i18n.t(
+												configImportDraft.mode === 'replace' ? 'Start restore' : 'Start import'
+											)}
 										</button>
 									</div>
 								</div>
@@ -1590,8 +1965,15 @@
 										{$i18n.t('Export your current application configuration to a JSON file')}
 									</div>
 								</div>
-								<button class={btnNeutral} type="button" on:click={exportConfigToFile} disabled={operationStates.configExport.phase === 'running'}>
-									{$i18n.t(operationStates.configExport.phase === 'running' ? 'Exporting...' : 'Export')}
+								<button
+									class={btnNeutral}
+									type="button"
+									on:click={exportConfigToFile}
+									disabled={operationStates.configExport.phase === 'running'}
+								>
+									{$i18n.t(
+										operationStates.configExport.phase === 'running' ? 'Exporting...' : 'Export'
+									)}
 								</button>
 							</div>
 							<DataManagementStatus
@@ -1608,7 +1990,9 @@
 							<div class="text-sm font-medium text-gray-500 dark:text-gray-400">
 								{$i18n.t('Database')}
 							</div>
-							<span class="{badgeClass} border-amber-200/55 bg-amber-50/45 text-amber-700/80 dark:border-amber-800/30 dark:bg-amber-950/15 dark:text-amber-300/80">
+							<span
+								class="{badgeClass} border-amber-200/55 bg-amber-50/45 text-amber-700/80 dark:border-amber-800/30 dark:bg-amber-950/15 dark:text-amber-300/80"
+							>
 								{$i18n.t('Entire system data')}
 							</span>
 						</div>
@@ -1621,8 +2005,15 @@
 											{$i18n.t('Export a database-only file or a full backup package.')}
 										</div>
 									</div>
-									<button class={btnNeutral} type="button" on:click={openDatabaseExportModal} disabled={operationStates.databaseExport.phase === 'running'}>
-										{$i18n.t(operationStates.databaseExport.phase === 'running' ? 'Exporting...' : 'Export')}
+									<button
+										class={btnNeutral}
+										type="button"
+										on:click={openDatabaseExportModal}
+										disabled={operationStates.databaseExport.phase === 'running'}
+									>
+										{$i18n.t(
+											operationStates.databaseExport.phase === 'running' ? 'Exporting...' : 'Export'
+										)}
 									</button>
 								</div>
 								<DataManagementStatus
@@ -1636,52 +2027,75 @@
 							<div class="glass-item px-4 py-3 space-y-3">
 								<div class="flex items-center justify-between gap-3">
 									<div class="min-w-0">
-										<div class="text-sm font-medium">{$i18n.t('Restore Database')}</div>
+										<div class="text-sm font-medium">{$i18n.t('Import Database Backup')}</div>
 										<div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-											{$i18n.t('Select a backup type, then choose the matching file.')}
+											{$i18n.t(
+												'Merge old backup data safely, or fully restore the database when needed.'
+											)}
 										</div>
 									</div>
 									<button
 										class={btnNeutral}
 										type="button"
-										on:click={openDatabaseRestoreModal}
-										disabled={!databaseRestoreSupport.supported || operationStates.databaseRestore.phase === 'validating' || operationStates.databaseRestore.phase === 'running'}
+										on:click={() => openDatabaseRestoreModal()}
+										disabled={!databaseRestoreSupport.supported ||
+											operationStates.databaseMerge.phase === 'validating' ||
+											operationStates.databaseMerge.phase === 'running' ||
+											operationStates.databaseRestore.phase === 'validating' ||
+											operationStates.databaseRestore.phase === 'running'}
 									>
-										{$i18n.t(operationStates.databaseRestore.phase === 'validating' ? 'Checking...' : 'Import')}
+										{$i18n.t(
+											operationStates.databaseMerge.phase === 'validating' ||
+												operationStates.databaseRestore.phase === 'validating'
+												? 'Checking...'
+												: 'Import'
+										)}
 									</button>
 								</div>
 
 								{#if !databaseRestoreSupport.supported}
-									<div class="rounded-lg border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300">
+									<div
+										class="rounded-lg border border-amber-200/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300"
+									>
 										{getRestoreUnavailableMessage()}
 									</div>
 								{/if}
 
-								{#if databaseRestoreInspectingFile && operationStates.databaseRestore.phase === 'validating'}
-									<div class="rounded-2xl border border-red-200/70 bg-red-50/40 p-3 space-y-3 dark:border-red-800/40 dark:bg-red-950/10">
+								{#if databaseRestoreInspectingFile && operationStates[getDatabaseOperationKey(databaseRestoreInspectingFile.mode)].phase === 'validating'}
+									<div class={databaseApplyPanelClass(databaseRestoreInspectingFile.mode)}>
 										<div class="flex items-start gap-3">
-											<div class="mt-0.5 shrink-0 text-red-600 dark:text-red-300">
+											<div
+												class={`mt-0.5 shrink-0 ${databaseApplyTextClass(databaseRestoreInspectingFile.mode)}`}
+											>
 												<Spinner className="size-5" />
 											</div>
 											<div class="min-w-0 flex-1 space-y-1">
-												<div class="text-xs font-medium text-red-700 dark:text-red-300">
+												<div
+													class={`text-xs font-medium ${databaseApplyTextClass(databaseRestoreInspectingFile.mode)}`}
+												>
 													{$i18n.t('Backup file')}
 												</div>
 												<div class="truncate text-sm font-medium text-gray-800 dark:text-gray-100">
 													{databaseRestoreInspectingFile.fileName}
 												</div>
 												<div class="text-xs text-gray-500 dark:text-gray-400">
-													{getBackupKindLabel(databaseRestoreInspectingFile.kind)} · {formatBytes(databaseRestoreInspectingFile.fileSize)}
+													{getBackupKindLabel(databaseRestoreInspectingFile.kind)} · {formatBytes(
+														databaseRestoreInspectingFile.fileSize
+													)}
 												</div>
 											</div>
 										</div>
 
-										<div class="rounded-xl border border-red-200/70 bg-white/80 px-3 py-2 text-xs text-red-700 dark:border-red-800/40 dark:bg-gray-900/60 dark:text-red-300">
+										<div class={databaseApplyNoticeClass(databaseRestoreInspectingFile.mode)}>
 											{$i18n.t('Checking backup contents. Large database files may take a while.')}
 										</div>
 
 										<div class="flex items-center justify-end gap-2">
-											<button class={btnSmall} type="button" on:click={cancelDatabaseRestoreInspection}>
+											<button
+												class={btnSmall}
+												type="button"
+												on:click={cancelDatabaseRestoreInspection}
+											>
 												{$i18n.t('Cancel')}
 											</button>
 										</div>
@@ -1689,16 +2103,20 @@
 								{/if}
 
 								{#if databaseRestoreDraft}
-									<div class="rounded-2xl border border-red-200/70 bg-red-50/40 p-3 space-y-3 dark:border-red-800/40 dark:bg-red-950/10">
+									<div class={databaseApplyPanelClass(databaseRestoreDraft.mode)}>
 										<div class="space-y-1">
-											<div class="text-xs font-medium text-red-700 dark:text-red-300">
+											<div
+												class={`text-xs font-medium ${databaseApplyTextClass(databaseRestoreDraft.mode)}`}
+											>
 												{$i18n.t('Backup file')}
 											</div>
 											<div class="text-sm font-medium text-gray-800 dark:text-gray-100">
 												{databaseRestoreDraft.fileName}
 											</div>
 											<div class="text-xs text-gray-500 dark:text-gray-400">
-												{getBackupKindLabel(databaseRestoreDraft.kind)} · {formatBytes(databaseRestoreDraft.fileSize)} · {$i18n.t('Found {{count}} tables in the backup.', {
+												{getBackupKindLabel(databaseRestoreDraft.kind)} · {formatBytes(
+													databaseRestoreDraft.fileSize
+												)} · {$i18n.t('Found {{count}} tables in the backup.', {
 													count: databaseRestoreDraft.summary.table_count
 												})}
 												{#if databaseRestoreDraft.kind === 'full'}
@@ -1712,25 +2130,41 @@
 
 										<div class="flex flex-wrap gap-2">
 											{#each databaseRestoreDraft.summary.tables_preview as tableName}
-												<span class="{badgeClass} border-red-200/70 bg-white/80 text-red-700 dark:border-red-800/40 dark:bg-gray-900/60 dark:text-red-300">
+												<span
+													class={`${badgeClass} ${databaseApplyBadgeClass(databaseRestoreDraft.mode)}`}
+												>
 													{tableName}
 												</span>
 											{/each}
 										</div>
 
 										{#if databaseRestoreDraft.warnings.length > 0}
-											<div class="rounded-xl border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-700 space-y-1 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300">
+											<div
+												class="rounded-xl border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-700 space-y-1 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300"
+											>
 												{#each databaseRestoreDraft.warnings as warning}
-													<div>{warning}</div>
+													<div>{$i18n.t(warning)}</div>
 												{/each}
 											</div>
 										{/if}
 
-										<div class="rounded-xl border border-red-200/70 bg-white/80 px-3 py-2 text-xs text-red-700 dark:border-red-800/40 dark:bg-gray-900/60 dark:text-red-300">
-											{$i18n.t('Restoring this backup will completely overwrite current system data.')}
-											{#if databaseRestoreDraft.confirmOverwrite}
+										<div class={databaseApplyNoticeClass(databaseRestoreDraft.mode)}>
+											{#if databaseRestoreDraft.mode === 'merge'}
+												{$i18n.t(
+													'Merge import will add missing rows and missing chat messages. Existing rows will not be overwritten or deleted.'
+												)}
+											{:else}
+												{$i18n.t(
+													'Restoring this backup will completely overwrite current system data.'
+												)}
+											{/if}
+											{#if databaseRestoreDraft.confirmMerge || databaseRestoreDraft.confirmOverwrite}
 												<div class="mt-1 font-medium">
-													{$i18n.t('Click Confirm restore to continue.')}
+													{$i18n.t(
+														databaseRestoreDraft.mode === 'merge'
+															? 'Click Confirm merge import to continue.'
+															: 'Click Confirm restore to continue.'
+													)}
 												</div>
 											{/if}
 										</div>
@@ -1739,13 +2173,34 @@
 											<button class={btnSmall} type="button" on:click={resetDatabaseRestoreDraft}>
 												{$i18n.t('Cancel')}
 											</button>
-											<button class={btnDanger} type="button" on:click={runDatabaseRestore} disabled={operationStates.databaseRestore.phase === 'running'}>
-												{$i18n.t(databaseRestoreDraft.confirmOverwrite ? 'Confirm restore' : 'Start restore')}
+											<button
+												class={databaseRestoreDraft.mode === 'merge' ? btnNeutral : btnDanger}
+												type="button"
+												on:click={runDatabaseRestore}
+												disabled={operationStates[
+													getDatabaseOperationKey(databaseRestoreDraft.mode)
+												].phase === 'running'}
+											>
+												{$i18n.t(
+													databaseRestoreDraft.mode === 'merge'
+														? databaseRestoreDraft.confirmMerge
+															? 'Confirm merge import'
+															: 'Start merge import'
+														: databaseRestoreDraft.confirmOverwrite
+															? 'Confirm restore'
+															: 'Start restore'
+												)}
 											</button>
 										</div>
 									</div>
 								{/if}
 
+								<DataManagementStatus
+									visible={hasOperationState('databaseMerge')}
+									phase={operationStates.databaseMerge.phase}
+									title={operationStates.databaseMerge.title}
+									detail={operationStates.databaseMerge.detail}
+								/>
 								<DataManagementStatus
 									visible={hasOperationState('databaseRestore')}
 									phase={operationStates.databaseRestore.phase}
@@ -1762,8 +2217,17 @@
 											{$i18n.t('Export all users chat records in JSON format')}
 										</div>
 									</div>
-									<button class={btnNeutral} type="button" on:click={exportAllUserChats} disabled={operationStates.allUserChatsExport.phase === 'running'}>
-										{$i18n.t(operationStates.allUserChatsExport.phase === 'running' ? 'Exporting...' : 'Export')}
+									<button
+										class={btnNeutral}
+										type="button"
+										on:click={exportAllUserChats}
+										disabled={operationStates.allUserChatsExport.phase === 'running'}
+									>
+										{$i18n.t(
+											operationStates.allUserChatsExport.phase === 'running'
+												? 'Exporting...'
+												: 'Export'
+										)}
 									</button>
 								</div>
 								<DataManagementStatus
@@ -1778,20 +2242,37 @@
 				</div>
 			</section>
 		{:else if selectedTab === 'dangerZone'}
-			<section class="scroll-mt-2 p-5 space-y-5 transition-all duration-300 glass-section border-red-200/60 dark:border-red-800/30">
+			<section
+				class="scroll-mt-2 p-5 space-y-5 transition-all duration-300 glass-section border-red-200/60 dark:border-red-800/30"
+			>
 				<div class="flex flex-wrap items-center gap-3">
 					<div class="glass-icon-badge bg-red-50 dark:bg-red-950/30">
-						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-[18px] text-red-500 dark:text-red-400">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke-width="1.5"
+							stroke="currentColor"
+							class="size-[18px] text-red-500 dark:text-red-400"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+							/>
 						</svg>
 					</div>
 					<div class="text-base font-semibold text-red-600 dark:text-red-400">
 						{$i18n.t('Danger Zone')}
 					</div>
-					<span class="{badgeClass} border-red-200/70 bg-red-50/80 text-red-700 dark:border-red-800/40 dark:bg-red-950/20 dark:text-red-300">
+					<span
+						class="{badgeClass} border-red-200/70 bg-red-50/80 text-red-700 dark:border-red-800/40 dark:bg-red-950/20 dark:text-red-300"
+					>
 						{$i18n.t('Cannot be undone')}
 					</span>
-					<span class="{badgeClass} border-orange-200/70 bg-orange-50/80 text-orange-700 dark:border-orange-800/40 dark:bg-orange-950/20 dark:text-orange-300">
+					<span
+						class="{badgeClass} border-orange-200/70 bg-orange-50/80 text-orange-700 dark:border-orange-800/40 dark:bg-orange-950/20 dark:text-orange-300"
+					>
 						{$i18n.t('Current user only')}
 					</span>
 				</div>
@@ -1804,7 +2285,9 @@
 									{$i18n.t('Delete All Chats')}
 								</div>
 								<div class="text-xs text-red-500/70 dark:text-red-400/70 mt-0.5">
-									{$i18n.t('Permanently delete all of your chat records. This action cannot be undone.')}
+									{$i18n.t(
+										'Permanently delete all of your chat records. This action cannot be undone.'
+									)}
 								</div>
 							</div>
 							{#if showDeleteConfirm}
@@ -1812,7 +2295,11 @@
 									<span class="text-xs text-red-600/70 dark:text-red-400/80 whitespace-nowrap">
 										{$i18n.t('Are you sure?')}
 									</span>
-									<button class={btnSmall} type="button" on:click={() => (showDeleteConfirm = false)}>
+									<button
+										class={btnSmall}
+										type="button"
+										on:click={() => (showDeleteConfirm = false)}
+									>
 										{$i18n.t('Cancel')}
 									</button>
 									<button
@@ -1827,7 +2314,12 @@
 									</button>
 								</div>
 							{:else}
-								<button class={btnDanger} type="button" on:click={() => (showDeleteConfirm = true)} disabled={operationStates.deleteAll.phase === 'running'}>
+								<button
+									class={btnDanger}
+									type="button"
+									on:click={() => (showDeleteConfirm = true)}
+									disabled={operationStates.deleteAll.phase === 'running'}
+								>
 									{$i18n.t('Delete All')}
 								</button>
 							{/if}

@@ -8,9 +8,7 @@ import {
 
 describe('html-safety', () => {
 	it('allows only safe markdown URL protocols by default', () => {
-		expect(resolveSafeMarkdownUrl('https://example.com/report')).toBe(
-			'https://example.com/report'
-		);
+		expect(resolveSafeMarkdownUrl('https://example.com/report')).toBe('https://example.com/report');
 		expect(resolveSafeMarkdownUrl('/local/path')).toBe('/local/path');
 		expect(resolveSafeMarkdownUrl('#section')).toBe('#section');
 		expect(resolveSafeMarkdownUrl('mailto:test@example.com')).toBe('mailto:test@example.com');
@@ -24,11 +22,33 @@ describe('html-safety', () => {
 
 	it('only allows image data URLs when explicitly requested', () => {
 		expect(resolveSafeMarkdownUrl('data:image/png;base64,AAAA')).toBeNull();
-		expect(
-			resolveSafeMarkdownUrl('data:image/png;base64,AAAA', { allowDataImage: true })
-		).toBe('data:image/png;base64,AAAA');
+		expect(resolveSafeMarkdownUrl('data:image/png;base64,AAAA', { allowDataImage: true })).toBe(
+			'data:image/png;base64,AAAA'
+		);
 		expect(
 			resolveSafeMarkdownUrl('data:image/svg+xml,<svg></svg>', { allowDataImage: true })
+		).toBeNull();
+	});
+
+	it('allows only safe data URLs for downloads when explicitly requested', () => {
+		expect(resolveSafeMarkdownUrl('data:text/csv;charset=utf-8,a,b')).toBeNull();
+		expect(
+			resolveSafeMarkdownUrl('data:text/csv;charset=utf-8,a,b', {
+				allowDataDownload: true
+			})
+		).toBe('data:text/csv;charset=utf-8,a,b');
+		expect(
+			resolveSafeMarkdownUrl('data:application/json,%7B%7D', { allowDataDownload: true })
+		).toBe('data:application/json,%7B%7D');
+		expect(
+			resolveSafeMarkdownUrl('data:text/html,%3Cscript%3Ealert(1)%3C/script%3E', {
+				allowDataDownload: true
+			})
+		).toBeNull();
+		expect(
+			resolveSafeMarkdownUrl('data:image/svg+xml,%3Csvg%3E%3C/svg%3E', {
+				allowDataDownload: true
+			})
 		).toBeNull();
 	});
 

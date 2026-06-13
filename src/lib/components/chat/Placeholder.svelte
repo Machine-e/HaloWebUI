@@ -19,7 +19,6 @@
 	} from '$lib/stores';
 	import { sanitizeResponseContent, extractCurlyBraceWords } from '$lib/utils';
 	import { WEBUI_BASE_URL } from '$lib/constants';
-	import agentsData from '$lib/data/agents-zh.json';
 	import {
 		type ChatAssistantSnapshot,
 		FEATURED_ASSISTANT_IDS,
@@ -93,8 +92,47 @@
 	let dropTargetIdx: number | null = null;
 	let isMobileSortingMode = false;
 	let featuredAssistants: ChatAssistantSnapshot[] = [];
+	let agentsData: Array<Record<string, unknown>> = [];
+	let agentsDataLoaded = false;
+	let agentsDataLoadPromise: Promise<void> | null = null;
 	const tr = (key: string, defaultValue: string, options: Record<string, any> = {}) =>
 		translateWithDefault($i18n, key, defaultValue, options);
+
+	type WindowWithIdleCallback = Window & {
+		requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number;
+	};
+
+	const loadAgentsData = async () => {
+		if (!agentsDataLoadPromise) {
+			agentsDataLoadPromise = import('$lib/data/agents-zh.json')
+				.then((module) => {
+					agentsData = (module.default ?? []) as Array<Record<string, unknown>>;
+					agentsDataLoaded = true;
+				})
+				.catch((error) => {
+					console.error('Failed to load assistant templates', error);
+					agentsDataLoaded = true;
+				});
+		}
+
+		return agentsDataLoadPromise;
+	};
+
+	const scheduleAgentsDataLoad = () => {
+		if (typeof window === 'undefined') {
+			return;
+		}
+
+		const run = () => {
+			void loadAgentsData();
+		};
+		const win = window as WindowWithIdleCallback;
+		if (typeof win.requestIdleCallback === 'function') {
+			win.requestIdleCallback(run, { timeout: 1200 });
+		} else {
+			setTimeout(run, 300);
+		}
+	};
 
 	$: isMobileSortingMode = $mobile;
 	$: featuredAssistants = featuredIds
@@ -210,6 +248,13 @@
 
 	onMount(() => {
 		featuredIds = getFeaturedAssistantIds();
+		if (
+			($settings?.showFeaturedAssistantsOnHome ?? true) &&
+			onActivateAssistant &&
+			!activeAssistant
+		) {
+			scheduleAgentsDataLoad();
+		}
 	});
 </script>
 
@@ -314,7 +359,11 @@
 				</div>
 			{/if}
 
-			<div class="mx-auto w-full max-w-4xl pt-2 pb-3 text-base font-normal {atSelectedModel ? 'mt-2' : ''}">
+			<div
+				class="mx-auto w-full max-w-4xl pt-2 pb-3 text-base font-normal {atSelectedModel
+					? 'mt-2'
+					: ''}"
+			>
 				<MessageInput
 					{history}
 					{selectedModels}
@@ -353,7 +402,9 @@
 	</div>
 	{#if !$selectedAssistantScene && !activeAssistant && onActivateAssistant && ($settings?.showFeaturedAssistantsOnHome ?? true)}
 		<div class="mx-auto mt-1 w-full max-w-4xl px-2.5" in:fade={{ duration: 160, delay: 120 }}>
-			<div class="rounded-3xl border border-gray-200/60 bg-white/65 p-3 text-left shadow-sm backdrop-blur-xl dark:border-gray-700/30 dark:bg-white/[0.03]">
+			<div
+				class="rounded-3xl border border-gray-200/60 bg-white/65 p-3 text-left shadow-sm backdrop-blur-xl dark:border-gray-700/30 dark:bg-white/[0.03]"
+			>
 				<div class="flex items-center justify-between gap-3 px-1">
 					<div class="text-xs font-medium text-gray-500 dark:text-gray-400">
 						{tr('精选助手', 'Featured Assistants')}
@@ -364,6 +415,9 @@
 							editMode = !editMode;
 							dragSourceIdx = null;
 							dropTargetIdx = null;
+							if (editMode) {
+								void loadAgentsData();
+							}
 						}}
 					>
 						{#if editMode}
@@ -455,7 +509,9 @@
 										{assistant.name}
 									</div>
 									{#if assistant.description}
-										<div class="mt-1 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+										<div
+											class="mt-1 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400"
+										>
 											{assistant.description}
 										</div>
 									{/if}
@@ -483,8 +539,10 @@
 					{/if}
 				</div>
 
-				{#if !editMode && featuredAssistants.length === 0}
-					<div class="mt-2 rounded-2xl border border-dashed border-gray-200/80 px-4 py-8 text-center text-sm text-gray-400 dark:border-gray-700/70 dark:text-gray-500">
+				{#if !editMode && agentsDataLoaded && featuredAssistants.length === 0}
+					<div
+						class="mt-2 rounded-2xl border border-dashed border-gray-200/80 px-4 py-8 text-center text-sm text-gray-400 dark:border-gray-700/70 dark:text-gray-500"
+					>
 						{tr(
 							'暂无精选助手，点击右上角“管理”即可添加',
 							'No featured assistants yet. Click "Manage" in the top-right corner to add one.'
@@ -519,7 +577,11 @@
 		</div>
 	{:else}
 		<div
-			class="mx-auto w-full max-w-4xl px-2.5 font-primary {!activeAssistant && onActivateAssistant && ($settings?.showFeaturedAssistantsOnHome ?? true) ? 'mt-4' : 'mt-2'}"
+			class="mx-auto w-full max-w-4xl px-2.5 font-primary {!activeAssistant &&
+			onActivateAssistant &&
+			($settings?.showFeaturedAssistantsOnHome ?? true)
+				? 'mt-4'
+				: 'mt-2'}"
 			in:fade={{ duration: 200, delay: 200 }}
 		>
 			<div>

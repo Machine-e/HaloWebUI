@@ -37,6 +37,20 @@ USAGE_NUMBER_KEYS = (
 )
 
 
+def _extract_sources_from_events(events: list[dict] | None) -> list | None:
+    if not isinstance(events, list):
+        return None
+
+    for event in reversed(events):
+        if not isinstance(event, dict):
+            continue
+        sources = event.get("sources")
+        if isinstance(sources, list) and sources:
+            return deepcopy(sources)
+
+    return None
+
+
 def is_multi_model_discussion_enabled(discussion: Any) -> bool:
     return isinstance(discussion, dict) and discussion.get("enabled") is True
 
@@ -44,12 +58,7 @@ def is_multi_model_discussion_enabled(discussion: Any) -> bool:
 def _model_display_name(model: dict | None, fallback: str = "") -> str:
     if not isinstance(model, dict):
         return fallback
-    return str(
-        model.get("name")
-        or model.get("model")
-        or model.get("id")
-        or fallback
-    )
+    return str(model.get("name") or model.get("model") or model.get("id") or fallback)
 
 
 def _model_request_id(model: dict | None, fallback: str = "") -> str:
@@ -293,7 +302,10 @@ def normalize_discussion_config(
     rounds = max(1, min(rounds, MAX_DISCUSSION_ROUNDS))
 
     requested_final_model = str(
-        discussion.get("final_model") or discussion.get("finalModel") or final_model_id or ""
+        discussion.get("final_model")
+        or discussion.get("finalModel")
+        or final_model_id
+        or ""
     ).strip()
     final_model = resolve_model_from_lookup(
         models_map,
@@ -409,6 +421,22 @@ def _refresh_discussion_counts(discussion_state: dict) -> None:
     discussion_state["failures"] = failures
 
 
+def _mark_running_turns_stopped(discussion_state: dict) -> None:
+    rounds = discussion_state.get("rounds", [])
+    if not isinstance(rounds, list):
+        return
+
+    for round_item in rounds:
+        if not isinstance(round_item, dict):
+            continue
+        turns = round_item.get("turns", [])
+        if not isinstance(turns, list):
+            continue
+        for turn in turns:
+            if isinstance(turn, dict) and turn.get("status") == "running":
+                turn["status"] = "stopped"
+
+
 def _build_participant_prompt(
     *,
     user_prompt: str,
@@ -489,6 +517,7 @@ async def generate_multi_model_discussion_completion(
     metadata: dict,
     model: dict,
     discussion: dict,
+    events: list[dict] | None = None,
 ):
     models_map = getattr(request.state, "MODELS", None) or request.app.state.MODELS
     ambiguous_model_aliases = getattr(request.state, "MODELS_AMBIGUOUS", set()) or set()
@@ -522,6 +551,8 @@ async def generate_multi_model_discussion_completion(
     ]
     final_model = settings["final_model"]
 
+    sources = _extract_sources_from_events(events)
+
     discussion_state = {
         "enabled": True,
         "status": "running",
@@ -535,9 +566,17 @@ async def generate_multi_model_discussion_completion(
         "updatedAt": int(time.time()),
     }
 
+    async def emit_event(event: dict, event_type: str) -> bool:
+        try:
+            await event_emitter(event)
+            return True
+        except Exception:
+            log.exception("Failed to emit multi-model discussion event: %s", event_type)
+            return False
+
     async def emit_discussion(event_type: str, **data):
         discussion_state["updatedAt"] = int(time.time())
-        await event_emitter(
+        await emit_event(
             {
                 "type": "discussion",
                 "data": {
@@ -545,7 +584,8 @@ async def generate_multi_model_discussion_completion(
                     **data,
                     "state": deepcopy(discussion_state),
                 },
-            }
+            },
+            f"discussion:{event_type}",
         )
 
     async def discussion_task():
@@ -564,7 +604,9 @@ async def generate_multi_model_discussion_completion(
             for round_index in range(1, settings["rounds"] + 1):
                 round_state = {"index": round_index, "turns": []}
                 discussion_state["rounds"].append(round_state)
-                await emit_discussion("round_start", round=round_index, status="running")
+                await emit_discussion(
+                    "round_start", round=round_index, status="running"
+                )
 
                 for participant in settings["participants"]:
                     turn = {
@@ -655,41 +697,65 @@ async def generate_multi_model_discussion_completion(
                 discussion_state["usage"] = discussion_usage
 
             if final_content:
-                await event_emitter(
-                    {"type": "chat:message:delta", "data": {"content": final_content}}
+                await emit_event(
+                    {"type": "chat:message:delta", "data": {"content": final_content}},
+                    "chat:message:delta",
                 )
 
             completed_at = int(time.time())
             discussion_state["status"] = "completed"
             await emit_discussion("done", status="completed", usage=discussion_usage)
-            await event_emitter(
+            completion_data = {
+                "done": True,
+                "content": final_content,
+                "completedAt": completed_at,
+                "usage": discussion_usage,
+                "discussion": discussion_state,
+            }
+            if sources:
+                completion_data["sources"] = sources
+            await emit_event(
                 {
                     "type": "chat:completion",
-                    "data": {
-                        "done": True,
-                        "content": final_content,
-                        "completedAt": completed_at,
-                        "usage": discussion_usage,
-                        "discussion": discussion_state,
-                    },
-                }
+                    "data": completion_data,
+                },
+                "chat:completion",
             )
+            upsert_payload = {
+                "content": final_content,
+                "done": True,
+                "completedAt": completed_at,
+                "usage": discussion_usage,
+                "discussion": discussion_state,
+            }
+            if sources:
+                upsert_payload["sources"] = sources
             Chats.upsert_message_to_chat_by_id_and_message_id(
                 chat_id,
                 message_id,
-                {
-                    "content": final_content,
-                    "done": True,
-                    "completedAt": completed_at,
-                    "usage": discussion_usage,
-                    "discussion": discussion_state,
-                },
+                upsert_payload,
                 guard_stopped=True,
             )
         except asyncio.CancelledError:
             completed_at = int(time.time())
             discussion_state["status"] = "stopped"
+            _mark_running_turns_stopped(discussion_state)
+            _refresh_discussion_counts(discussion_state)
             await emit_discussion("stopped", status="stopped")
+            await emit_event(
+                {
+                    "type": "chat:completion",
+                    "data": {
+                        "done": True,
+                        "content": final_content,
+                        "stopped": True,
+                        "stoppedByUser": True,
+                        "completedAt": completed_at,
+                        "discussion": discussion_state,
+                    },
+                },
+                "chat:completion:stopped",
+            )
             Chats.upsert_message_to_chat_by_id_and_message_id(
                 chat_id,
                 message_id,
@@ -713,7 +779,7 @@ async def generate_multi_model_discussion_completion(
                 "raw_message": str(exc),
             }
             await emit_discussion("error", status="error", error=error)
-            await event_emitter(
+            await emit_event(
                 {
                     "type": "chat:completion",
                     "data": {
@@ -723,7 +789,8 @@ async def generate_multi_model_discussion_completion(
                         "error": error,
                         "discussion": discussion_state,
                     },
-                }
+                },
+                "chat:completion:error",
             )
             Chats.upsert_message_to_chat_by_id_and_message_id(
                 chat_id,

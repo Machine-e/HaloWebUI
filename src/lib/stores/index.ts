@@ -22,6 +22,11 @@ export const MODEL_DOWNLOAD_POOL = writable({});
 export const mobile = writable(false);
 
 export const socket: Writable<null | Socket> = writable(null);
+export type SocketConnectionState = 'connected' | 'disconnected' | 'reconnecting' | 'failed';
+export const socketConnectionState: Writable<SocketConnectionState> = writable('disconnected');
+export const socketReconnectRevision = writable(0);
+export const socketLastConnectedAt: Writable<number | null> = writable(null);
+export const socketLastDisconnectedAt: Writable<number | null> = writable(null);
 export const activeUserIds: Writable<null | string[]> = writable(null);
 export const USAGE_POOL: Writable<null | string[]> = writable(null);
 
@@ -49,6 +54,25 @@ export const activeAudioId = writable<string | null>(null);
 
 export const chatId = writable('');
 export const chatTitle = writable('');
+
+export type NewChatRequestSource = 'sidebar' | 'navbar' | 'brand' | 'fallback';
+export type NewChatRequest = {
+	id: string;
+	fresh?: boolean;
+	source?: NewChatRequestSource;
+};
+
+export const newChatRequest: Writable<NewChatRequest | null> = writable(null);
+
+export const requestNewChat = (options: Omit<NewChatRequest, 'id'> = {}) => {
+	const request = {
+		id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+		...options
+	};
+
+	newChatRequest.set(request);
+	return request;
+};
 
 // Chat IDs currently generating responses (for sidebar activity indicators)
 export const activeChatIds: Writable<Set<string>> = writable(new Set());
@@ -212,6 +236,7 @@ type Settings = {
 	models?: string[];
 	pinnedModels?: string[];
 	modelSelectorTagOrder?: string[];
+	params?: Record<string, any>;
 	backgroundImageUrl?: string | null;
 	conversationMode?: boolean;
 	speechAutoSend?: boolean;
@@ -248,6 +273,7 @@ type Settings = {
 	mermaidTheme?: string;
 	temporaryChatByDefault?: boolean;
 	newChatInheritsPreviousState?: boolean;
+	defaultReasoningEffort?: string | null;
 	chatFadeStreamingText?: boolean;
 	transitionMode?: 'none' | 'fadeIn' | 'smooth';
 	enableAutoScrollOnStreaming?: boolean;

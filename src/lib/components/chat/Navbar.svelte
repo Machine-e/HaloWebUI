@@ -8,6 +8,7 @@
 		chatId,
 		config,
 		mobile,
+		requestNewChat,
 		selectedAssistantScene,
 		settings,
 		showArchivedChats,
@@ -33,7 +34,9 @@
 
 	const i18n = getContext('i18n');
 
-	export let initNewChat: Function;
+	export let openNewChatInNewTab: Function = () => {
+		window.open('/', '_blank', 'noopener');
+	};
 	export let title: string = $WEBUI_NAME;
 	export let shareEnabled: boolean = false;
 
@@ -46,6 +49,17 @@
 
 	let showShareChatModal = false;
 	let showDownloadChatModal = false;
+
+	const handleNewChatClick = (event: MouseEvent) => {
+		if (event.button === 0 && (event.ctrlKey || event.metaKey)) {
+			event.preventDefault();
+			openNewChatInNewTab();
+			return;
+		}
+
+		selectedAssistantScene.set(null);
+		requestNewChat({ source: 'navbar' });
+	};
 </script>
 
 <ShareChatModal bind:show={showShareChatModal} chatId={$chatId} />
@@ -53,9 +67,9 @@
 <nav
 	class="sticky top-0 z-40 w-full py-1.5 -mb-8 flex flex-col items-center drag-region glass transition-colors duration-300"
 >
-	<div class="flex items-center w-full px-1.5">
-		<div class=" flex max-w-full w-full mx-auto px-1 pt-0.5 bg-transparent">
-			<div class="flex items-center w-full max-w-full">
+	<div class="flex min-w-0 items-center w-full px-1.5">
+		<div class=" flex min-w-0 max-w-full w-full mx-auto px-1 pt-0.5 bg-transparent">
+			<div class="flex min-w-0 items-center w-full max-w-full">
 				<div
 					class="{$mobile
 						? ''
@@ -76,7 +90,7 @@
 				</div>
 
 				<div
-					class="flex-1 overflow-hidden max-w-full py-0.5
+					class="min-w-0 flex-1 overflow-hidden max-w-full py-0.5
 			{$showSidebar ? 'ml-1' : ''}
 			"
 				>
@@ -143,15 +157,12 @@
 
 					<Tooltip content={$i18n.t('New Chat')}>
 						<button
-						id="new-chat-button"
+							id="new-chat-button"
 							class="{$mobile ? 'hidden' : 'flex'} {$showSidebar
 								? 'md:hidden'
 								: ''} cursor-pointer px-2 py-2 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-850 transition"
-						on:click={() => {
-							selectedAssistantScene.set(null);
-							initNewChat();
-						}}
-						aria-label="New Chat"
+							on:click={handleNewChatClick}
+							aria-label="New Chat"
 						>
 							<div class=" m-auto self-center">
 								<PencilSquare className=" size-5" strokeWidth="2" />

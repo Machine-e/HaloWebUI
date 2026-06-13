@@ -75,7 +75,7 @@
 				{branchSupported}
 				{readOnly}
 			/>
-		{:else if (history.messages[history.messages[messageId].parentId]?.models?.length ?? 1) === 1}
+		{:else if history.messages[messageId]?.discussion?.enabled === true || (history.messages[history.messages[messageId].parentId]?.models?.length ?? 1) === 1}
 			<ResponseMessage
 				{chatId}
 				{history}

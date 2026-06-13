@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { v4 as uuidv4 } from 'uuid';
 	import { toast } from 'svelte-sonner';
-	import mermaid from 'mermaid';
 	import { PaneGroup, Pane, PaneResizer } from 'paneforge';
 
 	import { getContext, onDestroy, onMount, setContext, tick } from 'svelte';
@@ -29,6 +28,9 @@
 		banners,
 		user,
 		socket,
+		socketConnectionState,
+		socketLastDisconnectedAt,
+		socketReconnectRevision,
 		showControls,
 		showCallOverlay,
 		currentChatPage,
@@ -42,6 +44,7 @@
 		toolServers,
 		activeChatIds,
 		overviewFocusedMessageId,
+		newChatRequest,
 		selectedAssistantScene
 	} from '$lib/stores';
 	import {
@@ -104,6 +107,12 @@
 		resolveConfiguredDefaultWebSearchMode
 	} from '$lib/utils/native-web-search';
 	import { hasVisibleMessageFiles as messageHasVisibleFiles } from '$lib/utils/chat-message-errors';
+	import {
+		getConfiguredDefaultReasoningEffort,
+		normalizeReasoningEffortValue,
+		normalizeThinkingTokenValue,
+		resolveReasoningEffortForRequest
+	} from '$lib/utils/reasoning-controls';
 
 	import { generateChatCompletion } from '$lib/apis/ollama';
 	import {
@@ -158,6 +167,17 @@
 	const MESSAGE_OUTLINE_IDLE_MS = 900;
 	const MESSAGE_OUTLINE_SCROLL_INTENT_WINDOW_MS = 220;
 	const MESSAGE_OUTLINE_SCROLLBAR_DRAG_PRIME_MS = 1400;
+	const CHAT_TASK_SILENCE_TIMEOUT_MS = 90_000;
+	const CHAT_TASK_RECOVER_INTERVAL_MS = 30_000;
+	const CHAT_TASK_MAX_RECOVER_ATTEMPTS = 3;
+	const CHAT_TASK_HARD_TIMEOUT_MS = 10 * 60_000;
+	const CHAT_TASK_WATCHDOG_INTERVAL_MS = 15_000;
+	const CHAT_REQUEST_START_TIMEOUT_MS = 30_000;
+	const SOFT_SAVE_TIMEOUT_MS = 15_000;
+	const SOFT_MEMORY_TIMEOUT_MS = 10_000;
+	const SOFT_LOCATION_TIMEOUT_MS = 5_000;
+	const SOFT_INLINE_IMAGE_TIMEOUT_MS = 20_000;
+	const SOFT_INLINE_IMAGE_TOTAL_TIMEOUT_MS = 60_000;
 	const MESSAGE_OUTLINE_SCROLL_KEYS = new Set([
 		'ArrowUp',
 		'ArrowDown',
@@ -186,6 +206,53 @@
 	const pendingGeminiImages = new Map<string, Map<string, PendingGeminiImage>>();
 	const OPENWEBUI_FILE_URL_SCHEME = 'openwebui-file://';
 	const buildImageDataUrl = (mimeType: string, data: string) => `data:${mimeType};base64,${data}`;
+	const extractOpenWebUIFileIdFromUrl = (url: string): string | null => {
+		const match = url.match(/\/(?:api\/v1\/)?files\/([^/?#]+)(?:\/content)?(?:[?#].*)?$/);
+		return match?.[1]?.trim() || null;
+	};
+	const getImageGenerationSlotIndex = (file: any): number | null => {
+		const slotIndex = Number(file?.slot_index);
+		return Number.isFinite(slotIndex) && slotIndex >= 0 ? slotIndex : null;
+	};
+	const isImageGenerationMessageFile = (file: any) =>
+		file?.source === 'image_generation' ||
+		file?.type === 'image_generation_error' ||
+		(file?.type === 'image' && file?.status === 'success' && getImageGenerationSlotIndex(file) !== null);
+	const getMessageFileMergeKeys = (file: any) => {
+		const keys: string[] = [];
+		const id = typeof file?.id === 'string' ? file.id.trim() : '';
+		const url = typeof file?.url === 'string' ? file.url.trim() : '';
+		const contentUrl = typeof file?.content_url === 'string' ? file.content_url.trim() : '';
+		const slotIndex = getImageGenerationSlotIndex(file);
+
+		const fileId =
+			id ||
+			(url ? extractOpenWebUIFileIdFromUrl(url) : null) ||
+			(contentUrl ? extractOpenWebUIFileIdFromUrl(contentUrl) : null);
+
+		if (fileId) keys.push(`file:${fileId}`);
+		if (isImageGenerationMessageFile(file) && slotIndex !== null) {
+			keys.push(`image_generation_slot:${slotIndex}`);
+		}
+		if (url) keys.push(`url:${url}`);
+		if (contentUrl) keys.push(`content_url:${contentUrl}`);
+
+		return keys.length > 0 ? keys : [JSON.stringify(file)];
+	};
+	const mergeMessageFile = (existing: any, incoming: any) => {
+		const merged = { ...existing, ...incoming };
+
+		for (const field of ['id', 'url', 'content_url', 'source', 'status', 'slot_index'] as const) {
+			if (
+				(merged[field] === undefined || merged[field] === null || merged[field] === '') &&
+				(existing[field] !== undefined && existing[field] !== null && existing[field] !== '')
+			) {
+				merged[field] = existing[field];
+			}
+		}
+
+		return merged;
+	};
 	const mergeMessageFiles = (existing: any[] = [], incoming: any[] = []) => {
 		const merged = [];
 		const seen = new Map<string, number>();
@@ -193,15 +260,18 @@
 		for (const file of [...existing, ...incoming]) {
 			if (!file || typeof file !== 'object') continue;
 			const normalized = JSON.parse(JSON.stringify(file));
-			const id = typeof normalized.id === 'string' ? normalized.id.trim() : '';
-			const url = typeof normalized.url === 'string' ? normalized.url.trim() : '';
-			const key = id ? `id:${id}` : url ? `url:${url}` : JSON.stringify(normalized);
-			const existingIndex = seen.get(key);
+			const keys = getMessageFileMergeKeys(normalized);
+			const existingIndex = keys.map((key) => seen.get(key)).find((index) => index !== undefined);
 			if (existingIndex !== undefined) {
-				merged[existingIndex] = { ...merged[existingIndex], ...normalized };
+				merged[existingIndex] = mergeMessageFile(merged[existingIndex], normalized);
+				for (const key of getMessageFileMergeKeys(merged[existingIndex])) {
+					seen.set(key, existingIndex);
+				}
 				continue;
 			}
-			seen.set(key, merged.length);
+			for (const key of keys) {
+				seen.set(key, merged.length);
+			}
 			merged.push(normalized);
 		}
 
@@ -217,8 +287,7 @@
 		}
 
 		const url = typeof file?.url === 'string' ? file.url : '';
-		const match = url.match(/\/api\/v1\/files\/([^/?#]+)(?:\/content)?(?:[?#].*)?$/);
-		return match?.[1] ?? null;
+		return extractOpenWebUIFileIdFromUrl(url);
 	};
 	const sanitizeImageFileRef = (file: any) => {
 		const fileId = extractChatImageFileId(file);
@@ -249,7 +318,12 @@
 				content_type:
 					typeof file?.content_type === 'string' && file.content_type
 						? file.content_type
-						: file?.file?.meta?.content_type ?? undefined
+						: file?.file?.meta?.content_type ?? undefined,
+				content_url:
+					typeof file?.content_url === 'string' && file.content_url ? file.content_url : undefined,
+				source: typeof file?.source === 'string' && file.source ? file.source : undefined,
+				status: typeof file?.status === 'string' && file.status ? file.status : undefined,
+				slot_index: getImageGenerationSlotIndex(file) ?? undefined
 			}).filter(([, value]) => value !== undefined && value !== null && value !== '')
 		);
 	};
@@ -272,7 +346,88 @@
 
 		return structuredClone(file);
 	};
-	const uploadInlineImageForPersistence = async (file: any) => {
+	const getImageGenerationReferenceKey = (referenceFiles: any[] = []) =>
+		referenceFiles
+			.map((file) => {
+				const keys = getMessageFileMergeKeys(file);
+				return (
+					keys.find((key) => key.startsWith('file:')) ??
+					keys.find((key) => key.startsWith('image_generation_slot:')) ??
+					keys[0]
+				);
+			})
+			.join('|');
+	const getLatestImageGenerationReferenceFiles = (historyState: any) => {
+		const currentId = historyState?.currentId ?? null;
+		if (!currentId || !historyState?.messages?.[currentId]) {
+			return [];
+		}
+
+		const messages = createMessagesList(historyState, currentId);
+		for (let index = messages.length - 1; index >= 0; index -= 1) {
+			const message = messages[index];
+			if (message?.role !== 'assistant' || !Array.isArray(message?.files)) {
+				continue;
+			}
+
+			const referenceFiles = mergeMessageFiles(
+				[],
+				message.files.filter(
+					(file: any) =>
+						file?.type === 'image' &&
+						isImageGenerationMessageFile(file) &&
+						Boolean(buildModelImageRequestUrl(file))
+				)
+			).sort(
+				(a, b) =>
+					(getImageGenerationSlotIndex(a) ?? Number.MAX_SAFE_INTEGER) -
+					(getImageGenerationSlotIndex(b) ?? Number.MAX_SAFE_INTEGER)
+			);
+
+			if (referenceFiles.length > 0) {
+				return referenceFiles.slice(0, 4);
+			}
+		}
+
+		return [];
+	};
+	const appendReferenceFilesToRequestHistory = (
+		historyState: any,
+		parentId: string,
+		referenceFiles: any[] = []
+	): any => {
+		if (!referenceFiles.length || !historyState?.messages?.[parentId]) {
+			return historyState;
+		}
+
+		const requestHistory: any = structuredClone(historyState);
+		const message = requestHistory.messages[parentId];
+		const normalizedReferenceFiles = referenceFiles.map((file) => normalizeInputFileForMessage(file));
+		message.files = mergeMessageFiles(message.files, normalizedReferenceFiles);
+		return requestHistory;
+	};
+	const withTimeout = async <T>(
+		promise: Promise<T>,
+		timeoutMs: number,
+		label: string
+	): Promise<T> => {
+		let timeoutId: ReturnType<typeof setTimeout> | null = null;
+		const timeoutPromise = new Promise<never>((_, reject) => {
+			timeoutId = setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs);
+		});
+
+		try {
+			return await Promise.race([promise, timeoutPromise]);
+		} finally {
+			if (timeoutId !== null) {
+				clearTimeout(timeoutId);
+			}
+		}
+	};
+	const uploadInlineImageForPersistence = async (
+		file: any,
+		timeoutMs = SOFT_INLINE_IMAGE_TIMEOUT_MS
+	) => {
 		if (!file || typeof file !== 'object' || !isInlineDataImageUrl(file?.url)) {
 			return sanitizeImageFileRef(file) ?? structuredClone(file);
 		}
@@ -290,10 +445,12 @@
 				typeof file?.name === 'string' && file.name
 					? file.name
 					: `Chat_Image_${Date.now()}.${extension}`;
-			const uploadedFile = await uploadFile(
-				localStorage.token,
-				new File([imageBlob], fileName, { type: mimeType }),
-				{ process: false }
+			const uploadedFile = await withTimeout(
+				uploadFile(localStorage.token, new File([imageBlob], fileName, { type: mimeType }), {
+					process: false
+				}),
+				timeoutMs,
+				'inline image upload'
 			);
 
 			if (!uploadedFile?.id) {
@@ -328,8 +485,14 @@
 
 		const normalizedHistory = structuredClone(historyState);
 		let changed = false;
+		let timedOut = false;
 
+		const deadlineAt = Date.now() + SOFT_INLINE_IMAGE_TOTAL_TIMEOUT_MS;
 		for (const [messageId, message] of Object.entries(normalizedHistory.messages ?? {}) as [string, any][]) {
+			if (Date.now() >= deadlineAt) {
+				timedOut = true;
+				break;
+			}
 			if (!Array.isArray(message?.files) || message.files.length === 0) {
 				continue;
 			}
@@ -337,9 +500,20 @@
 			const normalizedFiles = [];
 			let messageChanged = false;
 
-			for (const file of message.files) {
+			for (let fileIndex = 0; fileIndex < message.files.length; fileIndex += 1) {
+				const file = message.files[fileIndex];
+				const remainingMs = deadlineAt - Date.now();
+				if (remainingMs <= 0) {
+					timedOut = true;
+					normalizedFiles.push(...message.files.slice(fileIndex).map((item) => structuredClone(item)));
+					break;
+				}
+
 				if (file?.type === 'image') {
-					const normalizedFile = await uploadInlineImageForPersistence(file);
+					const normalizedFile = await uploadInlineImageForPersistence(
+						file,
+						Math.max(1, Math.min(SOFT_INLINE_IMAGE_TIMEOUT_MS, remainingMs))
+					);
 					normalizedFiles.push(normalizedFile);
 					if (JSON.stringify(normalizedFile) !== JSON.stringify(file)) {
 						messageChanged = true;
@@ -356,6 +530,14 @@
 				};
 				changed = true;
 			}
+
+			if (timedOut) {
+				break;
+			}
+		}
+
+		if (timedOut) {
+			console.warn('Inline image normalization timed out for chat persistence');
 		}
 
 		return {
@@ -395,6 +577,9 @@
 
 	let chatIdUnsubscriber: Unsubscriber | undefined;
 	let selectedAssistantSceneUnsubscriber: Unsubscriber | undefined;
+	let socketEventUnsubscriber: Unsubscriber | undefined;
+	let socketReconnectUnsubscriber: Unsubscriber | undefined;
+	let chatEventSocket: any = null;
 
 	let selectedModels = [''];
 	let atSelectedModel: Model | undefined;
@@ -415,9 +600,9 @@
 		return Math.max(1, Math.min(Math.trunc(parsed), MULTI_MODEL_DISCUSSION_MAX_ROUNDS));
 	};
 
-	let selectedToolIds = [];
+	let selectedToolIds: string[] = [];
 	let toolSelectionTouched = false;
-	let selectedSkillIds = [];
+	let selectedSkillIds: string[] = [];
 	let skillSelectionTouched = false;
 	let imageGenerationEnabled = false;
 	type ImageGenerationOptions = {
@@ -456,6 +641,7 @@
 	let pendingComposerStateSave: Promise<void> = Promise.resolve();
 	let hasPersistedComposerState = false;
 	let composerStateSyncReady = false;
+	let newChatSelectionSyncReady = false;
 	let lastRequestedChatIdProp = '';
 	let activeChatLoadToken = 0;
 
@@ -729,24 +915,6 @@
 		return Array.from(ids);
 	};
 
-	const normalizeReasoningEffortValue = (value: unknown): string | null => {
-		if (value === null || value === undefined) {
-			return null;
-		}
-
-		const normalized = String(value).trim().toLowerCase();
-		return normalized === '' ? null : normalized;
-	};
-
-	const normalizeThinkingTokenValue = (value: unknown): number | null => {
-		if (value === null || value === undefined || value === '') {
-			return null;
-		}
-
-		const parsed = Number(value);
-		return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
-	};
-
 	const getResolvedSelectedModelIds = () =>
 		selectedModelIds.filter((id): id is string => typeof id === 'string' && id.trim() !== '');
 
@@ -906,9 +1074,22 @@
 		}
 	}
 
-	let taskIds = null;
+	let taskIds: string[] | null = null;
+	let taskIdsByMessageId: Record<string, string[]> = {};
+	let responseTaskWatchdogs: Record<
+		string,
+		{
+			taskId: string;
+			startedAt: number;
+			lastEventAt: number;
+			recoverAttempts: number;
+			hardTimeoutAt: number;
+		}
+	> = {};
+	let recoveryInFlight = false;
+	let taskWatchdogTimer: ReturnType<typeof setInterval> | null = null;
 	let stoppedResponseMessageIds = new Set<string>();
-	let messageQueue: { id: string; prompt: string; files: any[] }[] = [];
+	let messageQueue: { id: string; prompt: string; files: any[]; referenceFiles?: any[] }[] = [];
 	let branchingMessageId: string | null = null;
 
 	// Temporary instruction for regeneration with modifications (e.g. "more concise")
@@ -916,16 +1097,36 @@
 
 	// Chat Input
 	let prompt = '';
-	let chatFiles = [];
-	let files = [];
-	let params = {};
+	let chatFiles: any[] = [];
+	let files: any[] = [];
+	let params: Record<string, any> = {};
+	let dismissedImageGenerationReferenceKey = '';
+	let latestImageGenerationReferenceFiles: any[] = [];
+	let latestImageGenerationReferenceKey = '';
+	let activeImageGenerationReferenceFiles: any[] = [];
+	$: latestImageGenerationReferenceFiles = getLatestImageGenerationReferenceFiles(history);
+	$: latestImageGenerationReferenceKey = getImageGenerationReferenceKey(
+		latestImageGenerationReferenceFiles
+	);
+	$: activeImageGenerationReferenceFiles =
+		files.length === 0 &&
+		latestImageGenerationReferenceFiles.length > 0 &&
+		latestImageGenerationReferenceKey !== dismissedImageGenerationReferenceKey
+			? latestImageGenerationReferenceFiles
+			: [];
+	const dismissImageGenerationReference = () => {
+		if (latestImageGenerationReferenceKey) {
+			dismissedImageGenerationReferenceKey = latestImageGenerationReferenceKey;
+		}
+	};
 
 	let reasoningEffort: string | null = null;
-		let maxThinkingTokens: number | null = null;
-		let lastFreshChatRequest = '';
-		// Flag to prevent sessionStorage recovery from overriding a deliberate fresh chat reset
-		let freshChatActive = false;
-		let webSearchSelectionSyncReady = false;
+	let maxThinkingTokens: number | null = null;
+	let lastFreshChatRequest = '';
+	let lastHandledNewChatRequestId = '';
+	// Flag to prevent sessionStorage recovery from overriding a deliberate fresh chat reset
+	let freshChatActive = false;
+	let webSearchSelectionSyncReady = false;
 
 	// Bidirectional sync: Controls sidebar params ↔ inline ThinkingControl
 	// 用缓存值打断 reactive 级联：正向同步更新缓存 → 反向 onChange 检测到缓存一致则跳过
@@ -986,8 +1187,14 @@
 	const applyReasoningSelectionDefaults = () => {
 		const ids = getResolvedSelectedModelIds();
 		const singleModel = getSingleSelectedReasoningModel();
+		const configuredDefaultReasoningEffort = getConfiguredDefaultReasoningEffort($settings);
 
 		if (ids.length !== 1 || !singleModel) {
+			setSharedReasoningState({ effort: null, tokens: null });
+			return;
+		}
+
+		if (configuredDefaultReasoningEffort !== null) {
 			setSharedReasoningState({ effort: null, tokens: null });
 			return;
 		}
@@ -1047,20 +1254,78 @@
 			.map((str) => decodeURIComponent(JSON.parse('"' + str.replace(/\"/g, '\\"') + '"')));
 	};
 
+	const getEffectiveChatSystemPrompt = () => {
+		const chatSystem =
+			typeof params?.system === 'string' && params.system.trim() ? params.system : null;
+		const globalSystem =
+			typeof $settings?.system === 'string' && $settings.system.trim() ? $settings.system : null;
+
+		return chatSystem ?? globalSystem;
+	};
+
+	const getOptionalUserLocation = async () => {
+		if (!$settings?.userLocation) {
+			return undefined;
+		}
+
+		try {
+			return await withTimeout(
+				getAndUpdateUserLocation(localStorage.token).catch((err) => {
+					console.error(err);
+					return undefined;
+				}),
+				SOFT_LOCATION_TIMEOUT_MS,
+				'user location'
+			);
+		} catch (error) {
+			console.warn('Skipping user location after timeout', error);
+			return undefined;
+		}
+	};
+
+	const getOptionalMemoryContext = async (inputPrompt: string) => {
+		if (!($settings?.memory ?? false)) {
+			return null;
+		}
+
+		try {
+			const res = await withTimeout(
+				queryMemory(localStorage.token, inputPrompt).catch((error) => {
+					toast.error(`${error}`);
+					return null;
+				}),
+				SOFT_MEMORY_TIMEOUT_MS,
+				'memory query'
+			);
+			if (!res) {
+				return null;
+			}
+
+			const memoryDocuments = res?.documents?.[0] ?? [];
+			const memoryMetadatas = res?.metadatas?.[0] ?? [];
+
+			if (memoryDocuments.length === 0) {
+				return null;
+			}
+
+			return memoryDocuments.reduce((acc, doc, index) => {
+				const createdAtTimestamp = memoryMetadatas[index]?.created_at;
+				const createdAtDate = createdAtTimestamp
+					? new Date(createdAtTimestamp * 1000).toISOString().split('T')[0]
+					: null;
+				return `${acc}${index + 1}.${createdAtDate ? ` [${createdAtDate}].` : ''} ${doc}\n`;
+			}, '');
+		} catch (error) {
+			console.warn('Skipping memory context after timeout', error);
+			return null;
+		}
+	};
+
 	const buildFloatingRequestMessages = async (messages) => {
-		const systemPrompt =
-			params?.system || $settings?.system
-				? promptTemplate(
-						params?.system ?? $settings?.system ?? '',
-						$user?.name,
-						$settings?.userLocation
-							? await getAndUpdateUserLocation(localStorage.token).catch((err) => {
-									console.error(err);
-									return undefined;
-								})
-							: undefined
-					)
-				: null;
+		const effectiveSystemPrompt = getEffectiveChatSystemPrompt();
+		const systemPrompt = effectiveSystemPrompt
+			? promptTemplate(effectiveSystemPrompt, $user?.name, await getOptionalUserLocation())
+			: null;
 
 		return [
 			systemPrompt
@@ -1140,7 +1405,11 @@
 		const imageGenerationActive = canUseChatImageGeneration()
 			? isImageGenerationActiveForRequest()
 			: false;
-		const requestReasoningEffort = maxThinkingTokens === 0 ? 'none' : reasoningEffort;
+		const requestReasoningEffort = resolveReasoningEffortForRequest({
+			reasoningEffort,
+			maxThinkingTokens,
+			settings: $settings
+		});
 
 		return {
 			stream,
@@ -1177,15 +1446,7 @@
 				web_search_mode: requestedWebSearchMode !== 'off' ? requestedWebSearchMode : undefined
 			},
 			variables: {
-				...getPromptVariables(
-					$user?.name,
-					$settings?.userLocation
-						? await getAndUpdateUserLocation(localStorage.token).catch((err) => {
-								console.error(err);
-								return undefined;
-							})
-						: undefined
-				)
+				...getPromptVariables($user?.name, await getOptionalUserLocation())
 			},
 			session_id: $socket?.id ?? undefined,
 			chat_id: $chatId ?? undefined,
@@ -1477,6 +1738,11 @@
 	const getSelectedModelsStorageKey = () =>
 		buildScopedStorageKey(getLegacySelectedModelsStorageKey());
 
+	const getLegacyNewChatSelectionStateKey = () => 'new-chat-selection-state';
+
+	const getNewChatSelectionStateKey = () =>
+		buildScopedStorageKey(getLegacyNewChatSelectionStateKey());
+
 	const removeSessionSelectedModels = () => {
 		if (typeof window === 'undefined') {
 			return;
@@ -1495,6 +1761,22 @@
 	const shouldRestoreChatSessionState = (id: string | null | undefined) =>
 		Boolean(id) || getNewChatStateInheritanceEnabled();
 
+	const loadCurrentUserSettings = async () => {
+		const fallbackSettings = get(settings) ?? {};
+		const userSettings = await getUserSettings(localStorage.token).catch((error) => {
+			console.error(error);
+			return null;
+		});
+
+		if (userSettings) {
+			applyUserSettingsSnapshot(userSettings, fallbackSettings);
+			return userSettings.ui ?? fallbackSettings;
+		}
+
+		settings.set(fallbackSettings);
+		return fallbackSettings;
+	};
+
 	const safeParseStoredJson = <T,>(rawValue: string | null | undefined, fallback: T): T => {
 		if (!rawValue) {
 			return fallback;
@@ -1505,6 +1787,15 @@
 		} catch {
 			return fallback;
 		}
+	};
+
+	const normalizeStoredSelectedModels = (value: unknown): string[] | null => {
+		if (!Array.isArray(value)) {
+			return null;
+		}
+
+		const normalized = value.map((id) => String(id ?? '').trim()).filter(Boolean);
+		return normalized.length > 0 ? normalized : null;
 	};
 
 	const buildComposerStatePayload = () => ({
@@ -1522,7 +1813,89 @@
 		max_thinking_tokens: maxThinkingTokens
 	});
 
+	const buildNewChatSelectionState = () => {
+		const shouldPersistReasoningSelection = getConfiguredDefaultReasoningEffort($settings) === null;
+
+		return {
+			models: selectedModels,
+			selectedModels,
+			model_selection_hints: buildPersistedModelSelectionHints(selectedModels),
+			...(shouldPersistReasoningSelection
+				? {
+						reasoning_effort: reasoningEffort,
+						max_thinking_tokens: maxThinkingTokens,
+						reasoningEffort,
+						maxThinkingTokens
+					}
+				: {})
+		};
+	};
+
+	const getStoredSelectedModelsFromState = (state: Record<string, any> | null | undefined) =>
+		normalizeStoredSelectedModels(state?.selectedModels ?? state?.models);
+
+	const hasStoredReasoningSelection = (state: Record<string, any> | null | undefined) =>
+		normalizeReasoningEffortValue(state?.reasoning_effort ?? state?.reasoningEffort ?? null) !==
+			null ||
+		normalizeThinkingTokenValue(state?.max_thinking_tokens ?? state?.maxThinkingTokens ?? null) !==
+			null;
+
+	const hasUsableNewChatSelectionState = (state: Record<string, any> | null | undefined) =>
+		Boolean(getStoredSelectedModelsFromState(state) || hasStoredReasoningSelection(state));
+
+	const readNewChatSelectionState = (): Record<string, any> | null => {
+		if (typeof localStorage === 'undefined') {
+			return null;
+		}
+
+		const scopedKey = getNewChatSelectionStateKey();
+		const legacyKey = getLegacyNewChatSelectionStateKey();
+		const { value, usedLegacy } = readStorageItem(localStorage, scopedKey, legacyKey);
+		const stored = safeParseStoredJson<Record<string, any> | null>(value, null);
+
+		if (stored && usedLegacy) {
+			migrateStorageItem(localStorage, scopedKey, legacyKey, value);
+		}
+
+		return stored;
+	};
+
+	const persistNewChatSelectionState = () => {
+		if (typeof localStorage === 'undefined') {
+			return;
+		}
+
+		const scopedKey = getNewChatSelectionStateKey();
+		const legacyKey = getLegacyNewChatSelectionStateKey();
+		localStorage.setItem(scopedKey, JSON.stringify(buildNewChatSelectionState()));
+		if (legacyKey !== scopedKey) {
+			localStorage.removeItem(legacyKey);
+		}
+	};
+
+	const applyNewChatReasoningSelectionState = (
+		state: Record<string, any> | null | undefined
+	) => {
+		if (getConfiguredDefaultReasoningEffort($settings) !== null) {
+			return false;
+		}
+
+		if (!hasStoredReasoningSelection(state)) {
+			return false;
+		}
+
+		setSharedReasoningState({
+			effort: state?.reasoning_effort ?? state?.reasoningEffort ?? null,
+			tokens: state?.max_thinking_tokens ?? state?.maxThinkingTokens ?? null
+		});
+
+		return true;
+	};
+
 	const buildLocalChatSessionState = () => ({
+		models: selectedModels,
+		selectedModels,
+		model_selection_hints: buildPersistedModelSelectionHints(selectedModels),
 		...buildComposerStatePayload(),
 		webSearchMode: webSearchMode,
 		webSearchModeSource: webSearchModeSource,
@@ -1699,21 +2072,44 @@
 		}
 	};
 
+	const restoreChatInputDraft = (input: Record<string, any> | null | undefined) => {
+		if (!input || typeof input !== 'object') {
+			return false;
+		}
+
+		const hasPrompt = Object.prototype.hasOwnProperty.call(input, 'prompt');
+		const hasFiles = Object.prototype.hasOwnProperty.call(input, 'files');
+		if (!hasPrompt && !hasFiles) {
+			return false;
+		}
+
+		prompt = typeof input.prompt === 'string' ? input.prompt : '';
+		files = Array.isArray(input.files) ? input.files : [];
+		return true;
+	};
+
+	const readChatSessionState = (
+		id: string | null | undefined = $chatId || chatIdProp
+	): Record<string, any> | null => {
+		const scopedKey = getChatSessionStateKey(id);
+		const legacyKey = getLegacyChatSessionStateKey(id);
+		const { value, usedLegacy } = readStorageItem(localStorage, scopedKey, legacyKey);
+		const stored = safeParseStoredJson<Record<string, any> | null>(value, null);
+
+		if (stored && usedLegacy) {
+			migrateStorageItem(localStorage, scopedKey, legacyKey, value);
+		}
+
+		return stored;
+	};
+
 	const restoreChatSessionState = (id: string | null | undefined = $chatId || chatIdProp) => {
 		try {
 			if (!shouldRestoreChatSessionState(id)) {
 				return false;
 			}
 
-			const scopedKey = getChatSessionStateKey(id);
-			const legacyKey = getLegacyChatSessionStateKey(id);
-			const { value, usedLegacy } = readStorageItem(localStorage, scopedKey, legacyKey);
-			const stored = safeParseStoredJson<Record<string, any> | null>(value, null);
-			if (stored && usedLegacy) {
-				migrateStorageItem(localStorage, scopedKey, legacyKey, value);
-			}
-
-			const state = stored ?? readChatInputState(id);
+			const state = readChatSessionState(id) ?? readChatInputState(id);
 			if (!state) {
 				return false;
 			}
@@ -2077,6 +2473,7 @@
 		const resolvedModelIds = getResolvedSelectedModelIds();
 		const singleModel = getSingleSelectedReasoningModel();
 		const defaultEffort = getModelDefaultReasoningEffort(singleModel);
+		const configuredDefaultReasoningEffort = getConfiguredDefaultReasoningEffort($settings);
 		const hasSingleModelSelection = resolvedModelIds.length === 1 && !!singleModel;
 
 		if (resolvedModelIds.length !== 1) {
@@ -2085,7 +2482,13 @@
 			} else {
 				syncReasoningUiState(null, null);
 			}
-		} else if (hasSingleModelSelection && defaultEffort !== null && paramEffort === null && paramTokens === null) {
+		} else if (
+			hasSingleModelSelection &&
+			configuredDefaultReasoningEffort === null &&
+			defaultEffort !== null &&
+			paramEffort === null &&
+			paramTokens === null
+		) {
 			setSharedReasoningState({ effort: defaultEffort, tokens: null });
 		} else if (paramTokens !== null && paramTokens > 0) {
 			setSharedReasoningState({ effort: null, tokens: paramTokens, syncParams: false });
@@ -2132,6 +2535,7 @@
 			loading = true;
 			cancelPendingAutoScrollFrames();
 			composerStateSyncReady = false;
+			newChatSelectionSyncReady = false;
 			resetReasoningSelectionTracking();
 			webSearchSelectionSyncReady = false;
 
@@ -2165,12 +2569,7 @@
 			}
 
 			const input = readChatInputState(targetChatId);
-			if (input) {
-				try {
-					prompt = input.prompt;
-					files = input.files;
-				} catch (e) {}
-			}
+			restoreChatInputDraft(input);
 
 			loading = false;
 			await tick();
@@ -2178,6 +2577,7 @@
 			const chatInput = document.getElementById('chat-input');
 			chatInput?.focus();
 			composerStateSyncReady = true;
+			newChatSelectionSyncReady = true;
 			webSearchSelectionSyncReady = true;
 			initializeReasoningSelectionTracking();
 		})();
@@ -2185,6 +2585,18 @@
 
 	$: if (selectedModels) {
 		saveSessionSelectedModels();
+	}
+
+	$: {
+		const newChatSelectionSignature = JSON.stringify({
+			selectedModels,
+			reasoningEffort,
+			maxThinkingTokens
+		});
+		newChatSelectionSignature;
+		if (newChatSelectionSyncReady) {
+			persistNewChatSelectionState();
+		}
 	}
 
 	const saveSessionSelectedModels = () => {
@@ -2424,6 +2836,78 @@
 		return message;
 	};
 
+	const getActiveTaskIds = () => (Array.isArray(taskIds) ? taskIds.filter(Boolean) : []);
+
+	const resetTaskTracking = () => {
+		taskIds = null;
+		taskIdsByMessageId = {};
+		responseTaskWatchdogs = {};
+	};
+
+	const resetTaskIds = resetTaskTracking;
+
+	const registerResponseTask = (messageId: string, taskId: string | null | undefined) => {
+		if (!messageId || !taskId) return;
+
+		const currentTaskIds = new Set(taskIdsByMessageId[messageId] ?? []);
+		currentTaskIds.add(taskId);
+		taskIdsByMessageId = {
+			...taskIdsByMessageId,
+			[messageId]: [...currentTaskIds]
+		};
+		taskIds = Array.from(new Set([...getActiveTaskIds(), taskId]));
+		responseTaskWatchdogs = {
+			...responseTaskWatchdogs,
+			[messageId]: {
+				taskId,
+				startedAt: Date.now(),
+				lastEventAt: Date.now(),
+				recoverAttempts: 0,
+				hardTimeoutAt: Date.now() + CHAT_TASK_HARD_TIMEOUT_MS
+			}
+		};
+	};
+
+	const hasPendingAssistantSibling = (responseMessageId: string) => {
+		const responseMessage = getHistoryMessage(responseMessageId);
+		const parentMessage = responseMessage?.parentId
+			? getHistoryMessage(responseMessage.parentId)
+			: null;
+
+		return (parentMessage?.childrenIds ?? []).some((id: string) => {
+			if (id === responseMessageId) return false;
+
+			const sibling = getHistoryMessage(id);
+			return sibling?.role === 'assistant' && sibling.done !== true && !isResponseStopped(sibling);
+		});
+	};
+
+	const clearTaskForCompletedResponse = (responseMessageId: string | null = null) => {
+		if (!responseMessageId) {
+			resetTaskIds();
+			return;
+		}
+
+		const remainingTaskIdsByMessageId = { ...taskIdsByMessageId };
+		const mappedTaskIds = new Set(remainingTaskIdsByMessageId[responseMessageId] ?? []);
+		delete remainingTaskIdsByMessageId[responseMessageId];
+		taskIdsByMessageId = remainingTaskIdsByMessageId;
+
+		const nextWatchdogs = { ...responseTaskWatchdogs };
+		delete nextWatchdogs[responseMessageId];
+		responseTaskWatchdogs = nextWatchdogs;
+
+		if (mappedTaskIds.size > 0) {
+			const nextTaskIds = getActiveTaskIds().filter((id) => !mappedTaskIds.has(id));
+			taskIds = nextTaskIds.length > 0 ? nextTaskIds : null;
+			return;
+		}
+
+		if (!hasPendingAssistantSibling(responseMessageId)) {
+			resetTaskTracking();
+		}
+	};
+
 	const chatEventHandler = async (event, cb) => {
 		if (event.chat_id === $chatId) {
 			await tick();
@@ -2569,6 +3053,17 @@
 		}
 	};
 
+	const bindChatEventSocket = (socketInstance: any) => {
+		if (chatEventSocket === socketInstance) {
+			return;
+		}
+
+		chatEventSocket?.off('chat-events', chatEventHandler);
+		chatEventSocket = socketInstance;
+		chatEventSocket?.off('chat-events', chatEventHandler);
+		chatEventSocket?.on('chat-events', chatEventHandler);
+	};
+
 	const onMessageHandler = async (event: {
 		origin: string;
 		data: { type: string; text: string };
@@ -2624,10 +3119,14 @@
 	onMount(async () => {
 		window.addEventListener('message', onMessageHandler);
 		window.addEventListener('chat:set-input', onSetInputHandler as EventListener);
+		window.addEventListener('halo:foreground-resume', handleForegroundResume);
+		window.addEventListener('halo:android-resume', handleForegroundResume);
 		window.addEventListener('keydown', handleMessageOutlineKeydown, true);
 		window.addEventListener('pointerup', clearMessageOutlineScrollbarDragPrime, true);
 		window.addEventListener('pointercancel', clearMessageOutlineScrollbarDragPrime, true);
-		$socket?.on('chat-events', chatEventHandler);
+		socketEventUnsubscriber = socket.subscribe((socketInstance) => {
+			bindChatEventSocket(socketInstance);
+		});
 
 		if (!chatIdProp && !$chatId) {
 			chatIdUnsubscriber = chatId.subscribe(async (value) => {
@@ -2645,28 +3144,13 @@
 		if (!chatIdProp) {
 			if (getNewChatStateInheritanceEnabled()) {
 				const input = readChatInputState(chatIdProp);
-				if (input) {
-					try {
-						prompt = input.prompt;
-						files = input.files;
-					} catch (e) {
-						prompt = '';
-						files = [];
-						selectedToolIds = [];
-						toolSelectionTouched = false;
-						selectedSkillIds = [];
-						skillSelectionTouched = false;
-						webSearchMode = getPreferredDefaultWebSearchMode();
-						webSearchModeSource = 'default';
-						imageGenerationEnabled = false;
-						imageGenerationOptions = {};
-					}
-				}
+				restoreChatInputDraft(input);
 				restoreChatSessionState(chatIdProp);
 			} else {
 				clearNewChatStateCache();
 			}
 			composerStateSyncReady = true;
+			newChatSelectionSyncReady = true;
 			webSearchSelectionSyncReady = true;
 		}
 
@@ -2704,6 +3188,14 @@
 				selectedModels = [assistantScene.id];
 			}
 		});
+		socketReconnectUnsubscriber = socketReconnectRevision.subscribe((revision) => {
+			if (revision > 0) {
+				void recoverActiveChat('socket-reconnect');
+			}
+		});
+		taskWatchdogTimer = setInterval(() => {
+			void runTaskWatchdog();
+		}, CHAT_TASK_WATCHDOG_INTERVAL_MS);
 
 		const chatInput = document.getElementById('chat-input');
 		chatInput?.focus();
@@ -2743,6 +3235,8 @@
 	onDestroy(() => {
 		chatIdUnsubscriber?.();
 		selectedAssistantSceneUnsubscriber?.();
+		socketEventUnsubscriber?.();
+		socketReconnectUnsubscriber?.();
 		clearMessageOutlineHideTimer();
 		messageOutlineVisibleStore.set(false);
 		if (selectionThreadsPersistTimeout) {
@@ -2761,10 +3255,17 @@
 		overviewFocusedMessageId.set(null);
 		window.removeEventListener('message', onMessageHandler);
 		window.removeEventListener('chat:set-input', onSetInputHandler as EventListener);
+		window.removeEventListener('halo:foreground-resume', handleForegroundResume as EventListener);
+		window.removeEventListener('halo:android-resume', handleForegroundResume as EventListener);
 		window.removeEventListener('keydown', handleMessageOutlineKeydown, true);
 		window.removeEventListener('pointerup', clearMessageOutlineScrollbarDragPrime, true);
 		window.removeEventListener('pointercancel', clearMessageOutlineScrollbarDragPrime, true);
-		$socket?.off('chat-events', chatEventHandler);
+		chatEventSocket?.off('chat-events', chatEventHandler);
+		chatEventSocket = null;
+		if (taskWatchdogTimer) {
+			clearInterval(taskWatchdogTimer);
+			taskWatchdogTimer = null;
+		}
 	});
 
 	$: if ($showOverview) {
@@ -3022,10 +3523,33 @@
 	//////////////////////////
 
 	const initNewChat = async (options: { fresh?: boolean } = {}) => {
+		const currentUserSettings = await loadCurrentUserSettings();
+		const configuredDefaultModels = Array.isArray(currentUserSettings?.models)
+			? [...currentUserSettings.models]
+			: undefined;
 		const fresh = options.fresh ?? false;
-		const inheritNewChatState = !fresh && getNewChatStateInheritanceEnabled();
+		const inheritNewChatState = !fresh && getNewChatStateInheritanceEnabled(currentUserSettings);
+		const currentNewChatSelectionState = buildNewChatSelectionState();
+		const hasCurrentNewChatSelectionState = hasUsableNewChatSelectionState(
+			currentNewChatSelectionState
+		);
+		const newChatSelectionState =
+			!fresh && hasCurrentNewChatSelectionState
+				? currentNewChatSelectionState
+				: !fresh
+					? readNewChatSelectionState()
+					: null;
+		const preservedSelectedModels = getStoredSelectedModelsFromState(newChatSelectionState);
+		let applyPreservedReasoningSelection = false;
+		if (!fresh && hasCurrentNewChatSelectionState) {
+			persistNewChatSelectionState();
+			if (inheritNewChatState) {
+				persistChatSessionState('');
+			}
+		}
 		freshChatActive = fresh;
 		composerStateSyncReady = false;
+		newChatSelectionSyncReady = false;
 		resetReasoningSelectionTracking();
 		webSearchSelectionSyncReady = false;
 
@@ -3066,17 +3590,24 @@
 				const storedSelectedModels = safeParseStoredJson<string[] | null>(value, null);
 				if (Array.isArray(storedSelectedModels)) {
 					selectedModels = storedSelectedModels;
+					applyPreservedReasoningSelection = true;
 					if (usedLegacy) {
 						migrateStorageItem(sessionStorage, scopedKey, legacyKey, value);
 					}
 				}
 			} else {
-				if ($settings?.models) {
-					selectedModels = $settings?.models;
+				if (preservedSelectedModels) {
+					selectedModels = preservedSelectedModels;
+					applyPreservedReasoningSelection = true;
+				} else if (configuredDefaultModels) {
+					selectedModels = configuredDefaultModels;
 				}
 			}
-		} else if ($settings?.models) {
-			selectedModels = $settings?.models;
+		} else if (!fresh && preservedSelectedModels) {
+			selectedModels = preservedSelectedModels;
+			applyPreservedReasoningSelection = true;
+		} else if (configuredDefaultModels) {
+			selectedModels = configuredDefaultModels;
 		} else if (fresh || !inheritNewChatState) {
 			// fresh=true but no default model configured — reset to empty so user must choose
 			selectedModels = [''];
@@ -3111,7 +3642,7 @@
 			}
 		}
 
-		let temporaryChatState = syncTemporaryChatState();
+		let temporaryChatState = syncTemporaryChatState(currentUserSettings);
 		messageQueue = [];
 
 		await showControls.set(false);
@@ -3146,16 +3677,16 @@
 		setSelectionThreadsState(createEmptySelectionThreads());
 		expandedSelectionThreadId.set(null);
 		clearResponseAnimationControllers();
+		prompt = '';
+		files = [];
 
 		if (fresh || !inheritNewChatState) {
 			chat = null;
 			tags = [];
-			taskIds = null;
+			resetTaskTracking();
 			processing = '';
 			atSelectedModel = undefined;
 			activeAssistant = null;
-			prompt = '';
-			files = [];
 			selectedToolIds = [];
 			toolSelectionTouched = false;
 			selectedSkillIds = [];
@@ -3174,7 +3705,7 @@
 		selectedSkillIds = [];
 		skillSelectionTouched = false;
 
-		if (fresh || !inheritNewChatState) {
+		if (fresh) {
 			clearNewChatStateCache();
 			reasoningEffort = null;
 			maxThinkingTokens = null;
@@ -3185,7 +3716,14 @@
 			maxThinkingTokens = null;
 			webSearchMode = getPreferredDefaultWebSearchMode();
 			webSearchModeSource = 'default';
-			restoreChatSessionState('');
+			if (inheritNewChatState) {
+				restoreChatSessionState('');
+			} else {
+				clearNewChatStateCache();
+			}
+			if (applyPreservedReasoningSelection) {
+				applyNewChatReasoningSelectionState(newChatSelectionState);
+			}
 			if (reasoningEffort) {
 				params.reasoning_effort = reasoningEffort;
 			}
@@ -3264,16 +3802,7 @@
 			}
 		}
 
-		const userSettings = await getUserSettings(localStorage.token);
-
-		if (userSettings) {
-			applyUserSettingsSnapshot(userSettings, get(settings) ?? {});
-			temporaryChatState = syncTemporaryChatState(userSettings.ui);
-		} else {
-			const fallbackSettings = get(settings) ?? {};
-			settings.set(fallbackSettings);
-			temporaryChatState = syncTemporaryChatState(fallbackSettings);
-		}
+		temporaryChatState = syncTemporaryChatState(currentUserSettings);
 
 		if (fresh && $page.url.searchParams.get('web-search') !== 'true') {
 			webSearchMode = getPreferredDefaultWebSearchMode();
@@ -3313,6 +3842,7 @@
 		const chatInput = document.getElementById('chat-input');
 		setTimeout(() => chatInput?.focus(), 0);
 		composerStateSyncReady = true;
+		newChatSelectionSyncReady = true;
 		webSearchSelectionSyncReady = true;
 		initializeReasoningSelectionTracking();
 		syncImageGenerationForDedicatedModel({ force: true });
@@ -3323,6 +3853,13 @@
 			window.history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
 		}
 	};
+
+	$: if ($newChatRequest && $newChatRequest.id !== lastHandledNewChatRequestId) {
+		const request = $newChatRequest;
+		lastHandledNewChatRequestId = request.id;
+		newChatRequest.set(null);
+		void initNewChat({ fresh: request.fresh ?? false });
+	}
 
 	$: {
 		const freshChatRequested =
@@ -3342,11 +3879,16 @@
 		}
 	}
 
+	const openNewChatInNewTab = () => {
+		persistNewChatSelectionState();
+		window.open('/', '_blank', 'noopener');
+	};
+
 	const loadChat = async (targetChatId: string = chatIdProp) => {
 		const navigationId = targetChatId;
 		chatId.set(targetChatId);
 		tags = [];
-		taskIds = null;
+		resetTaskTracking();
 		const chatContextPromise = getChatContextById(localStorage.token, targetChatId).catch(() => ({
 			tags: [],
 			task_ids: []
@@ -3409,6 +3951,7 @@
 					if (navigationId !== chatIdProp) return;
 
 					tags = nextContext?.tags ?? [];
+					taskIdsByMessageId = {};
 					taskIds = nextContext?.task_ids ?? [];
 					reconcileLoadedAssistantMessages(taskIds);
 				})();
@@ -3476,7 +4019,7 @@
 		}
 
 		if (!hasActivePendingResponse) {
-			taskIds = null;
+			resetTaskTracking();
 		}
 
 		activeChatIds.update((ids) => {
@@ -3488,6 +4031,176 @@
 			}
 			return next;
 		});
+	};
+
+	const touchResponseTask = (messageId: string) => {
+		const watchdog = responseTaskWatchdogs[messageId];
+		if (!watchdog) {
+			return;
+		}
+
+		responseTaskWatchdogs = {
+			...responseTaskWatchdogs,
+			[messageId]: {
+				...watchdog,
+				lastEventAt: Date.now()
+			}
+		};
+	};
+
+	const markResponseRecoveryFailed = async (messageId: string, taskId: string | null, reason: string) => {
+		const message = history.messages?.[messageId];
+		if (!message) {
+			clearTaskForCompletedResponse(messageId);
+			return;
+		}
+
+		if (taskId) {
+			await stopTask(localStorage.token, taskId).catch(() => null);
+		}
+
+		message.error = {
+			type: 'socket_recovery_failed',
+			content: reason
+		};
+		message.done = true;
+		message.completedAt = Math.floor(Date.now() / 1000);
+		history.messages[messageId] = message;
+		clearTaskForCompletedResponse(messageId);
+		if ($chatId && !$temporaryChatEnabled) {
+			await saveChatHandler($chatId, history);
+		}
+	};
+
+	const releaseMessageQueueIfIdle = async () => {
+		const hasPendingTask = Array.isArray(taskIds) && taskIds.length > 0;
+		const hasRunningResponse = isStreamingResponseActive();
+		if (hasPendingTask || hasRunningResponse || messageQueue.length === 0) {
+			return;
+		}
+
+		const next = messageQueue[0];
+		messageQueue = messageQueue.slice(1);
+		files = next.files;
+		await tick();
+		await submitPrompt(next.prompt, { referenceFiles: next.referenceFiles ?? [] });
+	};
+
+	const recoverActiveChat = async (reason: string) => {
+		if (
+			recoveryInFlight ||
+			!$chatId ||
+			$chatId === 'local' ||
+			$temporaryChatEnabled ||
+			loading
+		) {
+			return false;
+		}
+
+		recoveryInFlight = true;
+
+		try {
+			const [chatContext, serverChat] = await Promise.all([
+				getChatContextById(localStorage.token, $chatId).catch(() => null),
+				getChatById(localStorage.token, $chatId).catch(() => null)
+			]);
+
+			if (serverChat?.chat?.history?.messages) {
+				for (const [messageId, serverMessage] of Object.entries(
+					serverChat.chat.history.messages
+				) as [string, any][]) {
+					const localMessage = history.messages?.[messageId];
+					const preserveStopped = localMessage?.stoppedByUser || localMessage?.stopped;
+					history.messages[messageId] = preserveStopped
+						? { ...serverMessage, ...localMessage }
+						: { ...localMessage, ...serverMessage };
+				}
+
+				history.currentId = serverChat.chat.history.currentId ?? history.currentId;
+			}
+
+			const nextTaskIds = chatContext?.task_ids ?? [];
+			taskIds = nextTaskIds.length > 0 ? nextTaskIds : null;
+			reconcileLoadedAssistantMessages(taskIds);
+
+			if (!taskIds || taskIds.length === 0) {
+				for (const [messageId, message] of Object.entries(history.messages ?? {}) as [string, any][]) {
+					if (message?.role !== 'assistant' || message.done === true) {
+						continue;
+					}
+
+					const watchdog = responseTaskWatchdogs[messageId];
+					const isHardTimedOut = watchdog && Date.now() >= watchdog.hardTimeoutAt;
+					const shouldFail =
+						!`${message?.content ?? ''}`.trim() || isHardTimedOut || reason === 'watchdog-silence';
+
+					if (shouldFail) {
+						await markResponseRecoveryFailed(
+							messageId,
+							watchdog?.taskId ?? null,
+							$i18n.t('页面返回前台后未能恢复响应状态，请刷新或重新发送。')
+						);
+					} else {
+						message.done = true;
+						history.messages[messageId] = message;
+						clearTaskForCompletedResponse(messageId);
+					}
+				}
+			}
+
+			await releaseMessageQueueIfIdle();
+			return true;
+		} finally {
+			recoveryInFlight = false;
+		}
+	};
+
+	const runTaskWatchdog = async () => {
+		const now = Date.now();
+		if ($socketConnectionState !== 'connected') {
+			const staleSince = get(socketLastDisconnectedAt);
+			if (staleSince && now - staleSince > CHAT_TASK_RECOVER_INTERVAL_MS) {
+				$socket?.connect();
+			}
+		}
+
+		for (const [messageId, watchdog] of Object.entries(responseTaskWatchdogs)) {
+			if (now >= watchdog.hardTimeoutAt) {
+				await markResponseRecoveryFailed(
+					messageId,
+					watchdog.taskId,
+					$i18n.t('连接已断开，多次重连失败。当前回复已停止等待。')
+				);
+				continue;
+			}
+
+			if (now - watchdog.lastEventAt < CHAT_TASK_SILENCE_TIMEOUT_MS) {
+				continue;
+			}
+
+			if (watchdog.recoverAttempts >= CHAT_TASK_MAX_RECOVER_ATTEMPTS) {
+				await markResponseRecoveryFailed(
+					messageId,
+					watchdog.taskId,
+					$i18n.t('连接已断开，多次重连失败。当前回复已停止等待。')
+				);
+				continue;
+			}
+
+			responseTaskWatchdogs = {
+				...responseTaskWatchdogs,
+				[messageId]: {
+					...watchdog,
+					recoverAttempts: watchdog.recoverAttempts + 1,
+					lastEventAt: now
+				}
+			};
+			await recoverActiveChat('watchdog-silence');
+		}
+	};
+
+	const handleForegroundResume = () => {
+		void recoverActiveChat('foreground-resume');
 	};
 
 	const isNearBottom = () => {
@@ -3910,7 +4623,7 @@
 			}
 		}
 
-		taskIds = null;
+		clearTaskForCompletedResponse(responseMessageId);
 		await tick();
 
 		const parentId = history.messages[responseMessageId]?.parentId;
@@ -3920,13 +4633,8 @@
 				(id) => history.messages[id] && history.messages[id].done !== true
 			);
 
-		if (!hasPendingSibling && messageQueue.length > 0) {
-			const next = messageQueue[0];
-			messageQueue = messageQueue.slice(1);
-
-			files = next.files;
-			await tick();
-			await submitPrompt(next.prompt);
+		if (!hasPendingSibling) {
+			await releaseMessageQueueIfIdle();
 		}
 	};
 
@@ -4403,6 +5111,9 @@
 
 	const chatCompletionEventHandler = async (data, message, chatId) => {
 		const { id, done, choices, content, sources, error, usage, files, discussion } = data;
+		if (message?.id) {
+			touchResponseTask(message.id);
+		}
 		if (isResponseStopped(message) || stoppedResponseMessageIds.has(message?.id)) {
 			if (done) {
 				stoppedResponseMessageIds.delete(message.id);
@@ -4480,8 +5191,10 @@
 			await releaseResponseAnimationController(message.id);
 			clearPendingGeminiImages(message.id, true);
 			message.done = true;
+			clearTaskForCompletedResponse(message.id);
 			message.completedAt = Date.now() / 1000;
 			commitHistoryMessage(message);
+			clearTaskForCompletedResponse(message.id);
 			await tick();
 
 			if ($settings.responseAutoCopy) {
@@ -4539,7 +5252,7 @@
 	// Chat functions
 	//////////////////////////
 
-	const submitPrompt = async (userPrompt, { _raw = false } = {}) => {
+	const submitPrompt = async (userPrompt, { _raw = false, referenceFiles: referenceFilesOverride = null } = {}) => {
 		const messages = createMessagesList(history, history.currentId);
 		const blockingSelection = findBlockingSelectedModelResolution();
 		const _selectedModels = selectedModels.map((modelId, index) => {
@@ -4549,8 +5262,13 @@
 
 		const failedFiles = files.filter((file) => isFailedUploadFile(file));
 		const validFiles = files.filter((file) => !isFailedUploadFile(file));
+		const referenceFiles = Array.isArray(referenceFilesOverride)
+			? referenceFilesOverride
+			: validFiles.length === 0
+				? activeImageGenerationReferenceFiles.map((file) => normalizeInputFileForMessage(file))
+				: [];
 
-		if (userPrompt === '' && validFiles.length === 0) {
+		if (userPrompt === '' && validFiles.length === 0 && referenceFiles.length === 0) {
 			if (failedFiles.length > 0) {
 				toast.warning(
 					$i18n.t(
@@ -4597,7 +5315,7 @@
 		}
 		if (
 			($config?.file?.max_count ?? null) !== null &&
-			validFiles.length + chatFiles.length > $config?.file?.max_count
+			validFiles.length + referenceFiles.length + chatFiles.length > $config?.file?.max_count
 		) {
 			toast.error(
 				$i18n.t(`You can only chat with a maximum of {{maxCount}} file(s) at a time.`, {
@@ -4610,12 +5328,22 @@
 		const hasPendingTask = Array.isArray(taskIds) && taskIds.length > 0;
 		const hasRunningResponse = messages.length !== 0 && messages.at(-1).done != true;
 		if (hasPendingTask || hasRunningResponse) {
+			await recoverActiveChat('before-send');
+			const stillHasPendingTask = Array.isArray(taskIds) && taskIds.length > 0;
+			const stillHasRunningResponse = messages.length !== 0 && messages.at(-1).done != true;
+			if (!stillHasPendingTask && !stillHasRunningResponse) {
+				return await submitPrompt(userPrompt, { referenceFiles });
+			}
+
 			if ($settings?.enableMessageQueue ?? true) {
 				const queuedFiles = validFiles.map((file) => normalizeInputFileForMessage(file));
 				if (failedFiles.length > 0) {
 					toast.warning(buildIgnoredFailedFilesMessage(failedFiles, $i18n.t.bind($i18n)));
 				}
-				messageQueue = [...messageQueue, { id: uuidv4(), prompt: userPrompt, files: queuedFiles }];
+				messageQueue = [
+					...messageQueue,
+					{ id: uuidv4(), prompt: userPrompt, files: queuedFiles, referenceFiles }
+				];
 				prompt = '';
 				files = structuredClone(failedFiles);
 				return;
@@ -4680,14 +5408,14 @@
 
 		saveSessionSelectedModels();
 
-		await sendPrompt(history, userPrompt, userMessageId, { newChat: true });
+		await sendPrompt(history, userPrompt, userMessageId, { newChat: true, referenceFiles });
 	};
 
 	const sendPrompt = async (
 		_history,
 		prompt: string,
 		parentId: string,
-		{ modelId = null, modelIdx = null, newChat = false } = {}
+		{ modelId = null, modelIdx = null, newChat = false, referenceFiles = [] } = {}
 	) => {
 		if (autoScroll) {
 			scrollToBottom();
@@ -4810,10 +5538,15 @@
 
 			_history = structuredClone(history);
 			await saveChatHandler(_chatId, _history);
+			const requestHistory: any = appendReferenceFilesToRequestHistory(
+				_history,
+				parentId,
+				referenceFiles
+			);
 
-			const messages = createMessagesList(_history, parentId);
-			const hasImages = messages.some((message) =>
-				message.files?.some((file) => file.type === 'image')
+			const messages: any[] = createMessagesList(requestHistory, parentId);
+			const hasImages = messages.some((message: any) =>
+				message.files?.some((file: any) => file.type === 'image')
 			);
 			if (hasImages) {
 				for (const participantId of discussionParticipantIds) {
@@ -4828,36 +5561,17 @@
 				}
 			}
 
-			let userContext = null;
-			if ($settings?.memory ?? false) {
-				const res = await queryMemory(localStorage.token, prompt).catch((error) => {
-					toast.error(`${error}`);
-					return null;
-				});
-				if (res) {
-					const memoryDocuments = res?.documents?.[0] ?? [];
-					const memoryMetadatas = res?.metadatas?.[0] ?? [];
-
-					if (memoryDocuments.length > 0) {
-						userContext = memoryDocuments.reduce((acc, doc, index) => {
-							const createdAtTimestamp = memoryMetadatas[index]?.created_at;
-							const createdAtDate = createdAtTimestamp
-								? new Date(createdAtTimestamp * 1000).toISOString().split('T')[0]
-								: null;
-							return `${acc}${index + 1}.${createdAtDate ? ` [${createdAtDate}].` : ''} ${doc}\n`;
-						}, '');
-					}
-				}
-			}
+			let userContext = await getOptionalMemoryContext(prompt);
 
 			_history.messages[responseMessageId].userContext = userContext;
+			(requestHistory.messages as Record<string, any>)[responseMessageId].userContext = userContext;
 			history.messages[responseMessageId].userContext = userContext;
 
 			const chatEventEmitter = await getChatEventEmitter(getModelRequestId(finalModel), _chatId);
 
 			resetAutoScrollLock();
 			scrollToBottom();
-			await sendPromptSocket(_history, finalModel, responseMessageId, _chatId, {
+			await sendPromptSocket(requestHistory, finalModel, responseMessageId, _chatId, {
 				discussion: buildDiscussionRequestPayload(discussionParticipantIds)
 			});
 
@@ -4917,6 +5631,11 @@
 		_history = structuredClone(history);
 		// Save chat after all messages have been created
 		await saveChatHandler(_chatId, _history);
+		const requestHistory: any = appendReferenceFilesToRequestHistory(
+			_history,
+			parentId,
+			referenceFiles
+		);
 
 		await Promise.all(
 			selectedModelIds.map(async (modelId, _modelIdx) => {
@@ -4924,10 +5643,10 @@
 				const model = getModelById(modelId);
 
 				if (model) {
-					const messages = createMessagesList(_history, parentId);
+					const messages: any[] = createMessagesList(requestHistory, parentId);
 					// If there are image files, check if model is vision capable
-					const hasImages = messages.some((message) =>
-						message.files?.some((file) => file.type === 'image')
+					const hasImages = messages.some((message: any) =>
+						message.files?.some((file: any) => file.type === 'image')
 					);
 
 					if (hasImages && !(model.info?.meta?.capabilities?.vision ?? true)) {
@@ -4940,40 +5659,16 @@
 
 					let responseMessageId =
 						responseMessageIds[`${modelId}-${modelIdx ? modelIdx : _modelIdx}`];
-					let responseMessage = _history.messages[responseMessageId];
+					let responseMessage = (requestHistory.messages as Record<string, any>)[responseMessageId];
 
-					let userContext = null;
-					if ($settings?.memory ?? false) {
-						if (userContext === null) {
-							const res = await queryMemory(localStorage.token, prompt).catch((error) => {
-								toast.error(`${error}`);
-								return null;
-							});
-							if (res) {
-								const memoryDocuments = res?.documents?.[0] ?? [];
-								const memoryMetadatas = res?.metadatas?.[0] ?? [];
-
-								if (memoryDocuments.length > 0) {
-									userContext = memoryDocuments.reduce((acc, doc, index) => {
-										const createdAtTimestamp = memoryMetadatas[index]?.created_at;
-										const createdAtDate = createdAtTimestamp
-											? new Date(createdAtTimestamp * 1000).toISOString().split('T')[0]
-											: null;
-										return `${acc}${index + 1}.${createdAtDate ? ` [${createdAtDate}].` : ''} ${doc}\n`;
-									}, '');
-								}
-
-								console.log(userContext);
-							}
-						}
-					}
+					let userContext = await getOptionalMemoryContext(prompt);
 					responseMessage.userContext = userContext;
 
 					const chatEventEmitter = await getChatEventEmitter(getModelRequestId(model), _chatId);
 
 					resetAutoScrollLock();
 					scrollToBottom();
-					await sendPromptSocket(_history, model, responseMessageId, _chatId);
+					await sendPromptSocket(requestHistory, model, responseMessageId, _chatId);
 
 					if (chatEventEmitter) clearInterval(chatEventEmitter);
 				} else {
@@ -5017,24 +5712,23 @@
 			$settings?.params?.stream_response ??
 			true;
 
+		const effectiveSystemPrompt = getEffectiveChatSystemPrompt();
+		const userContext = responseMessage?.userContext ?? null;
+		const templatedSystemPrompt = effectiveSystemPrompt
+			? promptTemplate(effectiveSystemPrompt, $user?.name, await getOptionalUserLocation())
+			: '';
+		const systemMessageContent = [
+			templatedSystemPrompt,
+			userContext ? `User Context:\n${userContext}` : ''
+		]
+			.filter((content) => content.trim())
+			.join('\n\n');
+
 		let messages = [
-			params?.system || $settings.system || (responseMessage?.userContext ?? null)
+			systemMessageContent
 				? {
 						role: 'system',
-						content: `${promptTemplate(
-							params?.system ?? $settings?.system ?? '',
-							$user?.name,
-							$settings?.userLocation
-								? await getAndUpdateUserLocation(localStorage.token).catch((err) => {
-										console.error(err);
-										return undefined;
-									})
-								: undefined
-						)}${
-							(responseMessage?.userContext ?? null)
-								? `\n\nUser Context:\n${responseMessage?.userContext ?? ''}`
-								: ''
-						}`
+						content: systemMessageContent
 					}
 				: undefined,
 			...createMessagesList(_history, responseMessageId).map((message) => ({
@@ -5084,6 +5778,11 @@
 		const imageGenerationActive = canUseChatImageGeneration()
 			? isImageGenerationActiveForRequest()
 			: false;
+		const requestReasoningEffort = resolveReasoningEffortForRequest({
+			reasoningEffort,
+			maxThinkingTokens,
+			settings: $settings
+		});
 
 		messages = messages
 			.map((message, idx, arr) => {
@@ -5148,7 +5847,7 @@
 				params: {
 					...$settings?.params,
 					...params,
-					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+					...(requestReasoningEffort ? { reasoning_effort: requestReasoningEffort } : {}),
 					...(maxThinkingTokens != null && maxThinkingTokens > 0
 						? { thinking: { type: 'enabled', budget_tokens: maxThinkingTokens } }
 						: {}),
@@ -5184,15 +5883,7 @@
 					web_search_mode: requestedWebSearchMode !== 'off' ? requestedWebSearchMode : undefined
 				},
 				variables: {
-					...getPromptVariables(
-						$user?.name,
-						$settings?.userLocation
-							? await getAndUpdateUserLocation(localStorage.token).catch((err) => {
-									console.error(err);
-									return undefined;
-								})
-							: undefined
-					)
+					...getPromptVariables($user?.name, await getOptionalUserLocation())
 				},
 				model_item: model,
 
@@ -5235,7 +5926,8 @@
 						}
 					: {})
 			},
-			`${WEBUI_BASE_URL}/api`
+			`${WEBUI_BASE_URL}/api`,
+			{ timeoutMs: CHAT_REQUEST_START_TIMEOUT_MS }
 		).catch(async (error) => {
 			const resolutionDetail = getModelResolutionDetail(error);
 			if (resolutionDetail) {
@@ -5270,10 +5962,13 @@
 					});
 				}
 			} else {
-				if (res.task_id && taskIds) {
-					taskIds.push(res.task_id);
-				} else if (res.task_id) {
-					taskIds = [res.task_id];
+				const taskId = (res as any)?.task_id;
+				const liveResponseMessage =
+					(history.messages as Record<string, any>)[responseMessageId] ?? responseMessage;
+				if (liveResponseMessage?.done === true) {
+					clearTaskForCompletedResponse(responseMessageId);
+				} else {
+					registerResponseTask(responseMessageId, taskId);
 				}
 			}
 		}
@@ -5609,6 +6304,7 @@
 			}
 
 			history.messages[responseMessage.id] = responseMessage;
+			clearTaskForCompletedResponse(responseMessage.id);
 			return;
 		}
 
@@ -5637,13 +6333,14 @@
 		}
 
 		history.messages[responseMessage.id] = responseMessage;
+		clearTaskForCompletedResponse(responseMessage.id);
 	};
 
 	const stopResponse = async () => {
-		const currentTaskIds = Array.isArray(taskIds) ? [...taskIds] : [];
+		const currentTaskIds = [...getActiveTaskIds()];
 
 		await markResponseMessagesStopped();
-		taskIds = null;
+		resetTaskTracking();
 
 		for (const taskId of currentTaskIds) {
 			if (taskId) {
@@ -5716,7 +6413,21 @@
 			if (options.instruction) _pendingInstruction = options.instruction;
 
 			try {
-				if ((userMessage?.models ?? [...selectedModels]).length == 1) {
+				if (message?.discussion?.enabled === true) {
+					const currentModelIds =
+						atSelectedModel !== undefined
+							? [getModelSelectionId(atSelectedModel)].filter(Boolean)
+							: (selectedModels ?? []).map((modelId) => `${modelId ?? ''}`.trim()).filter(Boolean);
+
+					if (currentModelIds.length === 1) {
+						await sendPrompt(history, userPrompt, userMessage.id, {
+							modelId: currentModelIds[0],
+							modelIdx: 0
+						});
+					} else {
+						await sendPrompt(history, userPrompt, userMessage.id);
+					}
+				} else if ((userMessage?.models ?? [...selectedModels]).length == 1) {
 					await sendPrompt(history, userPrompt, userMessage.id);
 				} else {
 					await sendPrompt(history, userPrompt, userMessage.id, {
@@ -5793,9 +6504,18 @@
 			if (res && res.ok && res.body) {
 				const textStream = await createOpenAITextStream(res.body, $settings.splitLargeChunks);
 				for await (const update of textStream) {
-					const { value, image, done, sources, error, usage } = update;
+					const { value, image, done, sources, error, usage, status } = update;
 					if (error || done) {
 						break;
+					}
+
+					if (status) {
+						message.statusHistory = [...(message.statusHistory ?? []), status];
+						history.messages[messageId] = message;
+						if (shouldAutoScrollOnStreaming()) {
+							scrollToBottom();
+						}
+						continue;
 					}
 
 					const appendValue = image?.markdown ?? value;
@@ -5887,7 +6607,10 @@
 						await chats.set(await getChatList(localStorage.token, $currentChatPage));
 					});
 
-				await pendingChatSave;
+				await withTimeout(pendingChatSave, SOFT_SAVE_TIMEOUT_MS, 'chat save').catch((error) => {
+					console.warn('Chat save timed out', error);
+					toast.warning($i18n.t('聊天保存超时，已继续请求，稍后会再同步。'));
+				});
 			}
 		}
 	};
@@ -5976,7 +6699,7 @@
 					bind:multiModelDiscussionEnabled
 					maxDiscussionModels={MULTI_MODEL_DISCUSSION_MAX_MODELS}
 					shareEnabled={!!history.currentId}
-					{initNewChat}
+					{openNewChatInNewTab}
 				/>
 
 				<div class="flex flex-col flex-auto z-10 w-full min-w-0 @container">
@@ -6058,6 +6781,8 @@
 								bind:maxThinkingTokens
 								{activeAssistant}
 								onDeactivateAssistant={deactivateAssistant}
+								imageGenerationReferenceFiles={activeImageGenerationReferenceFiles}
+								onCancelImageGenerationReference={dismissImageGenerationReference}
 								toolServers={$toolServers}
 								transparentBackground={$settings?.backgroundImageUrl ?? false}
 								{stopResponse}
@@ -6075,7 +6800,7 @@
 									}
 								}}
 								on:submit={async (e) => {
-									if (e.detail || files.length > 0) {
+									if (e.detail || files.length > 0 || activeImageGenerationReferenceFiles.length > 0) {
 										await tick();
 										submitPrompt(
 											($settings?.richTextInput ?? true)

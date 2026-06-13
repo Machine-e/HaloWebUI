@@ -22,6 +22,21 @@ export const getCitationDistances = (citation: any): any[] => {
 	return normalizeCitationList(citation?.distances);
 };
 
+const getMetadataFallbackDocument = (metadata: any): string => {
+	if (!metadata || typeof metadata !== 'object') {
+		return '';
+	}
+
+	const candidates = [metadata.content, metadata.snippet, metadata.text, metadata.summary];
+	for (const candidate of candidates) {
+		if (typeof candidate === 'string' && candidate.trim()) {
+			return candidate;
+		}
+	}
+
+	return '';
+};
+
 export const getCitationEntries = (citation: any) => {
 	const documents = getCitationDocuments(citation);
 	const metadata = getCitationMetadata(citation);
@@ -34,9 +49,14 @@ export const getCitationEntries = (citation: any) => {
 		citation?.source ? 1 : 0
 	);
 
-	return Array.from({ length: entryCount }, (_, index) => ({
-		document: documents[index] ?? '',
-		metadata: metadata[index],
-		distance: distances[index]
-	}));
+	return Array.from({ length: entryCount }, (_, index) => {
+		const document = documents[index];
+		const documentText = typeof document === 'string' ? document : `${document ?? ''}`;
+
+		return {
+			document: documentText.trim() ? documentText : getMetadataFallbackDocument(metadata[index]),
+			metadata: metadata[index],
+			distance: distances[index]
+		};
+	});
 };
