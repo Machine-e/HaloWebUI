@@ -101,7 +101,11 @@ async def stop_task(task_id: str):
     """
     task = tasks.get(task_id)
     if not task:
-        raise ValueError(f"Task with ID {task_id} not found.")
+        return {
+            "status": True,
+            "already_finished": True,
+            "message": f"Task {task_id} is not running.",
+        }
 
     task.cancel()  # Request task cancellation
     try:

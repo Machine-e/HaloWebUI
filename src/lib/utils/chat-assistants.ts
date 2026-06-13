@@ -1,5 +1,3 @@
-import agentsData from '$lib/data/agents-zh.json';
-
 export type ChatAssistantSnapshot = {
 	id: string;
 	name: string;
@@ -16,12 +14,6 @@ export const FEATURED_ASSISTANT_IDS = ['1', '15', '14', '10', '11', '9'] as cons
 
 const normalizeString = (value: unknown) =>
 	typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
-
-const VALID_ASSISTANT_IDS = new Set(
-	(agentsData as Array<Record<string, unknown>>)
-		.map((agent) => normalizeString(agent.id))
-		.filter(Boolean)
-);
 
 const decodeTokenUserId = (token: unknown): string | null => {
 	if (typeof token !== 'string') {
@@ -68,7 +60,7 @@ const normalizeFeaturedAssistantIds = (value: unknown): string[] => {
 
 	for (const item of value) {
 		const id = normalizeString(item);
-		if (!id || !VALID_ASSISTANT_IDS.has(id) || seen.has(id)) {
+		if (!id || seen.has(id)) {
 			continue;
 		}
 		seen.add(id);

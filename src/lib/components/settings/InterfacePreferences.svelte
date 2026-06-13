@@ -59,6 +59,10 @@
 		normalizeMermaidTheme,
 		type MermaidThemeId
 	} from '$lib/utils/lobehub-chat-appearance';
+	import {
+		getConfiguredDefaultReasoningEffort,
+		normalizeDefaultReasoningEffortSetting
+	} from '$lib/utils/reasoning-controls';
 	const dispatch = createEventDispatcher();
 	const i18n: Writable<any> = getContext('i18n');
 	const tr = (key: string, defaultValue: string, options: Record<string, any> = {}) =>
@@ -150,6 +154,7 @@
 	let enableMessageQueue = true;
 	let temporaryChatByDefault = false;
 	let newChatInheritsPreviousState = false;
+	let defaultReasoningEffort = '';
 	let transitionMode: ChatTransitionMode = DEFAULT_CHAT_TRANSITION_MODE;
 	let enableAutoScrollOnStreaming = true;
 	let autoGenerationRequestWarning = '';
@@ -281,6 +286,7 @@
 			enableMessageQueue: boolean;
 			temporaryChatByDefault: boolean;
 			newChatInheritsPreviousState: boolean;
+			defaultReasoningEffort: string;
 			collapseCodeBlocks: boolean;
 			collapseHistoricalLongResponses: boolean;
 			responseHtmlFormat: boolean;
@@ -350,6 +356,25 @@
 		if (!normalized) return '';
 		return resolveModelSelectionId($models ?? [], normalized, { preserveAmbiguous: true }) || normalized;
 	};
+	const toDefaultReasoningEffortSelectValue = (value: unknown) =>
+		normalizeDefaultReasoningEffortSetting(value) ?? '';
+
+	$: defaultReasoningEffortOptions = [
+		{
+			value: '',
+			label: tr('模型/服务默认', 'Model/provider default'),
+			description: tr(
+				'不发送思考强度参数，沿用模型或服务端默认值。',
+				'Do not send a reasoning effort parameter.'
+			)
+		},
+		{ value: 'none', label: tr('关闭', 'Off') },
+		{ value: 'low', label: 'Low' },
+		{ value: 'medium', label: 'Medium' },
+		{ value: 'high', label: 'High' },
+		{ value: 'xhigh', label: 'XHigh' },
+		{ value: 'max', label: 'Max' }
+	];
 
 	const normalizeImageCompressionSize = (
 		value: { width?: string | number | null; height?: string | number | null } | null | undefined
@@ -610,6 +635,7 @@
 			enableMessageQueue,
 			temporaryChatByDefault,
 			newChatInheritsPreviousState,
+			defaultReasoningEffort: toDefaultReasoningEffortSelectValue(defaultReasoningEffort),
 			collapseCodeBlocks,
 			collapseHistoricalLongResponses,
 			responseHtmlFormat,
@@ -692,6 +718,7 @@
 		enableMessageQueue = snapshot.enableMessageQueue;
 		temporaryChatByDefault = snapshot.temporaryChatByDefault;
 		newChatInheritsPreviousState = snapshot.newChatInheritsPreviousState;
+		defaultReasoningEffort = toDefaultReasoningEffortSelectValue(snapshot.defaultReasoningEffort);
 		collapseCodeBlocks = snapshot.collapseCodeBlocks;
 		collapseHistoricalLongResponses = snapshot.collapseHistoricalLongResponses;
 		responseHtmlFormat = snapshot.responseHtmlFormat;
@@ -765,6 +792,7 @@
 		enableMessageQueue;
 		temporaryChatByDefault;
 		newChatInheritsPreviousState;
+		defaultReasoningEffort;
 		transitionMode;
 		enableAutoScrollOnStreaming;
 		collapseCodeBlocks;
@@ -1069,6 +1097,7 @@
 				enableMessageQueue,
 				temporaryChatByDefault,
 				newChatInheritsPreviousState,
+				defaultReasoningEffort: normalizeDefaultReasoningEffortSetting(defaultReasoningEffort),
 				collapseCodeBlocks,
 				collapseHistoricalLongResponses,
 				responseHtmlFormat,
@@ -1232,6 +1261,9 @@
 		enableMessageQueue = $settings?.enableMessageQueue ?? true;
 		temporaryChatByDefault = $settings?.temporaryChatByDefault ?? false;
 		newChatInheritsPreviousState = $settings?.newChatInheritsPreviousState ?? false;
+		defaultReasoningEffort = toDefaultReasoningEffortSelectValue(
+			getConfiguredDefaultReasoningEffort($settings)
+		);
 		transitionMode = resolveChatTransitionMode($settings);
 		enableAutoScrollOnStreaming = $settings?.enableAutoScrollOnStreaming ?? true;
 		insertSuggestionPrompt = $settings?.insertSuggestionPrompt ?? false;
@@ -2399,6 +2431,32 @@
 												</div>
 												<Switch
 													bind:state={newChatInheritsPreviousState}
+												/>
+											</div>
+										</div>
+										<div class="glass-item px-4 py-3">
+											<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+												<div class="min-w-0">
+													<div class="text-sm font-medium">
+														{tr('默认思考强度', 'Default Thinking Intensity')}
+													</div>
+													<p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+														{tr(
+															'聊天栏思考强度保持“默认”时使用；当前对话手动设置后优先生效。',
+															'Used when the chat thinking control is set to Default. Manual settings for the current chat take priority.'
+														)}
+													</p>
+												</div>
+												<HaloSelect
+													bind:value={defaultReasoningEffort}
+													options={defaultReasoningEffortOptions}
+													className="w-full sm:w-64"
+													contentClassName="min-w-[16rem]"
+													contentAlign="end"
+													searchEnabled={true}
+													allowCustomValue={true}
+													searchPlaceholder={tr('搜索或输入自定义值', 'Search or enter a custom value')}
+													customValueLabel={tr('使用自定义值', 'Use custom value')}
 												/>
 											</div>
 										</div>

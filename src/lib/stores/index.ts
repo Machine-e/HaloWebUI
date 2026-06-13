@@ -231,6 +231,7 @@ type Settings = {
 	models?: string[];
 	pinnedModels?: string[];
 	modelSelectorTagOrder?: string[];
+	params?: Record<string, any>;
 	backgroundImageUrl?: string | null;
 	conversationMode?: boolean;
 	speechAutoSend?: boolean;
@@ -267,6 +268,7 @@ type Settings = {
 	mermaidTheme?: string;
 	temporaryChatByDefault?: boolean;
 	newChatInheritsPreviousState?: boolean;
+	defaultReasoningEffort?: string | null;
 	chatFadeStreamingText?: boolean;
 	transitionMode?: 'none' | 'fadeIn' | 'smooth';
 	enableAutoScrollOnStreaming?: boolean;

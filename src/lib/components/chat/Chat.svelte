@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { v4 as uuidv4 } from 'uuid';
 	import { toast } from 'svelte-sonner';
-	import mermaid from 'mermaid';
 	import { PaneGroup, Pane, PaneResizer } from 'paneforge';
 
 	import { getContext, onDestroy, onMount, setContext, tick } from 'svelte';
@@ -105,6 +104,12 @@
 		resolveConfiguredDefaultWebSearchMode
 	} from '$lib/utils/native-web-search';
 	import { hasVisibleMessageFiles as messageHasVisibleFiles } from '$lib/utils/chat-message-errors';
+	import {
+		getConfiguredDefaultReasoningEffort,
+		normalizeReasoningEffortValue,
+		normalizeThinkingTokenValue,
+		resolveReasoningEffortForRequest
+	} from '$lib/utils/reasoning-controls';
 
 	import { generateChatCompletion } from '$lib/apis/ollama';
 	import {
@@ -530,9 +535,9 @@
 		return Math.max(1, Math.min(Math.trunc(parsed), MULTI_MODEL_DISCUSSION_MAX_ROUNDS));
 	};
 
-	let selectedToolIds = [];
+	let selectedToolIds: string[] = [];
 	let toolSelectionTouched = false;
-	let selectedSkillIds = [];
+	let selectedSkillIds: string[] = [];
 	let skillSelectionTouched = false;
 	let imageGenerationEnabled = false;
 	type ImageGenerationOptions = {
@@ -845,24 +850,6 @@
 		return Array.from(ids);
 	};
 
-	const normalizeReasoningEffortValue = (value: unknown): string | null => {
-		if (value === null || value === undefined) {
-			return null;
-		}
-
-		const normalized = String(value).trim().toLowerCase();
-		return normalized === '' ? null : normalized;
-	};
-
-	const normalizeThinkingTokenValue = (value: unknown): number | null => {
-		if (value === null || value === undefined || value === '') {
-			return null;
-		}
-
-		const parsed = Number(value);
-		return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
-	};
-
 	const getResolvedSelectedModelIds = () =>
 		selectedModelIds.filter((id): id is string => typeof id === 'string' && id.trim() !== '');
 
@@ -1022,7 +1009,8 @@
 		}
 	}
 
-	let taskIds = null;
+	let taskIds: string[] | null = null;
+	let taskIdsByMessageId: Record<string, string> = {};
 	let stoppedResponseMessageIds = new Set<string>();
 	let messageQueue: { id: string; prompt: string; files: any[]; referenceFiles?: any[] }[] = [];
 	let branchingMessageId: string | null = null;
@@ -1032,9 +1020,9 @@
 
 	// Chat Input
 	let prompt = '';
-	let chatFiles = [];
-	let files = [];
-	let params = {};
+	let chatFiles: any[] = [];
+	let files: any[] = [];
+	let params: Record<string, any> = {};
 	let dismissedImageGenerationReferenceKey = '';
 	let latestImageGenerationReferenceFiles: any[] = [];
 	let latestImageGenerationReferenceKey = '';
@@ -1056,12 +1044,12 @@
 	};
 
 	let reasoningEffort: string | null = null;
-		let maxThinkingTokens: number | null = null;
-		let lastFreshChatRequest = '';
-		let lastHandledNewChatRequestId = '';
-		// Flag to prevent sessionStorage recovery from overriding a deliberate fresh chat reset
-		let freshChatActive = false;
-		let webSearchSelectionSyncReady = false;
+	let maxThinkingTokens: number | null = null;
+	let lastFreshChatRequest = '';
+	let lastHandledNewChatRequestId = '';
+	// Flag to prevent sessionStorage recovery from overriding a deliberate fresh chat reset
+	let freshChatActive = false;
+	let webSearchSelectionSyncReady = false;
 
 	// Bidirectional sync: Controls sidebar params ↔ inline ThinkingControl
 	// 用缓存值打断 reactive 级联：正向同步更新缓存 → 反向 onChange 检测到缓存一致则跳过
@@ -1122,8 +1110,14 @@
 	const applyReasoningSelectionDefaults = () => {
 		const ids = getResolvedSelectedModelIds();
 		const singleModel = getSingleSelectedReasoningModel();
+		const configuredDefaultReasoningEffort = getConfiguredDefaultReasoningEffort($settings);
 
 		if (ids.length !== 1 || !singleModel) {
+			setSharedReasoningState({ effort: null, tokens: null });
+			return;
+		}
+
+		if (configuredDefaultReasoningEffort !== null) {
 			setSharedReasoningState({ effort: null, tokens: null });
 			return;
 		}
@@ -1285,7 +1279,11 @@
 		const imageGenerationActive = canUseChatImageGeneration()
 			? isImageGenerationActiveForRequest()
 			: false;
-		const requestReasoningEffort = maxThinkingTokens === 0 ? 'none' : reasoningEffort;
+		const requestReasoningEffort = resolveReasoningEffortForRequest({
+			reasoningEffort,
+			maxThinkingTokens,
+			settings: $settings
+		});
 
 		return {
 			stream,
@@ -1697,15 +1695,23 @@
 		max_thinking_tokens: maxThinkingTokens
 	});
 
-	const buildNewChatSelectionState = () => ({
-		models: selectedModels,
-		selectedModels,
-		model_selection_hints: buildPersistedModelSelectionHints(selectedModels),
-		reasoning_effort: reasoningEffort,
-		max_thinking_tokens: maxThinkingTokens,
-		reasoningEffort,
-		maxThinkingTokens
-	});
+	const buildNewChatSelectionState = () => {
+		const shouldPersistReasoningSelection = getConfiguredDefaultReasoningEffort($settings) === null;
+
+		return {
+			models: selectedModels,
+			selectedModels,
+			model_selection_hints: buildPersistedModelSelectionHints(selectedModels),
+			...(shouldPersistReasoningSelection
+				? {
+						reasoning_effort: reasoningEffort,
+						max_thinking_tokens: maxThinkingTokens,
+						reasoningEffort,
+						maxThinkingTokens
+					}
+				: {})
+		};
+	};
 
 	const getStoredSelectedModelsFromState = (state: Record<string, any> | null | undefined) =>
 		normalizeStoredSelectedModels(state?.selectedModels ?? state?.models);
@@ -1752,6 +1758,10 @@
 	const applyNewChatReasoningSelectionState = (
 		state: Record<string, any> | null | undefined
 	) => {
+		if (getConfiguredDefaultReasoningEffort($settings) !== null) {
+			return false;
+		}
+
 		if (!hasStoredReasoningSelection(state)) {
 			return false;
 		}
@@ -2345,6 +2355,7 @@
 		const resolvedModelIds = getResolvedSelectedModelIds();
 		const singleModel = getSingleSelectedReasoningModel();
 		const defaultEffort = getModelDefaultReasoningEffort(singleModel);
+		const configuredDefaultReasoningEffort = getConfiguredDefaultReasoningEffort($settings);
 		const hasSingleModelSelection = resolvedModelIds.length === 1 && !!singleModel;
 
 		if (resolvedModelIds.length !== 1) {
@@ -2353,7 +2364,13 @@
 			} else {
 				syncReasoningUiState(null, null);
 			}
-		} else if (hasSingleModelSelection && defaultEffort !== null && paramEffort === null && paramTokens === null) {
+		} else if (
+			hasSingleModelSelection &&
+			configuredDefaultReasoningEffort === null &&
+			defaultEffort !== null &&
+			paramEffort === null &&
+			paramTokens === null
+		) {
 			setSharedReasoningState({ effort: defaultEffort, tokens: null });
 		} else if (paramTokens !== null && paramTokens > 0) {
 			setSharedReasoningState({ effort: null, tokens: paramTokens, syncParams: false });
@@ -2699,6 +2716,59 @@
 		history.messages[message.id] = message;
 		notifyHistoryUpdated();
 		return message;
+	};
+
+	const getActiveTaskIds = () => (Array.isArray(taskIds) ? taskIds.filter(Boolean) : []);
+
+	const resetTaskIds = () => {
+		taskIds = null;
+		taskIdsByMessageId = {};
+	};
+
+	const registerResponseTask = (messageId: string, taskId: string | null | undefined) => {
+		if (!messageId || !taskId) return;
+
+		taskIdsByMessageId = {
+			...taskIdsByMessageId,
+			[messageId]: taskId
+		};
+		taskIds = Array.from(new Set([...getActiveTaskIds(), taskId]));
+	};
+
+	const hasPendingAssistantSibling = (responseMessageId: string) => {
+		const responseMessage = getHistoryMessage(responseMessageId);
+		const parentMessage = responseMessage?.parentId
+			? getHistoryMessage(responseMessage.parentId)
+			: null;
+
+		return (parentMessage?.childrenIds ?? []).some((id: string) => {
+			if (id === responseMessageId) return false;
+
+			const sibling = getHistoryMessage(id);
+			return sibling?.role === 'assistant' && sibling.done !== true && !isResponseStopped(sibling);
+		});
+	};
+
+	const clearTaskForCompletedResponse = (responseMessageId: string | null = null) => {
+		if (!responseMessageId) {
+			resetTaskIds();
+			return;
+		}
+
+		const mappedTaskId = taskIdsByMessageId[responseMessageId];
+		if (mappedTaskId) {
+			const remainingTaskIdsByMessageId = { ...taskIdsByMessageId };
+			delete remainingTaskIdsByMessageId[responseMessageId];
+			taskIdsByMessageId = remainingTaskIdsByMessageId;
+
+			const nextTaskIds = getActiveTaskIds().filter((id) => id !== mappedTaskId);
+			taskIds = nextTaskIds.length > 0 ? nextTaskIds : null;
+			return;
+		}
+
+		if (!hasPendingAssistantSibling(responseMessageId)) {
+			resetTaskIds();
+		}
 	};
 
 	const chatEventHandler = async (event, cb) => {
@@ -3444,7 +3514,7 @@
 		if (fresh || !inheritNewChatState) {
 			chat = null;
 			tags = [];
-			taskIds = null;
+			resetTaskIds();
 			processing = '';
 			atSelectedModel = undefined;
 			activeAssistant = null;
@@ -3649,7 +3719,7 @@
 		const navigationId = targetChatId;
 		chatId.set(targetChatId);
 		tags = [];
-		taskIds = null;
+		resetTaskIds();
 		const chatContextPromise = getChatContextById(localStorage.token, targetChatId).catch(() => ({
 			tags: [],
 			task_ids: []
@@ -3712,6 +3782,7 @@
 					if (navigationId !== chatIdProp) return;
 
 					tags = nextContext?.tags ?? [];
+					taskIdsByMessageId = {};
 					taskIds = nextContext?.task_ids ?? [];
 					reconcileLoadedAssistantMessages(taskIds);
 				})();
@@ -3779,7 +3850,7 @@
 		}
 
 		if (!hasActivePendingResponse) {
-			taskIds = null;
+			resetTaskIds();
 		}
 
 		activeChatIds.update((ids) => {
@@ -4213,15 +4284,19 @@
 			}
 		}
 
-		taskIds = null;
-		await tick();
-
 		const parentId = history.messages[responseMessageId]?.parentId;
 		const hasPendingSibling =
 			parentId &&
 			(history.messages[parentId]?.childrenIds ?? []).some(
 				(id) => history.messages[id] && history.messages[id].done !== true
 			);
+
+		if (hasPendingSibling) {
+			clearTaskForCompletedResponse(responseMessageId);
+		} else {
+			resetTaskIds();
+		}
+		await tick();
 
 		if (!hasPendingSibling && messageQueue.length > 0) {
 			const next = messageQueue[0];
@@ -4785,6 +4860,7 @@
 			message.done = true;
 			message.completedAt = Date.now() / 1000;
 			commitHistoryMessage(message);
+			clearTaskForCompletedResponse(message.id);
 			await tick();
 
 			if ($settings.responseAutoCopy) {
@@ -5414,6 +5490,11 @@
 		const imageGenerationActive = canUseChatImageGeneration()
 			? isImageGenerationActiveForRequest()
 			: false;
+		const requestReasoningEffort = resolveReasoningEffortForRequest({
+			reasoningEffort,
+			maxThinkingTokens,
+			settings: $settings
+		});
 
 		messages = messages
 			.map((message, idx, arr) => {
@@ -5478,7 +5559,7 @@
 				params: {
 					...$settings?.params,
 					...params,
-					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+					...(requestReasoningEffort ? { reasoning_effort: requestReasoningEffort } : {}),
 					...(maxThinkingTokens != null && maxThinkingTokens > 0
 						? { thinking: { type: 'enabled', budget_tokens: maxThinkingTokens } }
 						: {}),
@@ -5600,10 +5681,13 @@
 					});
 				}
 			} else {
-				if (res.task_id && taskIds) {
-					taskIds.push(res.task_id);
-				} else if (res.task_id) {
-					taskIds = [res.task_id];
+				const taskId = (res as any)?.task_id;
+				const liveResponseMessage =
+					(history.messages as Record<string, any>)[responseMessageId] ?? responseMessage;
+				if (liveResponseMessage?.done === true) {
+					clearTaskForCompletedResponse(responseMessageId);
+				} else {
+					registerResponseTask(responseMessageId, taskId);
 				}
 			}
 		}
@@ -5970,10 +6054,10 @@
 	};
 
 	const stopResponse = async () => {
-		const currentTaskIds = Array.isArray(taskIds) ? [...taskIds] : [];
+		const currentTaskIds = [...getActiveTaskIds()];
 
 		await markResponseMessagesStopped();
-		taskIds = null;
+		resetTaskIds();
 
 		for (const taskId of currentTaskIds) {
 			if (taskId) {
