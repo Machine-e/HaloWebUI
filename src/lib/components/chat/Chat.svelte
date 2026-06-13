@@ -28,6 +28,9 @@
 		banners,
 		user,
 		socket,
+		socketConnectionState,
+		socketLastDisconnectedAt,
+		socketReconnectRevision,
 		showControls,
 		showCallOverlay,
 		currentChatPage,
@@ -164,6 +167,17 @@
 	const MESSAGE_OUTLINE_IDLE_MS = 900;
 	const MESSAGE_OUTLINE_SCROLL_INTENT_WINDOW_MS = 220;
 	const MESSAGE_OUTLINE_SCROLLBAR_DRAG_PRIME_MS = 1400;
+	const CHAT_TASK_SILENCE_TIMEOUT_MS = 90_000;
+	const CHAT_TASK_RECOVER_INTERVAL_MS = 30_000;
+	const CHAT_TASK_MAX_RECOVER_ATTEMPTS = 3;
+	const CHAT_TASK_HARD_TIMEOUT_MS = 10 * 60_000;
+	const CHAT_TASK_WATCHDOG_INTERVAL_MS = 15_000;
+	const CHAT_REQUEST_START_TIMEOUT_MS = 30_000;
+	const SOFT_SAVE_TIMEOUT_MS = 15_000;
+	const SOFT_MEMORY_TIMEOUT_MS = 10_000;
+	const SOFT_LOCATION_TIMEOUT_MS = 5_000;
+	const SOFT_INLINE_IMAGE_TIMEOUT_MS = 20_000;
+	const SOFT_INLINE_IMAGE_TOTAL_TIMEOUT_MS = 60_000;
 	const MESSAGE_OUTLINE_SCROLL_KEYS = new Set([
 		'ArrowUp',
 		'ArrowDown',
@@ -392,7 +406,28 @@
 		message.files = mergeMessageFiles(message.files, normalizedReferenceFiles);
 		return requestHistory;
 	};
-	const uploadInlineImageForPersistence = async (file: any) => {
+	const withTimeout = async <T>(
+		promise: Promise<T>,
+		timeoutMs: number,
+		label: string
+	): Promise<T> => {
+		let timeoutId: ReturnType<typeof setTimeout> | null = null;
+		const timeoutPromise = new Promise<never>((_, reject) => {
+			timeoutId = setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs);
+		});
+
+		try {
+			return await Promise.race([promise, timeoutPromise]);
+		} finally {
+			if (timeoutId !== null) {
+				clearTimeout(timeoutId);
+			}
+		}
+	};
+	const uploadInlineImageForPersistence = async (
+		file: any,
+		timeoutMs = SOFT_INLINE_IMAGE_TIMEOUT_MS
+	) => {
 		if (!file || typeof file !== 'object' || !isInlineDataImageUrl(file?.url)) {
 			return sanitizeImageFileRef(file) ?? structuredClone(file);
 		}
@@ -410,10 +445,12 @@
 				typeof file?.name === 'string' && file.name
 					? file.name
 					: `Chat_Image_${Date.now()}.${extension}`;
-			const uploadedFile = await uploadFile(
-				localStorage.token,
-				new File([imageBlob], fileName, { type: mimeType }),
-				{ process: false }
+			const uploadedFile = await withTimeout(
+				uploadFile(localStorage.token, new File([imageBlob], fileName, { type: mimeType }), {
+					process: false
+				}),
+				timeoutMs,
+				'inline image upload'
 			);
 
 			if (!uploadedFile?.id) {
@@ -448,8 +485,14 @@
 
 		const normalizedHistory = structuredClone(historyState);
 		let changed = false;
+		let timedOut = false;
 
+		const deadlineAt = Date.now() + SOFT_INLINE_IMAGE_TOTAL_TIMEOUT_MS;
 		for (const [messageId, message] of Object.entries(normalizedHistory.messages ?? {}) as [string, any][]) {
+			if (Date.now() >= deadlineAt) {
+				timedOut = true;
+				break;
+			}
 			if (!Array.isArray(message?.files) || message.files.length === 0) {
 				continue;
 			}
@@ -457,9 +500,20 @@
 			const normalizedFiles = [];
 			let messageChanged = false;
 
-			for (const file of message.files) {
+			for (let fileIndex = 0; fileIndex < message.files.length; fileIndex += 1) {
+				const file = message.files[fileIndex];
+				const remainingMs = deadlineAt - Date.now();
+				if (remainingMs <= 0) {
+					timedOut = true;
+					normalizedFiles.push(...message.files.slice(fileIndex).map((item) => structuredClone(item)));
+					break;
+				}
+
 				if (file?.type === 'image') {
-					const normalizedFile = await uploadInlineImageForPersistence(file);
+					const normalizedFile = await uploadInlineImageForPersistence(
+						file,
+						Math.max(1, Math.min(SOFT_INLINE_IMAGE_TIMEOUT_MS, remainingMs))
+					);
 					normalizedFiles.push(normalizedFile);
 					if (JSON.stringify(normalizedFile) !== JSON.stringify(file)) {
 						messageChanged = true;
@@ -476,6 +530,14 @@
 				};
 				changed = true;
 			}
+
+			if (timedOut) {
+				break;
+			}
+		}
+
+		if (timedOut) {
+			console.warn('Inline image normalization timed out for chat persistence');
 		}
 
 		return {
@@ -515,6 +577,9 @@
 
 	let chatIdUnsubscriber: Unsubscriber | undefined;
 	let selectedAssistantSceneUnsubscriber: Unsubscriber | undefined;
+	let socketEventUnsubscriber: Unsubscriber | undefined;
+	let socketReconnectUnsubscriber: Unsubscriber | undefined;
+	let chatEventSocket: any = null;
 
 	let selectedModels = [''];
 	let atSelectedModel: Model | undefined;
@@ -1010,7 +1075,19 @@
 	}
 
 	let taskIds: string[] | null = null;
-	let taskIdsByMessageId: Record<string, string> = {};
+	let taskIdsByMessageId: Record<string, string[]> = {};
+	let responseTaskWatchdogs: Record<
+		string,
+		{
+			taskId: string;
+			startedAt: number;
+			lastEventAt: number;
+			recoverAttempts: number;
+			hardTimeoutAt: number;
+		}
+	> = {};
+	let recoveryInFlight = false;
+	let taskWatchdogTimer: ReturnType<typeof setInterval> | null = null;
 	let stoppedResponseMessageIds = new Set<string>();
 	let messageQueue: { id: string; prompt: string; files: any[]; referenceFiles?: any[] }[] = [];
 	let branchingMessageId: string | null = null;
@@ -1186,19 +1263,68 @@
 		return chatSystem ?? globalSystem;
 	};
 
+	const getOptionalUserLocation = async () => {
+		if (!$settings?.userLocation) {
+			return undefined;
+		}
+
+		try {
+			return await withTimeout(
+				getAndUpdateUserLocation(localStorage.token).catch((err) => {
+					console.error(err);
+					return undefined;
+				}),
+				SOFT_LOCATION_TIMEOUT_MS,
+				'user location'
+			);
+		} catch (error) {
+			console.warn('Skipping user location after timeout', error);
+			return undefined;
+		}
+	};
+
+	const getOptionalMemoryContext = async (inputPrompt: string) => {
+		if (!($settings?.memory ?? false)) {
+			return null;
+		}
+
+		try {
+			const res = await withTimeout(
+				queryMemory(localStorage.token, inputPrompt).catch((error) => {
+					toast.error(`${error}`);
+					return null;
+				}),
+				SOFT_MEMORY_TIMEOUT_MS,
+				'memory query'
+			);
+			if (!res) {
+				return null;
+			}
+
+			const memoryDocuments = res?.documents?.[0] ?? [];
+			const memoryMetadatas = res?.metadatas?.[0] ?? [];
+
+			if (memoryDocuments.length === 0) {
+				return null;
+			}
+
+			return memoryDocuments.reduce((acc, doc, index) => {
+				const createdAtTimestamp = memoryMetadatas[index]?.created_at;
+				const createdAtDate = createdAtTimestamp
+					? new Date(createdAtTimestamp * 1000).toISOString().split('T')[0]
+					: null;
+				return `${acc}${index + 1}.${createdAtDate ? ` [${createdAtDate}].` : ''} ${doc}\n`;
+			}, '');
+		} catch (error) {
+			console.warn('Skipping memory context after timeout', error);
+			return null;
+		}
+	};
+
 	const buildFloatingRequestMessages = async (messages) => {
 		const effectiveSystemPrompt = getEffectiveChatSystemPrompt();
 		const systemPrompt = effectiveSystemPrompt
-			? promptTemplate(
-					effectiveSystemPrompt,
-					$user?.name,
-					$settings?.userLocation
-						? await getAndUpdateUserLocation(localStorage.token).catch((err) => {
-								console.error(err);
-								return undefined;
-							})
-						: undefined
-				)
+			? promptTemplate(effectiveSystemPrompt, $user?.name, await getOptionalUserLocation())
 			: null;
 
 		return [
@@ -1320,15 +1446,7 @@
 				web_search_mode: requestedWebSearchMode !== 'off' ? requestedWebSearchMode : undefined
 			},
 			variables: {
-				...getPromptVariables(
-					$user?.name,
-					$settings?.userLocation
-						? await getAndUpdateUserLocation(localStorage.token).catch((err) => {
-								console.error(err);
-								return undefined;
-							})
-						: undefined
-				)
+				...getPromptVariables($user?.name, await getOptionalUserLocation())
 			},
 			session_id: $socket?.id ?? undefined,
 			chat_id: $chatId ?? undefined,
@@ -2720,19 +2838,34 @@
 
 	const getActiveTaskIds = () => (Array.isArray(taskIds) ? taskIds.filter(Boolean) : []);
 
-	const resetTaskIds = () => {
+	const resetTaskTracking = () => {
 		taskIds = null;
 		taskIdsByMessageId = {};
+		responseTaskWatchdogs = {};
 	};
+
+	const resetTaskIds = resetTaskTracking;
 
 	const registerResponseTask = (messageId: string, taskId: string | null | undefined) => {
 		if (!messageId || !taskId) return;
 
+		const currentTaskIds = new Set(taskIdsByMessageId[messageId] ?? []);
+		currentTaskIds.add(taskId);
 		taskIdsByMessageId = {
 			...taskIdsByMessageId,
-			[messageId]: taskId
+			[messageId]: [...currentTaskIds]
 		};
 		taskIds = Array.from(new Set([...getActiveTaskIds(), taskId]));
+		responseTaskWatchdogs = {
+			...responseTaskWatchdogs,
+			[messageId]: {
+				taskId,
+				startedAt: Date.now(),
+				lastEventAt: Date.now(),
+				recoverAttempts: 0,
+				hardTimeoutAt: Date.now() + CHAT_TASK_HARD_TIMEOUT_MS
+			}
+		};
 	};
 
 	const hasPendingAssistantSibling = (responseMessageId: string) => {
@@ -2755,19 +2888,23 @@
 			return;
 		}
 
-		const mappedTaskId = taskIdsByMessageId[responseMessageId];
-		if (mappedTaskId) {
-			const remainingTaskIdsByMessageId = { ...taskIdsByMessageId };
-			delete remainingTaskIdsByMessageId[responseMessageId];
-			taskIdsByMessageId = remainingTaskIdsByMessageId;
+		const remainingTaskIdsByMessageId = { ...taskIdsByMessageId };
+		const mappedTaskIds = new Set(remainingTaskIdsByMessageId[responseMessageId] ?? []);
+		delete remainingTaskIdsByMessageId[responseMessageId];
+		taskIdsByMessageId = remainingTaskIdsByMessageId;
 
-			const nextTaskIds = getActiveTaskIds().filter((id) => id !== mappedTaskId);
+		const nextWatchdogs = { ...responseTaskWatchdogs };
+		delete nextWatchdogs[responseMessageId];
+		responseTaskWatchdogs = nextWatchdogs;
+
+		if (mappedTaskIds.size > 0) {
+			const nextTaskIds = getActiveTaskIds().filter((id) => !mappedTaskIds.has(id));
 			taskIds = nextTaskIds.length > 0 ? nextTaskIds : null;
 			return;
 		}
 
 		if (!hasPendingAssistantSibling(responseMessageId)) {
-			resetTaskIds();
+			resetTaskTracking();
 		}
 	};
 
@@ -2916,6 +3053,17 @@
 		}
 	};
 
+	const bindChatEventSocket = (socketInstance: any) => {
+		if (chatEventSocket === socketInstance) {
+			return;
+		}
+
+		chatEventSocket?.off('chat-events', chatEventHandler);
+		chatEventSocket = socketInstance;
+		chatEventSocket?.off('chat-events', chatEventHandler);
+		chatEventSocket?.on('chat-events', chatEventHandler);
+	};
+
 	const onMessageHandler = async (event: {
 		origin: string;
 		data: { type: string; text: string };
@@ -2971,10 +3119,14 @@
 	onMount(async () => {
 		window.addEventListener('message', onMessageHandler);
 		window.addEventListener('chat:set-input', onSetInputHandler as EventListener);
+		window.addEventListener('halo:foreground-resume', handleForegroundResume);
+		window.addEventListener('halo:android-resume', handleForegroundResume);
 		window.addEventListener('keydown', handleMessageOutlineKeydown, true);
 		window.addEventListener('pointerup', clearMessageOutlineScrollbarDragPrime, true);
 		window.addEventListener('pointercancel', clearMessageOutlineScrollbarDragPrime, true);
-		$socket?.on('chat-events', chatEventHandler);
+		socketEventUnsubscriber = socket.subscribe((socketInstance) => {
+			bindChatEventSocket(socketInstance);
+		});
 
 		if (!chatIdProp && !$chatId) {
 			chatIdUnsubscriber = chatId.subscribe(async (value) => {
@@ -3036,6 +3188,14 @@
 				selectedModels = [assistantScene.id];
 			}
 		});
+		socketReconnectUnsubscriber = socketReconnectRevision.subscribe((revision) => {
+			if (revision > 0) {
+				void recoverActiveChat('socket-reconnect');
+			}
+		});
+		taskWatchdogTimer = setInterval(() => {
+			void runTaskWatchdog();
+		}, CHAT_TASK_WATCHDOG_INTERVAL_MS);
 
 		const chatInput = document.getElementById('chat-input');
 		chatInput?.focus();
@@ -3075,6 +3235,8 @@
 	onDestroy(() => {
 		chatIdUnsubscriber?.();
 		selectedAssistantSceneUnsubscriber?.();
+		socketEventUnsubscriber?.();
+		socketReconnectUnsubscriber?.();
 		clearMessageOutlineHideTimer();
 		messageOutlineVisibleStore.set(false);
 		if (selectionThreadsPersistTimeout) {
@@ -3093,10 +3255,17 @@
 		overviewFocusedMessageId.set(null);
 		window.removeEventListener('message', onMessageHandler);
 		window.removeEventListener('chat:set-input', onSetInputHandler as EventListener);
+		window.removeEventListener('halo:foreground-resume', handleForegroundResume as EventListener);
+		window.removeEventListener('halo:android-resume', handleForegroundResume as EventListener);
 		window.removeEventListener('keydown', handleMessageOutlineKeydown, true);
 		window.removeEventListener('pointerup', clearMessageOutlineScrollbarDragPrime, true);
 		window.removeEventListener('pointercancel', clearMessageOutlineScrollbarDragPrime, true);
-		$socket?.off('chat-events', chatEventHandler);
+		chatEventSocket?.off('chat-events', chatEventHandler);
+		chatEventSocket = null;
+		if (taskWatchdogTimer) {
+			clearInterval(taskWatchdogTimer);
+			taskWatchdogTimer = null;
+		}
 	});
 
 	$: if ($showOverview) {
@@ -3514,7 +3683,7 @@
 		if (fresh || !inheritNewChatState) {
 			chat = null;
 			tags = [];
-			resetTaskIds();
+			resetTaskTracking();
 			processing = '';
 			atSelectedModel = undefined;
 			activeAssistant = null;
@@ -3719,7 +3888,7 @@
 		const navigationId = targetChatId;
 		chatId.set(targetChatId);
 		tags = [];
-		resetTaskIds();
+		resetTaskTracking();
 		const chatContextPromise = getChatContextById(localStorage.token, targetChatId).catch(() => ({
 			tags: [],
 			task_ids: []
@@ -3850,7 +4019,7 @@
 		}
 
 		if (!hasActivePendingResponse) {
-			resetTaskIds();
+			resetTaskTracking();
 		}
 
 		activeChatIds.update((ids) => {
@@ -3862,6 +4031,176 @@
 			}
 			return next;
 		});
+	};
+
+	const touchResponseTask = (messageId: string) => {
+		const watchdog = responseTaskWatchdogs[messageId];
+		if (!watchdog) {
+			return;
+		}
+
+		responseTaskWatchdogs = {
+			...responseTaskWatchdogs,
+			[messageId]: {
+				...watchdog,
+				lastEventAt: Date.now()
+			}
+		};
+	};
+
+	const markResponseRecoveryFailed = async (messageId: string, taskId: string | null, reason: string) => {
+		const message = history.messages?.[messageId];
+		if (!message) {
+			clearTaskForCompletedResponse(messageId);
+			return;
+		}
+
+		if (taskId) {
+			await stopTask(localStorage.token, taskId).catch(() => null);
+		}
+
+		message.error = {
+			type: 'socket_recovery_failed',
+			content: reason
+		};
+		message.done = true;
+		message.completedAt = Math.floor(Date.now() / 1000);
+		history.messages[messageId] = message;
+		clearTaskForCompletedResponse(messageId);
+		if ($chatId && !$temporaryChatEnabled) {
+			await saveChatHandler($chatId, history);
+		}
+	};
+
+	const releaseMessageQueueIfIdle = async () => {
+		const hasPendingTask = Array.isArray(taskIds) && taskIds.length > 0;
+		const hasRunningResponse = isStreamingResponseActive();
+		if (hasPendingTask || hasRunningResponse || messageQueue.length === 0) {
+			return;
+		}
+
+		const next = messageQueue[0];
+		messageQueue = messageQueue.slice(1);
+		files = next.files;
+		await tick();
+		await submitPrompt(next.prompt, { referenceFiles: next.referenceFiles ?? [] });
+	};
+
+	const recoverActiveChat = async (reason: string) => {
+		if (
+			recoveryInFlight ||
+			!$chatId ||
+			$chatId === 'local' ||
+			$temporaryChatEnabled ||
+			loading
+		) {
+			return false;
+		}
+
+		recoveryInFlight = true;
+
+		try {
+			const [chatContext, serverChat] = await Promise.all([
+				getChatContextById(localStorage.token, $chatId).catch(() => null),
+				getChatById(localStorage.token, $chatId).catch(() => null)
+			]);
+
+			if (serverChat?.chat?.history?.messages) {
+				for (const [messageId, serverMessage] of Object.entries(
+					serverChat.chat.history.messages
+				) as [string, any][]) {
+					const localMessage = history.messages?.[messageId];
+					const preserveStopped = localMessage?.stoppedByUser || localMessage?.stopped;
+					history.messages[messageId] = preserveStopped
+						? { ...serverMessage, ...localMessage }
+						: { ...localMessage, ...serverMessage };
+				}
+
+				history.currentId = serverChat.chat.history.currentId ?? history.currentId;
+			}
+
+			const nextTaskIds = chatContext?.task_ids ?? [];
+			taskIds = nextTaskIds.length > 0 ? nextTaskIds : null;
+			reconcileLoadedAssistantMessages(taskIds);
+
+			if (!taskIds || taskIds.length === 0) {
+				for (const [messageId, message] of Object.entries(history.messages ?? {}) as [string, any][]) {
+					if (message?.role !== 'assistant' || message.done === true) {
+						continue;
+					}
+
+					const watchdog = responseTaskWatchdogs[messageId];
+					const isHardTimedOut = watchdog && Date.now() >= watchdog.hardTimeoutAt;
+					const shouldFail =
+						!`${message?.content ?? ''}`.trim() || isHardTimedOut || reason === 'watchdog-silence';
+
+					if (shouldFail) {
+						await markResponseRecoveryFailed(
+							messageId,
+							watchdog?.taskId ?? null,
+							$i18n.t('页面返回前台后未能恢复响应状态，请刷新或重新发送。')
+						);
+					} else {
+						message.done = true;
+						history.messages[messageId] = message;
+						clearTaskForCompletedResponse(messageId);
+					}
+				}
+			}
+
+			await releaseMessageQueueIfIdle();
+			return true;
+		} finally {
+			recoveryInFlight = false;
+		}
+	};
+
+	const runTaskWatchdog = async () => {
+		const now = Date.now();
+		if ($socketConnectionState !== 'connected') {
+			const staleSince = get(socketLastDisconnectedAt);
+			if (staleSince && now - staleSince > CHAT_TASK_RECOVER_INTERVAL_MS) {
+				$socket?.connect();
+			}
+		}
+
+		for (const [messageId, watchdog] of Object.entries(responseTaskWatchdogs)) {
+			if (now >= watchdog.hardTimeoutAt) {
+				await markResponseRecoveryFailed(
+					messageId,
+					watchdog.taskId,
+					$i18n.t('连接已断开，多次重连失败。当前回复已停止等待。')
+				);
+				continue;
+			}
+
+			if (now - watchdog.lastEventAt < CHAT_TASK_SILENCE_TIMEOUT_MS) {
+				continue;
+			}
+
+			if (watchdog.recoverAttempts >= CHAT_TASK_MAX_RECOVER_ATTEMPTS) {
+				await markResponseRecoveryFailed(
+					messageId,
+					watchdog.taskId,
+					$i18n.t('连接已断开，多次重连失败。当前回复已停止等待。')
+				);
+				continue;
+			}
+
+			responseTaskWatchdogs = {
+				...responseTaskWatchdogs,
+				[messageId]: {
+					...watchdog,
+					recoverAttempts: watchdog.recoverAttempts + 1,
+					lastEventAt: now
+				}
+			};
+			await recoverActiveChat('watchdog-silence');
+		}
+	};
+
+	const handleForegroundResume = () => {
+		void recoverActiveChat('foreground-resume');
 	};
 
 	const isNearBottom = () => {
@@ -4284,6 +4623,9 @@
 			}
 		}
 
+		clearTaskForCompletedResponse(responseMessageId);
+		await tick();
+
 		const parentId = history.messages[responseMessageId]?.parentId;
 		const hasPendingSibling =
 			parentId &&
@@ -4291,20 +4633,8 @@
 				(id) => history.messages[id] && history.messages[id].done !== true
 			);
 
-		if (hasPendingSibling) {
-			clearTaskForCompletedResponse(responseMessageId);
-		} else {
-			resetTaskIds();
-		}
-		await tick();
-
-		if (!hasPendingSibling && messageQueue.length > 0) {
-			const next = messageQueue[0];
-			messageQueue = messageQueue.slice(1);
-
-			files = next.files;
-			await tick();
-			await submitPrompt(next.prompt, { referenceFiles: next.referenceFiles ?? [] });
+		if (!hasPendingSibling) {
+			await releaseMessageQueueIfIdle();
 		}
 	};
 
@@ -4781,6 +5111,9 @@
 
 	const chatCompletionEventHandler = async (data, message, chatId) => {
 		const { id, done, choices, content, sources, error, usage, files, discussion } = data;
+		if (message?.id) {
+			touchResponseTask(message.id);
+		}
 		if (isResponseStopped(message) || stoppedResponseMessageIds.has(message?.id)) {
 			if (done) {
 				stoppedResponseMessageIds.delete(message.id);
@@ -4858,6 +5191,7 @@
 			await releaseResponseAnimationController(message.id);
 			clearPendingGeminiImages(message.id, true);
 			message.done = true;
+			clearTaskForCompletedResponse(message.id);
 			message.completedAt = Date.now() / 1000;
 			commitHistoryMessage(message);
 			clearTaskForCompletedResponse(message.id);
@@ -4994,6 +5328,13 @@
 		const hasPendingTask = Array.isArray(taskIds) && taskIds.length > 0;
 		const hasRunningResponse = messages.length !== 0 && messages.at(-1).done != true;
 		if (hasPendingTask || hasRunningResponse) {
+			await recoverActiveChat('before-send');
+			const stillHasPendingTask = Array.isArray(taskIds) && taskIds.length > 0;
+			const stillHasRunningResponse = messages.length !== 0 && messages.at(-1).done != true;
+			if (!stillHasPendingTask && !stillHasRunningResponse) {
+				return await submitPrompt(userPrompt, { referenceFiles });
+			}
+
 			if ($settings?.enableMessageQueue ?? true) {
 				const queuedFiles = validFiles.map((file) => normalizeInputFileForMessage(file));
 				if (failedFiles.length > 0) {
@@ -5220,27 +5561,7 @@
 				}
 			}
 
-			let userContext = null;
-			if ($settings?.memory ?? false) {
-				const res = await queryMemory(localStorage.token, prompt).catch((error) => {
-					toast.error(`${error}`);
-					return null;
-				});
-				if (res) {
-					const memoryDocuments = res?.documents?.[0] ?? [];
-					const memoryMetadatas = res?.metadatas?.[0] ?? [];
-
-					if (memoryDocuments.length > 0) {
-						userContext = memoryDocuments.reduce((acc, doc, index) => {
-							const createdAtTimestamp = memoryMetadatas[index]?.created_at;
-							const createdAtDate = createdAtTimestamp
-								? new Date(createdAtTimestamp * 1000).toISOString().split('T')[0]
-								: null;
-							return `${acc}${index + 1}.${createdAtDate ? ` [${createdAtDate}].` : ''} ${doc}\n`;
-						}, '');
-					}
-				}
-			}
+			let userContext = await getOptionalMemoryContext(prompt);
 
 			_history.messages[responseMessageId].userContext = userContext;
 			(requestHistory.messages as Record<string, any>)[responseMessageId].userContext = userContext;
@@ -5340,31 +5661,7 @@
 						responseMessageIds[`${modelId}-${modelIdx ? modelIdx : _modelIdx}`];
 					let responseMessage = (requestHistory.messages as Record<string, any>)[responseMessageId];
 
-					let userContext = null;
-					if ($settings?.memory ?? false) {
-						if (userContext === null) {
-							const res = await queryMemory(localStorage.token, prompt).catch((error) => {
-								toast.error(`${error}`);
-								return null;
-							});
-							if (res) {
-								const memoryDocuments = res?.documents?.[0] ?? [];
-								const memoryMetadatas = res?.metadatas?.[0] ?? [];
-
-								if (memoryDocuments.length > 0) {
-									userContext = memoryDocuments.reduce((acc, doc, index) => {
-										const createdAtTimestamp = memoryMetadatas[index]?.created_at;
-										const createdAtDate = createdAtTimestamp
-											? new Date(createdAtTimestamp * 1000).toISOString().split('T')[0]
-											: null;
-										return `${acc}${index + 1}.${createdAtDate ? ` [${createdAtDate}].` : ''} ${doc}\n`;
-									}, '');
-								}
-
-								console.log(userContext);
-							}
-						}
-					}
+					let userContext = await getOptionalMemoryContext(prompt);
 					responseMessage.userContext = userContext;
 
 					const chatEventEmitter = await getChatEventEmitter(getModelRequestId(model), _chatId);
@@ -5418,16 +5715,7 @@
 		const effectiveSystemPrompt = getEffectiveChatSystemPrompt();
 		const userContext = responseMessage?.userContext ?? null;
 		const templatedSystemPrompt = effectiveSystemPrompt
-			? promptTemplate(
-					effectiveSystemPrompt,
-					$user?.name,
-					$settings?.userLocation
-						? await getAndUpdateUserLocation(localStorage.token).catch((err) => {
-								console.error(err);
-								return undefined;
-							})
-						: undefined
-				)
+			? promptTemplate(effectiveSystemPrompt, $user?.name, await getOptionalUserLocation())
 			: '';
 		const systemMessageContent = [
 			templatedSystemPrompt,
@@ -5595,15 +5883,7 @@
 					web_search_mode: requestedWebSearchMode !== 'off' ? requestedWebSearchMode : undefined
 				},
 				variables: {
-					...getPromptVariables(
-						$user?.name,
-						$settings?.userLocation
-							? await getAndUpdateUserLocation(localStorage.token).catch((err) => {
-									console.error(err);
-									return undefined;
-								})
-							: undefined
-					)
+					...getPromptVariables($user?.name, await getOptionalUserLocation())
 				},
 				model_item: model,
 
@@ -5646,7 +5926,8 @@
 						}
 					: {})
 			},
-			`${WEBUI_BASE_URL}/api`
+			`${WEBUI_BASE_URL}/api`,
+			{ timeoutMs: CHAT_REQUEST_START_TIMEOUT_MS }
 		).catch(async (error) => {
 			const resolutionDetail = getModelResolutionDetail(error);
 			if (resolutionDetail) {
@@ -6023,6 +6304,7 @@
 			}
 
 			history.messages[responseMessage.id] = responseMessage;
+			clearTaskForCompletedResponse(responseMessage.id);
 			return;
 		}
 
@@ -6051,13 +6333,14 @@
 		}
 
 		history.messages[responseMessage.id] = responseMessage;
+		clearTaskForCompletedResponse(responseMessage.id);
 	};
 
 	const stopResponse = async () => {
 		const currentTaskIds = [...getActiveTaskIds()];
 
 		await markResponseMessagesStopped();
-		resetTaskIds();
+		resetTaskTracking();
 
 		for (const taskId of currentTaskIds) {
 			if (taskId) {
@@ -6324,7 +6607,10 @@
 						await chats.set(await getChatList(localStorage.token, $currentChatPage));
 					});
 
-				await pendingChatSave;
+				await withTimeout(pendingChatSave, SOFT_SAVE_TIMEOUT_MS, 'chat save').catch((error) => {
+					console.warn('Chat save timed out', error);
+					toast.warning($i18n.t('聊天保存超时，已继续请求，稍后会再同步。'));
+				});
 			}
 		}
 	};

@@ -672,11 +672,41 @@ export const chatCompletion = async (
 export const generateOpenAIChatCompletion = async (
 	token: string = '',
 	body: object,
-	url: string = `${WEBUI_BASE_URL}/api`
+	url: string = `${WEBUI_BASE_URL}/api`,
+	options: { timeoutMs?: number; signal?: AbortSignal } = {}
 ) => {
+	const controller = new AbortController();
+	const requestController = new AbortController();
+	const timeoutMs = options.timeoutMs ?? 30000;
+	const timeoutId =
+		timeoutMs > 0
+			? globalThis.setTimeout(() => {
+					controller.abort(
+						new DOMException('Chat request did not start in time.', 'TimeoutError')
+					);
+				}, timeoutMs)
+			: null;
 	let error = null;
 
+	if (options.signal) {
+		if (options.signal.aborted) {
+			requestController.abort(options.signal.reason);
+		} else {
+			options.signal.addEventListener(
+				'abort',
+				() => requestController.abort(options.signal?.reason),
+				{ once: true }
+			);
+		}
+	}
+	controller.signal.addEventListener(
+		'abort',
+		() => requestController.abort(controller.signal.reason),
+		{ once: true }
+	);
+
 	const res = await fetch(`${url}/chat/completions`, {
+		signal: requestController.signal,
 		method: 'POST',
 		headers: {
 			Authorization: `Bearer ${token}`,
@@ -686,8 +716,20 @@ export const generateOpenAIChatCompletion = async (
 	})
 		.then(parseJsonResponse)
 		.catch((err) => {
+			if (controller.signal.aborted && controller.signal.reason?.name === 'TimeoutError') {
+				error = {
+					type: 'request_timeout',
+					detail: 'Chat request did not start in time.'
+				};
+				return null;
+			}
 			error = err;
 			return null;
+		})
+		.finally(() => {
+			if (timeoutId !== null) {
+				clearTimeout(timeoutId);
+			}
 		});
 
 	if (error) {
