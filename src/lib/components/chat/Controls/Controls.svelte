@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toast } from 'svelte-sonner';
 	import { createEventDispatcher, getContext, tick } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	const dispatch = createEventDispatcher();
@@ -22,6 +23,11 @@
 		getAnthropicEffortSteps,
 		getAnthropicThinkingProfile
 	} from '$lib/utils/anthropic-thinking';
+	import {
+		getConfiguredDefaultReasoningEffort,
+		normalizeDefaultReasoningEffortSetting
+	} from '$lib/utils/reasoning-controls';
+	import { saveUserSettingsPatch } from '$lib/utils/user-settings';
 	export let models: any[] = [];
 	export let modelId: string | string[] | null | undefined = null;
 	export let chatFiles: any[] = [];
@@ -416,6 +422,38 @@
 	let customEffortValue = '';
 	let customTokenMode = false;
 	let customTokenValue = '';
+	let defaultReasoningEffortDraft = '';
+	let savingDefaultReasoningEffort = false;
+	$: configuredDefaultReasoningEffort = getConfiguredDefaultReasoningEffort($settings);
+	$: defaultReasoningEffortDraft = configuredDefaultReasoningEffort ?? '';
+
+	$: defaultReasoningEffortOptions = [
+		{ value: '', label: tr('模型默认', 'Model default') },
+		{ value: 'none', label: tr('关闭', 'Off') },
+		{ value: 'low', label: 'Low' },
+		{ value: 'medium', label: 'Medium' },
+		{ value: 'high', label: 'High' },
+		{ value: 'xhigh', label: 'XHigh' },
+		{ value: 'max', label: 'Max' }
+	];
+
+	async function saveDefaultReasoningEffort(value: unknown = defaultReasoningEffortDraft) {
+		const normalized = normalizeDefaultReasoningEffortSetting(value);
+		savingDefaultReasoningEffort = true;
+
+		try {
+			await saveUserSettingsPatch(localStorage.token, {
+				defaultReasoningEffort: normalized
+			});
+			defaultReasoningEffortDraft = normalized ?? '';
+			toast.success(tr('默认思考强度已更新', 'Default thinking intensity updated'));
+		} catch (error) {
+			console.error(error);
+			toast.error(tr('默认思考强度保存失败', 'Failed to save default thinking intensity'));
+		} finally {
+			savingDefaultReasoningEffort = false;
+		}
+	}
 
 	// 强度/预算 互斥模式
 	let activeMode: 'effort' | 'budget' = 'effort';
@@ -788,6 +826,9 @@
 									</button>
 								</div>
 								{#if customEffortMode}
+									<div class="mb-1 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+										{tr('当前对话自定义', 'Custom for this chat')}
+									</div>
 									<input
 										type="text"
 										class="w-full text-xs py-2 px-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-700/40 rounded-lg outline-hidden focus:border-blue-300/50 dark:focus:border-blue-500/30 transition-colors duration-200 placeholder:text-gray-400 dark:placeholder:text-gray-500"
@@ -801,6 +842,53 @@
 											params = { ...params, reasoning_effort: customEffortValue || null };
 										}}
 									/>
+									<div class="mt-3 border-t border-gray-100 pt-2 dark:border-gray-800">
+										<div class="mb-1.5 flex items-center justify-between gap-2">
+											<div class="text-[10px] font-medium text-gray-500 dark:text-gray-400">
+												{tr('默认思考强度', 'Default Thinking Intensity')}
+											</div>
+											<div class="truncate text-[10px] text-gray-400 dark:text-gray-500">
+												{configuredDefaultReasoningEffort || tr('模型默认', 'Model default')}
+											</div>
+										</div>
+										<div class="grid grid-cols-4 gap-1">
+											{#each defaultReasoningEffortOptions as option}
+												<button
+													type="button"
+													class="rounded-md px-1.5 py-1 text-[10px] transition-colors
+														{String(configuredDefaultReasoningEffort ?? '') === option.value
+														? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300'
+														: 'bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-gray-800/60 dark:text-gray-300 dark:hover:bg-gray-700'}"
+													disabled={savingDefaultReasoningEffort}
+													on:click={() => saveDefaultReasoningEffort(option.value)}
+												>
+													{option.label}
+												</button>
+											{/each}
+										</div>
+										<div class="mt-1.5 flex items-center gap-1.5">
+											<input
+												type="text"
+												class="min-w-0 flex-1 text-xs py-2 px-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200/60 dark:border-gray-700/40 rounded-lg outline-hidden focus:border-blue-300/50 dark:focus:border-blue-500/30 transition-colors duration-200 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+												placeholder={tr('自定义默认值', 'Custom default')}
+												bind:value={defaultReasoningEffortDraft}
+												on:keydown={(event) => {
+													if (event.key === 'Enter') {
+														event.preventDefault();
+														saveDefaultReasoningEffort();
+													}
+												}}
+											/>
+											<button
+												type="button"
+												class="shrink-0 rounded-lg bg-blue-500 px-2.5 py-2 text-xs font-medium text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-blue-600 dark:hover:bg-blue-500"
+												disabled={savingDefaultReasoningEffort}
+												on:click={() => saveDefaultReasoningEffort()}
+											>
+												{tr('设为默认', 'Set default')}
+											</button>
+										</div>
+									</div>
 								{:else}
 									<SteppedSlider
 										steps={effortSteps}
