@@ -591,10 +591,11 @@ def test_chat_image_generation_handler_returns_background_task(monkeypatch):
     async def fake_event_emitter(event):
         events.append(event)
 
-    def fake_create_task(coroutine, id=None, *, blocks_completion=True):
+    def fake_create_task(coroutine, id=None, *, blocks_completion=True, message_id=None):
         created["coroutine"] = coroutine
         created["chat_id"] = id
         created["blocks_completion"] = blocks_completion
+        created["message_id"] = message_id
         return "task-1", SimpleNamespace()
 
     monkeypatch.setattr(middleware, "create_task", fake_create_task)

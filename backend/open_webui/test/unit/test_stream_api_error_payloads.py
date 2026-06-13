@@ -76,10 +76,11 @@ def test_stream_background_task_exception_finalizes_message(monkeypatch):
     async def fake_event_emitter(event):
         events.append(event)
 
-    def fake_create_task(coroutine, id=None, *, blocks_completion=True):
+    def fake_create_task(coroutine, id=None, *, blocks_completion=True, message_id=None):
         created["coroutine"] = coroutine
         created["chat_id"] = id
         created["blocks_completion"] = blocks_completion
+        created["message_id"] = message_id
         return "task-1", SimpleNamespace()
 
     monkeypatch.setattr(middleware, "get_event_emitter", lambda _metadata: fake_event_emitter)
