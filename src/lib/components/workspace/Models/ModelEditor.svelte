@@ -252,6 +252,7 @@
 	let accessControl = normalizeAccessControl({});
 	let builtinToolConfig: Record<string, boolean> = {};
 	$: canManageAcl = !edit || $user?.role === 'admin' || model?.user_id === $user?.id;
+	$: canShareAssistantAccess = $user?.role === 'admin' || $user?.permissions?.workspace?.models;
 
 	const DEFAULT_REASONING_EFFORT_VALUE = '__default__';
 
@@ -936,14 +937,15 @@
 
 							<!-- Access Control -->
 							<div class="glass-item p-4">
-									<AccessControl
-										bind:accessControl
-										accessRoles={['read', 'write']}
-										allowPublic={$user?.permissions?.sharing?.public_models || $user?.role === 'admin'}
-										allowUserSelection={$user?.role === 'admin'}
-										readOnly={!canManageAcl}
-									/>
-								</div>
+								<AccessControl
+									bind:accessControl
+									accessRoles={['read', 'write']}
+									allowPublic={$user?.permissions?.sharing?.public_models || $user?.role === 'admin'}
+									allowGroupSelection={canShareAssistantAccess}
+									allowUserSelection={$user?.role === 'admin'}
+									readOnly={!canManageAcl}
+								/>
+							</div>
 						{/if}
 
 						<!-- ===== Behavior Tab ===== -->

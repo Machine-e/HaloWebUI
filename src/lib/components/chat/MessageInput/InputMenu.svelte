@@ -18,7 +18,6 @@
 		Wrench,
 		Globe,
 		Terminal,
-		Camera,
 		FileUp,
 		Sparkles,
 		CircleHelp,
@@ -32,9 +31,7 @@
 	const tr = (zh: string, en: string, options: Record<string, any> = {}) =>
 		translateWithDefault($i18n, zh, en, options);
 
-	export let screenCaptureHandler: Function;
 	export let uploadFilesHandler: Function;
-	export let inputFilesHandler: Function;
 
 	export let uploadGoogleDriveHandler: Function;
 	export let uploadOneDriveHandler: Function;
@@ -52,6 +49,8 @@
 	export let onWebSearchModeChange: ((mode: WebSearchMode) => void) | null = null;
 	export let imageGenerationEnabled: boolean = false;
 	export let codeInterpreterEnabled: boolean = false;
+	export let responseHtmlFormat: boolean = false;
+	export let onResponseHtmlFormatChange: ((enabled: boolean) => void | Promise<void>) | null = null;
 
 	export let onClose: Function;
 
@@ -100,6 +99,11 @@
 		}
 		skillSelectionTouched = true;
 	}
+
+	const updateResponseHtmlFormat = (enabled: boolean) => {
+		responseHtmlFormat = enabled;
+		void onResponseHtmlFormatChange?.(enabled);
+	};
 
 	$: if (show) {
 		init();
@@ -225,25 +229,6 @@
 		}, {});
 	};
 
-	const detectMobile = () => {
-		const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-		return /android|iphone|ipad|ipod|windows phone/i.test(userAgent);
-	};
-
-	function handleFileChange(event) {
-		const inputFiles = Array.from(event.target?.files);
-		if (inputFiles && inputFiles.length > 0) {
-			console.log(inputFiles);
-			// Small delay for Android camera capture: some devices return
-			// a black/empty image if the blob is read immediately.
-			setTimeout(() => {
-				inputFilesHandler(inputFiles);
-			}, 300);
-		}
-		// Reset input so re-capturing triggers change event
-		event.target.value = '';
-	}
-
 	$: currentWebSearchModeOption =
 		webSearchModeOptions.find((option) => option.value === webSearchMode) ?? null;
 	$: currentWebSearchModeLabel =
@@ -253,16 +238,6 @@
 
 	const helpIconClass = 'size-3 shrink-0 cursor-help text-gray-400 dark:text-gray-500';
 </script>
-
-<!-- Hidden file input used to open the camera on mobile -->
-<input
-	id="camera-input"
-	type="file"
-	accept="image/*"
-	capture="environment"
-	on:change={handleFileChange}
-	style="display: none;"
-/>
 
 <Dropdown
 	bind:show
@@ -510,36 +485,55 @@
 				<hr class="border-black/5 dark:border-white/5 my-1" />
 			{/if}
 
-			<Tooltip
-				content={!fileUploadEnabled ? $i18n.t('You do not have permission to upload files') : ''}
-				className="w-full"
+			<div
+				class="flex w-full justify-between gap-2 items-center px-3 py-2 text-sm font-medium rounded-xl border transition {responseHtmlFormat
+					? 'border-blue-500/20 bg-blue-50/80 text-blue-700 shadow-sm shadow-blue-500/5 dark:border-blue-400/20 dark:bg-blue-950/30 dark:text-blue-200'
+					: 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-800'}"
 			>
-				<DropdownMenu.Item
-					class="flex gap-2 items-center px-3 py-2 text-sm  font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800  rounded-xl {!fileUploadEnabled
-						? 'opacity-50'
-						: ''}"
+				<button
+					type="button"
+					class="flex min-w-0 flex-1 gap-2 items-center text-left"
 					on:click={() => {
-						if (fileUploadEnabled) {
-							if (!detectMobile()) {
-								screenCaptureHandler();
-							} else {
-								const cameraInputElement = document.getElementById('camera-input');
-
-								if (cameraInputElement) {
-									cameraInputElement.click();
-								}
-							}
-						}
+						updateResponseHtmlFormat(!responseHtmlFormat);
 					}}
 				>
 					<span
-						class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600 dark:bg-gray-700/60 dark:text-gray-300"
+						class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md {responseHtmlFormat
+							? 'bg-blue-500 text-white dark:bg-blue-400 dark:text-gray-950'
+							: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300'}"
 					>
-						<Camera class="size-4" strokeWidth={2} />
+						<Sparkles class="size-4" strokeWidth={2} />
 					</span>
-					<div class=" line-clamp-1">{$i18n.t('Capture')}</div>
-				</DropdownMenu.Item>
-			</Tooltip>
+					<span class="min-w-0 truncate">{tr('HTML 渲染', 'HTML Rendering')}</span>
+				</button>
+
+				<Tooltip
+					content={tr(
+						'开启后，模型回复会以 HTML 格式展示；关闭后使用 Markdown。',
+						'Render model replies as HTML when enabled; use Markdown when disabled.'
+					)}
+					placement="top"
+				>
+					<button
+						type="button"
+						class="shrink-0 rounded-full p-0.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+						aria-label={tr('HTML 渲染说明', 'HTML rendering help')}
+					>
+						<CircleHelp class={helpIconClass} strokeWidth={1.9} />
+					</button>
+				</Tooltip>
+
+				<div class="shrink-0">
+					<Switch
+						state={responseHtmlFormat}
+						on:change={(e) => {
+							updateResponseHtmlFormat(Boolean(e.detail));
+						}}
+					/>
+				</div>
+			</div>
+
+			<hr class="border-black/5 dark:border-white/5 my-1" />
 
 			<Tooltip
 				content={!fileUploadEnabled ? $i18n.t('You do not have permission to upload files') : ''}

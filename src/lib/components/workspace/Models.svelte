@@ -11,7 +11,7 @@
 	import { goto } from '$app/navigation';
 	const i18n = getContext('i18n');
 
-	import { WEBUI_NAME, config, mobile, models as _models, settings, user } from '$lib/stores';
+	import { WEBUI_NAME, user } from '$lib/stores';
 	import {
 		createNewModel,
 		deleteModelById,
@@ -20,7 +20,7 @@
 		updateModelById
 	} from '$lib/apis/models';
 
-	import { getModels } from '$lib/apis';
+	import { refreshModels } from '$lib/services/models';
 	import { getGroups } from '$lib/apis/groups';
 
 	import EllipsisHorizontal from '../icons/EllipsisHorizontal.svelte';
@@ -101,6 +101,11 @@
 
 	let searchValue = '';
 
+	const refreshWorkspaceModelList = async () => {
+		await refreshModels(localStorage.token, { force: true, reason: 'workspace-models' });
+		models = await getWorkspaceModels(localStorage.token);
+	};
+
 	const deleteModelHandler = async (model) => {
 		const res = await deleteModelById(localStorage.token, model.id).catch((e) => {
 			toast.error(`${e}`);
@@ -109,15 +114,8 @@
 
 		if (res) {
 			toast.success($i18n.t(`Deleted {{name}}`, { name: model.id }));
+			await refreshWorkspaceModelList();
 		}
-
-		await _models.set(
-			await getModels(
-				localStorage.token,
-				$config?.features?.enable_direct_connections && ($settings?.directConnections ?? null)
-			)
-		);
-		models = await getWorkspaceModels(localStorage.token);
 	};
 
 	const cloneModelHandler = async (model) => {
@@ -167,15 +165,8 @@
 					status: info.meta.hidden ? 'hidden' : 'visible'
 				})
 			);
+			await refreshWorkspaceModelList();
 		}
-
-		await _models.set(
-			await getModels(
-				localStorage.token,
-				$config?.features?.enable_direct_connections && ($settings?.directConnections ?? null)
-			)
-		);
-		models = await getWorkspaceModels(localStorage.token);
 	};
 
 	const downloadModels = async (models) => {
@@ -290,14 +281,7 @@
 										}
 										if (count > 0) {
 											toast.success($i18n.t('{{count}} models shown', { count }));
-											await _models.set(
-												await getModels(
-													localStorage.token,
-													$config?.features?.enable_direct_connections &&
-														($settings?.directConnections ?? null)
-												)
-											);
-											models = await getWorkspaceModels(localStorage.token);
+											await refreshWorkspaceModelList();
 										}
 									}}
 								>
@@ -338,14 +322,7 @@
 										}
 										if (count > 0) {
 											toast.success($i18n.t('{{count}} models hidden', { count }));
-											await _models.set(
-												await getModels(
-													localStorage.token,
-													$config?.features?.enable_direct_connections &&
-														($settings?.directConnections ?? null)
-												)
-											);
-											models = await getWorkspaceModels(localStorage.token);
+											await refreshWorkspaceModelList();
 										}
 									}}
 								>
@@ -522,14 +499,8 @@
 									<Switch
 										bind:state={model.is_active}
 										on:change={async (e) => {
-											toggleModelById(localStorage.token, model.id);
-											_models.set(
-												await getModels(
-													localStorage.token,
-													$config?.features?.enable_direct_connections &&
-														($settings?.directConnections ?? null)
-												)
-											);
+											await toggleModelById(localStorage.token, model.id);
+											await refreshWorkspaceModelList();
 										}}
 									/>
 								</Tooltip>
@@ -568,11 +539,12 @@
 						let reader = new FileReader();
 						reader.onload = async (event) => {
 							let savedModels = JSON.parse(event.target.result);
+							const existingModelIds = new Set((models ?? []).map((model) => model.id));
 							console.log(savedModels);
 
 							for (const model of savedModels) {
 								if (model?.info ?? false) {
-									if ($_models.find((m) => m.id === model.id)) {
+									if (existingModelIds.has(model.id)) {
 										await updateModelById(localStorage.token, model.id, model.info).catch(
 											(error) => {
 												return null;
@@ -582,6 +554,7 @@
 										await createNewModel(localStorage.token, model.info).catch((error) => {
 											return null;
 										});
+										existingModelIds.add(model.id);
 									}
 								} else {
 									if (model?.id && model?.name) {
@@ -592,14 +565,7 @@
 								}
 							}
 
-							await _models.set(
-								await getModels(
-									localStorage.token,
-									$config?.features?.enable_direct_connections &&
-										($settings?.directConnections ?? null)
-								)
-							);
-							models = await getWorkspaceModels(localStorage.token);
+							await refreshWorkspaceModelList();
 						};
 
 						reader.readAsText(importFiles[0]);

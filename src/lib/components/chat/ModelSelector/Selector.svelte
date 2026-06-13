@@ -29,7 +29,8 @@
 		mobile,
 		temporaryChatEnabled,
 		settings,
-		config
+		config,
+		requestNewChat
 	} from '$lib/stores';
 	import { toast } from 'svelte-sonner';
 	import { capitalizeFirstLetter, sanitizeResponseContent, splitStream } from '$lib/utils';
@@ -412,11 +413,7 @@
 		});
 
 		await goto(targetPath);
-		await tick();
-		(
-			document.getElementById('new-chat-button') ??
-			document.getElementById('sidebar-new-chat-button')
-		)?.click();
+		requestNewChat({ source: 'navbar' });
 		show = false;
 	};
 
@@ -735,7 +732,7 @@
 	closeFocus={false}
 >
 	<DropdownMenu.Trigger
-		class="relative font-primary inline-flex items-center gap-1.5 max-w-full
+		class="relative font-primary inline-flex min-w-0 max-w-full items-center gap-1.5
 			px-3 py-1.5 rounded-xl
 			bg-white dark:bg-gray-900
 			border border-gray-200/50 dark:border-gray-700/30
@@ -744,10 +741,11 @@
 			active:bg-gray-100 dark:active:bg-gray-750
 			transition-colors duration-50
 			shadow-none outline-hidden ring-0 focus-visible:ring-0 focus-visible:outline-hidden {triggerClassName}"
-		aria-label={placeholder}
+		aria-label={selectedModel ? `${placeholder}: ${selectedModel.label}` : placeholder}
+		title={selectedModel ? selectedModel.label : placeholder}
 		id="model-selector-{id}-button"
 	>
-		<span class="truncate font-medium text-gray-700 dark:text-gray-200">
+		<span class="min-w-0 truncate font-medium text-gray-700 dark:text-gray-200">
 			{#if selectedModel}
 				{selectedModel.label}
 			{:else}

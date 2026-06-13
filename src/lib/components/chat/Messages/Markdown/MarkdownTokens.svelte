@@ -53,6 +53,9 @@
 
 	let detailsOpenState = new Map<string, boolean>();
 
+	const SAFE_HTML_URI_REGEXP =
+		/^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$)|data:(?:text\/(?:plain|csv|markdown)|application\/(?:json|pdf|zip|vnd\.openxmlformats-officedocument\.(?:spreadsheetml\.sheet|wordprocessingml\.document))|image\/(?:png|jpeg|jpg|gif|webp))(?:[;,]|$))/i;
+
 	const getDetailsStateKey = (token: any, tokenIdx: number) =>
 		[messageId, ...pathPrefix, tokenIdx, token?.attributes?.type ?? '', token?.summary ?? ''].join(
 			':'
@@ -79,7 +82,7 @@
 	};
 
 	const getCheckboxChecked = (event: Event) =>
-		(event.currentTarget instanceof HTMLInputElement ? event.currentTarget.checked : false);
+		event.currentTarget instanceof HTMLInputElement ? event.currentTarget.checked : false;
 
 	type CsvCellToken = { text?: string; tokens?: Array<{ text?: string }> };
 	type CsvTableToken = { header?: CsvCellToken[]; rows?: CsvCellToken[][] };
@@ -527,7 +530,10 @@
 			{@const iframeSrc = resolveLocalFileIframeSrcFromHtml(token.text, WEBUI_BASE_URL)}
 			{@const html = rewriteDataUrlDownloadLinks(
 				rewriteGeneratedFileHtmlLinks(
-					DOMPurify.sanitize(token.text, { ADD_ATTR: ['style'] }),
+					DOMPurify.sanitize(token.text, {
+						ADD_ATTR: ['style', 'download', 'target', 'rel'],
+						ALLOWED_URI_REGEXP: SAFE_HTML_URI_REGEXP
+					}),
 					generatedFiles
 				)
 			)}

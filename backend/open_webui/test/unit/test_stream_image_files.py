@@ -12,6 +12,7 @@ from open_webui.utils.middleware import (  # noqa: E402
     WEB_SEARCH_MODE_OFF,
     _consume_stream_image_delta,
     _append_text_to_content_blocks,
+    _build_chat_image_generation_result_files,
     _extract_stream_content_and_files,
     _get_builtin_web_tools_to_suppress,
     _get_tool_call_result,
@@ -242,6 +243,37 @@ def test_merge_message_files_preserves_existing_non_image_files_and_deduplicates
         {"type": "web_search_results", "url": "/tmp/search.json", "name": "search"},
         {"type": "image", "url": "data:image/png;base64,abcd"},
         {"type": "image", "url": "data:image/png;base64,efgh"},
+    ]
+
+
+def test_build_chat_image_generation_result_files_preserves_file_identity():
+    files = _build_chat_image_generation_result_files(
+        images=[
+            {
+                "file_id": "generated-file-1",
+                "url": "/api/v1/files/generated-file-1/content",
+                "name": "generated.png",
+                "size": 123,
+                "content_type": "image/png",
+                "slot_index": 0,
+            }
+        ],
+        failures=[],
+        requested_n=1,
+    )
+
+    assert files == [
+        {
+            "type": "image",
+            "id": "generated-file-1",
+            "url": "/api/v1/files/generated-file-1/content",
+            "name": "generated.png",
+            "size": 123,
+            "content_type": "image/png",
+            "source": "image_generation",
+            "status": "success",
+            "slot_index": 0,
+        }
     ]
 
 

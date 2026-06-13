@@ -35,6 +35,9 @@ from open_webui.utils.data_management import (
     BACKUP_KIND_FULL,
     BACKUP_KIND_SQLITE,
     BackupKindMismatchError,
+    DB_MERGE_CONFIRMATION,
+    DB_OPERATION_MERGE,
+    DB_OPERATION_RESTORE,
     DB_RESTORE_CONFIRMATION,
     cleanup_path,
     create_full_backup_package,
@@ -42,7 +45,9 @@ from open_webui.utils.data_management import (
     create_sqlite_snapshot,
     ensure_db_restore_state,
     get_database_restore_support,
+    inspect_merge_backup,
     inspect_restore_backup,
+    merge_database_backup,
     normalize_backup_kind,
     pop_restore_token,
     prune_db_restore_tokens,
@@ -161,6 +166,16 @@ class DatabaseRestoreForm(BaseModel):
 class DatabaseRestoreResponse(BaseModel):
     restored: bool
     requires_reload: bool
+
+
+class DatabaseMergeInspectResponse(DatabaseRestoreInspectResponse):
+    merge: dict[str, Any]
+
+
+class DatabaseMergeResponse(BaseModel):
+    merged: bool
+    requires_reload: bool
+    summary: dict[str, Any]
 
 
 @router.post("/pdf")
@@ -334,6 +349,12 @@ async def restore_db(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
         )
+    if token_payload.get("operation", DB_OPERATION_RESTORE) != DB_OPERATION_RESTORE:
+        cleanup_path(token_payload.get("path"))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The restore session is not valid for database restore.",
+        )
 
     uploaded_path = Path(token_payload["path"])
     if not uploaded_path.exists():
@@ -371,6 +392,157 @@ async def restore_db(
                 "Database restore failed after creating a rollback backup on the server."
                 if rollback_created
                 else "Database restore failed before the rollback backup completed."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{detail} {e}",
+            )
+        finally:
+            cleanup_path(uploaded_path)
+
+
+@router.post("/db/merge/inspect", response_model=DatabaseMergeInspectResponse)
+async def inspect_db_merge(
+    request: Request,
+    expected_kind: str = Form(BACKUP_KIND_SQLITE),
+    file: UploadFile = File(...),
+    user=Depends(get_admin_user),
+):
+    if not ENABLE_ADMIN_EXPORT:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+        )
+
+    engine = _assert_restore_supported()
+    prune_db_restore_tokens(request.app)
+
+    staged_path = write_upload_to_temp(file, "open-webui-db-merge-")
+    try:
+        backup_kind = normalize_backup_kind(expected_kind)
+        inspection = inspect_merge_backup(
+            staged_path,
+            Path(engine.url.database),
+            expected_kind=backup_kind,
+        )
+    except BackupKindMismatchError as e:
+        cleanup_path(staged_path)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e),
+        )
+    except Exception as e:
+        cleanup_path(staged_path)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    token_payload = create_restore_token(
+        request.app,
+        path=str(staged_path),
+        filename=file.filename or staged_path.name,
+        user_id=user.id,
+        kind=inspection["kind"],
+        operation=DB_OPERATION_MERGE,
+    )
+
+    return DatabaseMergeInspectResponse(
+        token=token_payload["token"],
+        compatible=True,
+        kind=inspection["kind"],
+        filename=token_payload["filename"],
+        size=staged_path.stat().st_size,
+        warnings=inspection["warnings"],
+        summary=inspection["summary"],
+        confirmation=DB_MERGE_CONFIRMATION,
+        merge=inspection["merge"],
+    )
+
+
+@router.post("/db/merge", response_model=DatabaseMergeResponse)
+async def merge_db(
+    request: Request,
+    form_data: DatabaseRestoreForm,
+    user=Depends(get_admin_user),
+):
+    if not ENABLE_ADMIN_EXPORT:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+        )
+
+    if form_data.confirmation != DB_MERGE_CONFIRMATION:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The confirmation phrase is incorrect.",
+        )
+
+    engine = _assert_restore_supported()
+    restore_lock, _ = ensure_db_restore_state(request.app)
+    token_payload = pop_restore_token(request.app, form_data.token)
+
+    if token_payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The merge import session has expired. Please inspect the backup again.",
+        )
+    if token_payload["user_id"] != user.id:
+        cleanup_path(token_payload.get("path"))
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+        )
+    if token_payload.get("operation") != DB_OPERATION_MERGE:
+        cleanup_path(token_payload.get("path"))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The restore session is not valid for database merge import.",
+        )
+
+    uploaded_path = Path(token_payload["path"])
+    if not uploaded_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded merge import file is no longer available. Please inspect it again.",
+        )
+
+    if restore_lock.locked():
+        cleanup_path(uploaded_path)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Another database restore or merge import is already in progress.",
+        )
+
+    rollback_created = False
+
+    async with restore_lock:
+        try:
+            rollback_name = (
+                f"webui-rollback-before-merge-{time.strftime('%Y%m%d-%H%M%S')}.db"
+            )
+            create_sqlite_snapshot(engine, filename=rollback_name)
+            rollback_created = True
+
+            engine.dispose()
+            result = merge_database_backup(
+                uploaded_path,
+                Path(engine.url.database),
+                expected_kind=token_payload.get("kind"),
+            )
+            refresh_runtime_after_restore(request.app)
+
+            return DatabaseMergeResponse(
+                merged=True,
+                requires_reload=True,
+                summary=result,
+            )
+        except Exception as e:
+            log.exception("Database merge import failed")
+            detail = (
+                "Database merge import failed after creating a rollback backup on the server."
+                if rollback_created
+                else "Database merge import failed before the rollback backup completed."
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

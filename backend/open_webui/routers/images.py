@@ -82,6 +82,21 @@ MARKDOWN_IMAGE_URL_RE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
 DATA_IMAGE_URL_RE = re.compile(
     r"data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=\s]+", re.IGNORECASE
 )
+HTTP_IMAGE_URL_RE = re.compile(
+    r"https?:\/\/[^\s\])\"'<>]+\.(?:png|jpe?g|webp|gif|bmp|avif)(?:\?[^\s\])\"'<>]*)?",
+    re.IGNORECASE,
+)
+HTTP_URL_RE = re.compile(r"https?:\/\/[^\s\])\"'<>]+", re.IGNORECASE)
+OPENAI_STREAM_DEBUG_EVENT_LIMIT = 8
+OPENAI_STREAM_TEXT_FRAGMENT_LIMIT = 200_000
+OPENAI_UPSTREAM_REQUEST_ID_HEADERS = (
+    "x-request-id",
+    "request-id",
+    "x-oneapi-request-id",
+    "x-generation-id",
+    "x-openrouter-request-id",
+    "cf-ray",
+)
 
 OPENAI_IMAGE_DEFAULT_RESPONSE_FORMAT_PREFIXES = (
     "chatgpt-image-",
@@ -1816,6 +1831,7 @@ def _build_image_model_entry(
         OPENAI_IMAGE_ROUTE_RESPONSES,
         OPENAI_IMAGE_ROUTE_EDITS,
     ]
+    has_explicit_supported_routes = supported_image_routes is not None
     normalized_routes = [
         route
         for route in route_order
@@ -1840,7 +1856,9 @@ def _build_image_model_entry(
             base_name=_model_id_basename(model_id).lower(),
             base_url=source_base_url,
             generation_mode=generation_mode,
-            endpoint_routes=set(normalized_routes),
+            endpoint_routes=(
+                set(normalized_routes) if has_explicit_supported_routes else set()
+            ),
         )
     ):
         normalized_routes.append(OPENAI_IMAGE_ROUTE_CHAT)
@@ -1850,7 +1868,9 @@ def _build_image_model_entry(
         and _should_offer_openai_image_edit_route(
             base_name=_model_id_basename(model_id).lower(),
             generation_mode=generation_mode,
-            endpoint_routes=set(normalized_routes),
+            endpoint_routes=(
+                set(normalized_routes) if has_explicit_supported_routes else set()
+            ),
         )
     ):
         normalized_routes.append(OPENAI_IMAGE_ROUTE_EDITS)
@@ -2459,8 +2479,11 @@ def _resolve_openai_image_request_route(
     route_mode: Any,
     *,
     has_reference_image: bool = False,
+    reference_image_count: int = 0,
 ) -> str:
     requested_route = _normalize_openai_image_route_mode(route_mode)
+    reference_image_count = max(0, int(reference_image_count or 0))
+    has_reference_image = bool(has_reference_image or reference_image_count > 0)
     if (
         str((selected_model_meta or {}).get("generation_mode") or "").strip()
         == "openai_chat_image"
@@ -2536,6 +2559,20 @@ def _resolve_openai_image_request_route(
             ).strip()
             if reference_default_route in supported_routes:
                 return reference_default_route
+            if reference_image_count > 1:
+                for route in (
+                    OPENAI_IMAGE_ROUTE_CHAT,
+                    OPENAI_IMAGE_ROUTE_RESPONSES,
+                    OPENAI_IMAGE_ROUTE_EDITS,
+                ):
+                    if route in supported_routes:
+                        return route
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "当前模型没有可用的多图参考接口。请切换到支持多图参考的图片模型，或减少参考图数量后重新生成。"
+                    ),
+                )
             for route in (
                 OPENAI_IMAGE_ROUTE_CHAT,
                 OPENAI_IMAGE_ROUTE_RESPONSES,
@@ -2543,6 +2580,12 @@ def _resolve_openai_image_request_route(
             ):
                 if route in supported_routes:
                     return route
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "当前模型没有可用的参考图接口。请切换到支持参考图的图片接口，或移除参考图后重新生成。"
+                ),
+            )
         if default_route in supported_routes:
             return default_route
         if OPENAI_IMAGE_ROUTE_GENERATIONS in supported_routes:
@@ -3970,6 +4013,7 @@ class GenerateImageForm(BaseModel):
     aspect_ratio: Optional[str] = None
     resolution: Optional[str] = None
     image_url: Optional[str] = None
+    image_urls: Optional[list[str]] = None
     n: int = 1
     negative_prompt: Optional[str] = None
     credential_source: Optional[str] = None
@@ -4267,10 +4311,392 @@ def _extract_generated_image_values_from_text(text: str) -> list[str]:
     for match in DATA_IMAGE_URL_RE.findall(raw_text):
         _append(match)
 
+    for match in HTTP_IMAGE_URL_RE.findall(raw_text):
+        _append(match)
+
     if raw_text.startswith(("http://", "https://", "data:image/")):
         _append(raw_text)
 
     return values
+
+
+def _append_openai_stream_text_fragment(
+    fragments: list[str],
+    value: Any,
+    *,
+    max_chars: int = OPENAI_STREAM_TEXT_FRAGMENT_LIMIT,
+) -> None:
+    if not isinstance(value, str) or not value:
+        return
+
+    current_length = sum(len(fragment) for fragment in fragments)
+    remaining = max_chars - current_length
+    if remaining <= 0:
+        return
+    fragments.append(value[:remaining])
+
+
+def _collect_openai_stream_text_fragments(
+    value: Any, fragments: list[str], *, max_depth: int = 6
+) -> None:
+    if max_depth <= 0:
+        return
+
+    if isinstance(value, str):
+        _append_openai_stream_text_fragment(fragments, value)
+        return
+
+    if isinstance(value, list):
+        for item in value:
+            _collect_openai_stream_text_fragments(
+                item, fragments, max_depth=max_depth - 1
+            )
+        return
+
+    if not isinstance(value, dict):
+        return
+
+    # OpenAI-compatible relays often split final markdown/URL text across
+    # choices[].delta.content events, so preserve text fragments for a final pass.
+    for key in (
+        "content",
+        "text",
+        "output_text",
+        "reasoning_content",
+        "reasoning",
+        "delta",
+    ):
+        child = value.get(key)
+        if isinstance(child, str):
+            _append_openai_stream_text_fragment(fragments, child)
+        elif isinstance(child, (dict, list)):
+            _collect_openai_stream_text_fragments(
+                child, fragments, max_depth=max_depth - 1
+            )
+
+    for key in ("choices", "message", "response", "item", "output", "data"):
+        child = value.get(key)
+        if isinstance(child, (dict, list)):
+            _collect_openai_stream_text_fragments(
+                child, fragments, max_depth=max_depth - 1
+            )
+
+
+def _summarize_openai_stream_event(event: Any) -> dict[str, Any]:
+    if not isinstance(event, dict):
+        return {"kind": type(event).__name__}
+
+    summary: dict[str, Any] = {
+        "keys": sorted(str(key) for key in event.keys())[:20],
+    }
+    event_type = event.get("type")
+    if event_type is not None:
+        summary["type"] = str(event_type)[:120]
+    for key in ("id", "model", "object", "provider", "service_tier"):
+        value = event.get(key)
+        if value is not None:
+            summary[key] = str(value)[:160]
+
+    choices = event.get("choices")
+    if isinstance(choices, list) and choices:
+        choice = choices[0]
+        if isinstance(choice, dict):
+            summary["choice_keys"] = sorted(str(key) for key in choice.keys())[:20]
+            delta = choice.get("delta")
+            if isinstance(delta, dict):
+                summary["delta_keys"] = sorted(str(key) for key in delta.keys())[:20]
+                content = delta.get("content")
+                if isinstance(content, str):
+                    summary["delta_content_len"] = len(content)
+                    if content:
+                        summary["delta_content_preview"] = content[:160]
+                reasoning = delta.get("reasoning_content") or delta.get("reasoning")
+                if isinstance(reasoning, str) and reasoning:
+                    summary["delta_reasoning_len"] = len(reasoning)
+                    summary["delta_reasoning_preview"] = reasoning[:240]
+            message = choice.get("message")
+            if isinstance(message, dict):
+                summary["message_keys"] = sorted(str(key) for key in message.keys())[
+                    :20
+                ]
+                content = message.get("content")
+                if isinstance(content, str) and content:
+                    summary["message_content_len"] = len(content)
+                    summary["message_content_preview"] = content[:160]
+                reasoning = message.get("reasoning_content") or message.get("reasoning")
+                if isinstance(reasoning, str) and reasoning:
+                    summary["message_reasoning_len"] = len(reasoning)
+                    summary["message_reasoning_preview"] = reasoning[:240]
+            finish_reason = choice.get("finish_reason")
+            if finish_reason is not None:
+                summary["finish_reason"] = str(finish_reason)
+            native_finish_reason = choice.get("native_finish_reason")
+            if native_finish_reason is not None:
+                summary["native_finish_reason"] = str(native_finish_reason)
+
+    usage = event.get("usage")
+    if isinstance(usage, dict):
+        summary["usage"] = {
+            str(key): usage.get(key)
+            for key in (
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "input_tokens",
+                "output_tokens",
+            )
+            if key in usage
+        }
+
+    return summary
+
+
+def _extract_openai_upstream_request_ids(headers: dict[str, Any]) -> dict[str, str]:
+    ids: dict[str, str] = {}
+    normalized_headers = {
+        str(key).lower(): str(value)
+        for key, value in (headers or {}).items()
+        if value is not None
+    }
+    for header_name in OPENAI_UPSTREAM_REQUEST_ID_HEADERS:
+        value = normalized_headers.get(header_name.lower())
+        if value:
+            ids[header_name] = value
+    return ids
+
+
+def _first_openai_usage_value(
+    usage: Optional[dict[str, Any]], event_summaries: list[dict[str, Any]], *keys: str
+) -> Optional[Any]:
+    if isinstance(usage, dict):
+        for key in keys:
+            if key in usage:
+                return usage.get(key)
+    for summary in reversed(event_summaries or []):
+        summary_usage = summary.get("usage")
+        if not isinstance(summary_usage, dict):
+            continue
+        for key in keys:
+            if key in summary_usage:
+                return summary_usage.get(key)
+    return None
+
+
+def _unique_non_empty_strings(values: list[Any]) -> list[str]:
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        unique.append(text)
+    return unique
+
+
+def _build_openai_empty_image_context(
+    *,
+    route_label: str,
+    status_code: Optional[int],
+    headers: Optional[dict[str, Any]] = None,
+    event_count: Optional[int] = None,
+    event_summaries: Optional[list[dict[str, Any]]] = None,
+    text_fragments: Optional[list[str]] = None,
+    usage: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    event_summaries = event_summaries or []
+    joined_text = "".join(text_fragments or [])
+    url_previews = [url[:240] for url in HTTP_URL_RE.findall(joined_text)[:5]]
+    data_image_count = len(DATA_IMAGE_URL_RE.findall(joined_text))
+    text_chars = len(joined_text)
+    completion_tokens = _first_openai_usage_value(
+        usage, event_summaries, "completion_tokens", "output_tokens"
+    )
+    total_tokens = _first_openai_usage_value(usage, event_summaries, "total_tokens")
+    finish_reasons = _unique_non_empty_strings(
+        [summary.get("finish_reason") for summary in event_summaries]
+    )
+    native_finish_reasons = _unique_non_empty_strings(
+        [summary.get("native_finish_reason") for summary in event_summaries]
+    )
+    providers = _unique_non_empty_strings(
+        [summary.get("provider") for summary in event_summaries]
+    )
+    models = _unique_non_empty_strings(
+        [summary.get("model") for summary in event_summaries]
+    )
+
+    category = "no_image_payload"
+    reason = "上游响应中没有可识别的图片字段。"
+    if event_count == 0:
+        category = "empty_stream_no_events"
+        reason = "上游返回了流式响应，但没有返回任何有效事件。"
+    elif (
+        completion_tokens == 0
+        and text_chars == 0
+        and not url_previews
+        and data_image_count == 0
+    ):
+        category = "empty_stream_zero_output"
+        reason = (
+            "上游请求已结束，但输出 token 为 0，且没有返回文本、图片链接或图片数据。"
+        )
+    elif text_chars > 0 and not url_previews and data_image_count == 0:
+        category = "text_without_image"
+        reason = "上游返回了文本内容，但没有返回图片链接或图片数据。"
+    elif url_previews or data_image_count:
+        category = "unloaded_image_reference"
+        reason = "上游响应里出现了疑似图片引用，但后端未能成功加载为图片。"
+
+    return {
+        "category": category,
+        "reason": reason,
+        "route": route_label,
+        "status_code": status_code,
+        "event_count": event_count,
+        "text_chars": text_chars,
+        "data_image_count": data_image_count,
+        "url_previews": url_previews,
+        "finish_reasons": finish_reasons,
+        "native_finish_reasons": native_finish_reasons,
+        "providers": providers,
+        "models": models,
+        "usage": {
+            key: value
+            for key, value in {
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+            }.items()
+            if value is not None
+        },
+        "upstream_request_ids": _extract_openai_upstream_request_ids(headers or {}),
+    }
+
+
+def _build_openai_empty_image_error_detail(context: dict[str, Any]) -> str:
+    reason = str(context.get("reason") or "上游响应中没有可识别的图片字段。").strip()
+    if reason.startswith("上游请求已结束，但"):
+        first_sentence = (
+            "上游图片生成请求已完成，但" + reason[len("上游请求已结束，但") :]
+        )
+    elif reason.startswith("上游图片生成请求已完成"):
+        first_sentence = reason
+    else:
+        first_sentence = f"上游图片生成请求已完成，但{reason}"
+    first_sentence = first_sentence.replace(
+        "没有返回文本、图片链接或图片数据",
+        "没有返回任何文本、图片链接或图片数据",
+    )
+
+    parts = [first_sentence]
+    if context.get("providers"):
+        parts.append(f"上游供应商: {', '.join(context['providers'])}。")
+    if context.get("finish_reasons"):
+        parts.append(f"结束原因: {', '.join(context['finish_reasons'])}。")
+    usage = context.get("usage") if isinstance(context.get("usage"), dict) else {}
+    if usage:
+        usage_parts = [f"{key}={value}" for key, value in usage.items()]
+        parts.append(f"用量摘要: {', '.join(usage_parts)}。")
+    parts.append("建议调整提示词或切换到更稳定的图片模型/中转站。")
+    return "".join(parts)
+
+
+def _log_openai_empty_image_stream(
+    *,
+    route_label: str,
+    status_code: int,
+    headers: dict[str, Any],
+    event_count: int,
+    event_summaries: list[dict[str, Any]],
+    text_fragments: list[str],
+) -> dict[str, Any]:
+    context = _build_openai_empty_image_context(
+        route_label=route_label,
+        status_code=status_code,
+        headers=headers,
+        event_count=event_count,
+        event_summaries=event_summaries,
+        text_fragments=text_fragments,
+    )
+    try:
+        joined_text = "".join(text_fragments)
+        log.warning(
+            "openai_chat_image_empty_stream route=%s status=%s category=%s reason=%s event_count=%s text_chars=%s data_image_count=%s url_previews=%s providers=%s finish_reasons=%s usage=%s upstream_request_ids=%s event_summaries=%s response_headers=%s text_preview=%s",
+            route_label,
+            status_code,
+            context.get("category"),
+            context.get("reason"),
+            event_count,
+            context.get("text_chars"),
+            context.get("data_image_count"),
+            json.dumps(context.get("url_previews") or [], ensure_ascii=False),
+            json.dumps(context.get("providers") or [], ensure_ascii=False),
+            json.dumps(context.get("finish_reasons") or [], ensure_ascii=False),
+            json.dumps(context.get("usage") or {}, ensure_ascii=False),
+            json.dumps(context.get("upstream_request_ids") or {}, ensure_ascii=False),
+            json.dumps(event_summaries, ensure_ascii=False, default=str),
+            json.dumps(
+                _redact_upstream_headers(dict(headers)),
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            joined_text[:500],
+        )
+    except Exception:
+        pass
+    return context
+
+
+def _summarize_openai_chat_image_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "keys": sorted(str(key) for key in payload.keys()),
+        "stream": bool(payload.get("stream")),
+    }
+    for key in ("modalities", "response_modalities", "responseModalities"):
+        if key in payload:
+            summary[key] = payload.get(key)
+
+    tools = payload.get("tools")
+    if isinstance(tools, list):
+        summary["tool_types"] = [
+            str(tool.get("type") or "") for tool in tools if isinstance(tool, dict)
+        ]
+
+    messages = payload.get("messages")
+    if isinstance(messages, list) and messages:
+        message = messages[0]
+        if isinstance(message, dict):
+            content = message.get("content")
+            summary["message_role"] = message.get("role")
+            if isinstance(content, list):
+                part_types = [
+                    str(part.get("type") or "")
+                    for part in content
+                    if isinstance(part, dict)
+                ]
+                summary["message_part_types"] = part_types
+                summary["message_image_part_count"] = part_types.count("image_url")
+                summary["message_text_part_count"] = part_types.count("text")
+            elif isinstance(content, str):
+                summary["message_content_type"] = "text"
+                summary["message_text_len"] = len(content)
+
+    response_input = payload.get("input")
+    if isinstance(response_input, list) and response_input:
+        item = response_input[0]
+        if isinstance(item, dict):
+            content = item.get("content")
+            if isinstance(content, list):
+                part_types = [
+                    str(part.get("type") or "")
+                    for part in content
+                    if isinstance(part, dict)
+                ]
+                summary["input_part_types"] = part_types
+                summary["input_image_part_count"] = part_types.count("input_image")
+                summary["input_text_part_count"] = part_types.count("input_text")
+
+    return summary
 
 
 def _extract_generated_image_payload(
@@ -5171,6 +5597,50 @@ def _resolve_image_input_as_data_url(
     return mime_type, image_bytes, f"data:{mime_type};base64,{encoded}"
 
 
+def _normalize_reference_image_urls(
+    image_url: Optional[str], image_urls: Optional[list[str]] = None
+) -> list[str]:
+    urls: list[str] = []
+    seen: set[str] = set()
+
+    def add_url(value: Any) -> None:
+        url = str(value or "").strip()
+        if not url or url in seen:
+            return
+        seen.add(url)
+        urls.append(url)
+
+    add_url(image_url)
+    if isinstance(image_urls, str):
+        iterable_image_urls: Any = [image_urls]
+    else:
+        iterable_image_urls = image_urls or []
+    for url in iterable_image_urls:
+        add_url(url)
+
+    return urls
+
+
+def _resolve_image_inputs_as_data_urls(
+    request: Request,
+    user,
+    image_urls: list[str],
+    *,
+    error_context: str,
+) -> list[tuple[str, bytes, str]]:
+    resolved_inputs: list[tuple[str, bytes, str]] = []
+    for index, image_url in enumerate(image_urls):
+        resolved_image = _resolve_image_input_as_data_url(request, user, image_url)
+        if not resolved_image:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to resolve image input #{index + 1} for {error_context}.",
+            )
+        resolved_inputs.append(resolved_image)
+
+    return resolved_inputs
+
+
 def _summarize_openai_image_batch_error(
     index: int, error: BaseException
 ) -> dict[str, Any]:
@@ -5293,6 +5763,7 @@ async def _generate_via_openai_image_edits_endpoint(
     prompt: str,
     stream: Optional[bool] = None,
     image_url: str,
+    image_urls: Optional[list[str]] = None,
     n: int,
     size: Optional[str],
     background: Optional[str],
@@ -5301,6 +5772,13 @@ async def _generate_via_openai_image_edits_endpoint(
         Callable[[int, dict[str, Any]], Awaitable[None]]
     ] = None,
 ) -> list[dict[str, str]]:
+    reference_image_urls = _normalize_reference_image_urls(image_url, image_urls)
+    if not reference_image_urls:
+        raise HTTPException(
+            status_code=400,
+            detail="编辑接口需要先提供一张参考图。",
+        )
+
     requested_n = max(1, int(n or 1))
     if requested_n > 1:
 
@@ -5311,7 +5789,8 @@ async def _generate_via_openai_image_edits_endpoint(
                 model_id=model_id,
                 prompt=prompt,
                 stream=stream,
-                image_url=image_url,
+                image_url=reference_image_urls[0],
+                image_urls=reference_image_urls,
                 n=1,
                 size=size,
                 background=background,
@@ -5356,14 +5835,39 @@ async def _generate_via_openai_image_edits_endpoint(
     base_name = _model_id_basename(upstream_model_id).lower()
     stream_enabled = _openai_image_stream_enabled(stream)
 
-    resolved_image = _resolve_image_edit_input(request, user, image_url)
-    if not resolved_image:
-        raise HTTPException(
-            status_code=400,
-            detail="Failed to resolve image input for edit request.",
+    resolved_images: list[tuple[str, bytes]] = []
+    input_summaries: list[dict[str, Any]] = []
+    for index, reference_image_url in enumerate(reference_image_urls):
+        resolved_image = _resolve_image_edit_input(request, user, reference_image_url)
+        if not resolved_image:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to resolve image input #{index + 1} for edit request.",
+            )
+
+        image_mime, image_bytes = resolved_image
+        mime_type = image_mime or "image/png"
+        resolved_images.append((mime_type, image_bytes))
+        input_summaries.append(
+            {
+                "index": index + 1,
+                "file_id": extract_chat_image_file_id(reference_image_url) or "",
+                "mime": mime_type,
+                "bytes": len(image_bytes),
+            }
         )
 
-    image_mime, image_bytes = resolved_image
+    try:
+        log.info(
+            "openai_image_edits_reference_inputs user_id=%s model=%s reference_input_count=%s files=%s",
+            getattr(user, "id", None),
+            upstream_model_id,
+            len(resolved_images),
+            json.dumps(input_summaries, ensure_ascii=False, default=str),
+        )
+    except Exception:
+        pass
+
     payload: dict[str, Any] = {
         "model": upstream_model_id,
         "prompt": prompt,
@@ -5380,9 +5884,23 @@ async def _generate_via_openai_image_edits_endpoint(
     else:
         payload["response_format"] = "b64_json"
 
-    image_extension = mimetypes.guess_extension(image_mime or "image/png") or ".png"
-    image_filename = f"image{image_extension}"
-    image_field_name = "image"
+    image_files: list[dict[str, Any]] = []
+    for index, (image_mime, image_bytes) in enumerate(resolved_images):
+        image_extension = mimetypes.guess_extension(image_mime or "image/png") or ".png"
+        image_filename = (
+            f"image{image_extension}"
+            if len(resolved_images) == 1
+            else f"image-{index + 1}{image_extension}"
+        )
+        image_files.append(
+            {
+                "field_name": "image",
+                "filename": image_filename,
+                "mime": image_mime or "image/png",
+                "data": image_bytes,
+            }
+        )
+
     generation_url = _get_openai_images_edit_url(base_url, api_config)
     result, headers = await _send_openai_image_request_with_key_pool(
         provider="openai",
@@ -5393,14 +5911,7 @@ async def _generate_via_openai_image_edits_endpoint(
         url=generation_url,
         request_kind="multipart",
         form_fields=payload,
-        files=[
-            {
-                "field_name": image_field_name,
-                "filename": image_filename,
-                "mime": image_mime or "image/png",
-                "data": image_bytes,
-            }
-        ],
+        files=image_files,
     )
 
     response_status = result.get("status")
@@ -5555,9 +6066,22 @@ async def _generate_via_openai_images_endpoint(
         allowed_base_urls=[base_url],
     )
     if not images:
+        context = empty_image_context or _build_openai_empty_image_context(
+            route_label="responses" if use_responses_api else "chat",
+            status_code=last_response_status,
+            headers=last_response_headers,
+            usage=usage,
+        )
+        try:
+            log.warning(
+                "openai_chat_image_empty_response context=%s",
+                json.dumps(context, ensure_ascii=False, default=str),
+            )
+        except Exception:
+            pass
         raise HTTPException(
             status_code=400,
-            detail="Upstream image generation completed but returned no images.",
+            detail=_build_openai_empty_image_error_detail(context),
         )
 
     return [
@@ -5700,6 +6224,7 @@ async def _generate_via_openai_chat_image(
     source: dict[str, Any],
     stream: Optional[bool] = None,
     image_url: Optional[str] = None,
+    image_urls: Optional[list[str]] = None,
     prefer_responses: bool = False,
     n: int = 1,
     partial_image_callback: Optional[
@@ -5731,6 +6256,7 @@ async def _generate_via_openai_chat_image(
                 source=source,
                 stream=stream,
                 image_url=image_url,
+                image_urls=image_urls,
                 prefer_responses=prefer_responses,
                 n=1,
             )
@@ -5743,28 +6269,27 @@ async def _generate_via_openai_chat_image(
             on_image=partial_image_callback,
         )
 
-    image_input: Optional[tuple[str, bytes, str]] = None
-    if image_url:
-        image_input = _resolve_image_input_as_data_url(request, user, image_url)
-        if not image_input:
-            raise HTTPException(
-                status_code=400,
-                detail="Failed to resolve image input for chat image request.",
-            )
+    reference_image_urls = _normalize_reference_image_urls(image_url, image_urls)
+    image_inputs = _resolve_image_inputs_as_data_urls(
+        request,
+        user,
+        reference_image_urls,
+        error_context="chat image request",
+    )
 
     chat_content: Any = str(prompt or "")
     responses_content: list[dict[str, Any]] = []
     prompt_text = str(prompt or "")
     if prompt_text.strip():
         responses_content.append({"type": "input_text", "text": prompt_text})
-    if image_input:
-        _image_mime, _image_bytes, data_url = image_input
+    if image_inputs:
         content_parts: list[dict[str, Any]] = []
         if prompt_text.strip():
             content_parts.append({"type": "text", "text": prompt_text})
-        content_parts.append({"type": "image_url", "image_url": {"url": data_url}})
+        for _image_mime, _image_bytes, data_url in image_inputs:
+            content_parts.append({"type": "image_url", "image_url": {"url": data_url}})
+            responses_content.append({"type": "input_image", "image_url": data_url})
         chat_content = content_parts
-        responses_content.append({"type": "input_image", "image_url": data_url})
     if not responses_content:
         responses_content.append({"type": "input_text", "text": prompt_text})
 
@@ -5792,28 +6317,45 @@ async def _generate_via_openai_chat_image(
         "prompt": str(prompt or ""),
         "endpoint": "responses" if use_responses_api else "chat/completions",
         "stream": bool(payload.get("stream")),
-        "input_image": bool(image_input),
-        **({"input_image_mime": image_input[0]} if image_input else {}),
+        "input_image": bool(image_inputs),
+        "input_image_count": len(image_inputs),
+        **({"input_image_mime": image_inputs[0][0]} if image_inputs else {}),
+        **(
+            {"input_image_mimes": [item[0] for item in image_inputs]}
+            if image_inputs
+            else {}
+        ),
+        **(
+            {"input_image_bytes": [len(item[1]) for item in image_inputs]}
+            if image_inputs
+            else {}
+        ),
     }
 
     started_at = time.monotonic()
     images: list[tuple[bytes, str]] = []
     seen_images: set[tuple[str, str]] = set()
     usage: Optional[dict[str, Any]] = None
+    empty_image_context: Optional[dict[str, Any]] = None
+    last_response_status: Optional[int] = None
+    last_response_headers: dict[str, Any] = {}
 
     try:
-        image_mime = image_input[0] if image_input else ""
-        image_bytes_len = len(image_input[1]) if image_input else 0
+        image_mimes = [item[0] for item in image_inputs]
+        image_bytes_lens = [len(item[1]) for item in image_inputs]
+        payload_summary = _summarize_openai_chat_image_payload(payload)
         log.info(
-            "openai_chat_image_request model=%s upstream_model=%s input_image=%s input_image_mime=%s input_image_bytes=%s prompt_len=%s responses=%s request_url=%s",
+            "openai_chat_image_request model=%s upstream_model=%s input_image=%s input_image_count=%s input_image_mimes=%s input_image_bytes=%s prompt_len=%s responses=%s request_url=%s payload_summary=%s",
             model_id,
             upstream_model_id,
-            "yes" if image_input else "no",
-            image_mime,
-            image_bytes_len,
+            "yes" if image_inputs else "no",
+            len(image_inputs),
+            image_mimes,
+            image_bytes_lens,
             len(str(prompt or "")),
             "yes" if use_responses_api else "no",
             request_url,
+            json.dumps(payload_summary, ensure_ascii=False, default=str),
         )
     except Exception:
         pass
@@ -5840,6 +6382,8 @@ async def _generate_via_openai_chat_image(
                         headers=headers,
                         json=payload,
                     ) as response:
+                        last_response_status = response.status_code
+                        last_response_headers = dict(response.headers)
                         if response.status_code >= 400:
                             error_body = (await response.aread()).decode(
                                 "utf-8", errors="replace"
@@ -5870,6 +6414,10 @@ async def _generate_via_openai_chat_image(
                                 ),
                             )
 
+                        stream_event_count = 0
+                        stream_event_summaries: list[dict[str, Any]] = []
+                        stream_text_fragments: list[str] = []
+
                         async for raw_line in response.aiter_lines():
                             line = str(raw_line or "").strip()
                             if (
@@ -5889,6 +6437,17 @@ async def _generate_via_openai_chat_image(
                                 event = json.loads(data)
                             except Exception:
                                 continue
+                            stream_event_count += 1
+                            event_summary = _summarize_openai_stream_event(event)
+                            if (
+                                len(stream_event_summaries)
+                                < OPENAI_STREAM_DEBUG_EVENT_LIMIT
+                                or event_summary.get("finish_reason") is not None
+                            ):
+                                stream_event_summaries.append(event_summary)
+                            _collect_openai_stream_text_fragments(
+                                event, stream_text_fragments
+                            )
                             if isinstance(event, dict):
                                 if isinstance(event.get("usage"), dict):
                                     usage = event["usage"]
@@ -5907,6 +6466,26 @@ async def _generate_via_openai_chat_image(
                                     allowed_base_urls=[base_url],
                                 ),
                                 seen_images,
+                            )
+
+                        if not images and stream_text_fragments:
+                            _append_unique_generated_images(
+                                images,
+                                _extract_generated_images_from_openai_response(
+                                    {"content": "".join(stream_text_fragments)},
+                                    headers=headers,
+                                    allowed_base_urls=[base_url],
+                                ),
+                                seen_images,
+                            )
+                        if not images:
+                            empty_image_context = _log_openai_empty_image_stream(
+                                route_label="responses",
+                                status_code=response.status_code,
+                                headers=dict(response.headers),
+                                event_count=stream_event_count,
+                                event_summaries=stream_event_summaries,
+                                text_fragments=stream_text_fragments,
                             )
 
                         try:
@@ -5931,6 +6510,8 @@ async def _generate_via_openai_chat_image(
                         headers=headers,
                         json=payload,
                     )
+                    last_response_status = response.status_code
+                    last_response_headers = dict(response.headers)
                     if response.status_code >= 400:
                         error_body = response.text
                         if attempt_idx + 1 < len(key_attempts) and should_retry_api_key(
@@ -6001,6 +6582,8 @@ async def _generate_via_openai_chat_image(
                         headers=headers,
                         json=payload,
                     ) as response:
+                        last_response_status = response.status_code
+                        last_response_headers = dict(response.headers)
                         if response.status_code >= 400:
                             error_body = (await response.aread()).decode(
                                 "utf-8", errors="replace"
@@ -6031,6 +6614,10 @@ async def _generate_via_openai_chat_image(
                                 ),
                             )
 
+                        stream_event_count = 0
+                        stream_event_summaries: list[dict[str, Any]] = []
+                        stream_text_fragments: list[str] = []
+
                         async for raw_line in response.aiter_lines():
                             line = str(raw_line or "").strip()
                             if (
@@ -6050,6 +6637,17 @@ async def _generate_via_openai_chat_image(
                                 event = json.loads(data)
                             except Exception:
                                 continue
+                            stream_event_count += 1
+                            event_summary = _summarize_openai_stream_event(event)
+                            if (
+                                len(stream_event_summaries)
+                                < OPENAI_STREAM_DEBUG_EVENT_LIMIT
+                                or event_summary.get("finish_reason") is not None
+                            ):
+                                stream_event_summaries.append(event_summary)
+                            _collect_openai_stream_text_fragments(
+                                event, stream_text_fragments
+                            )
                             if isinstance(event, dict) and isinstance(
                                 event.get("usage"), dict
                             ):
@@ -6066,6 +6664,26 @@ async def _generate_via_openai_chat_image(
                                     allowed_base_urls=[base_url],
                                 ),
                                 seen_images,
+                            )
+
+                        if not images and stream_text_fragments:
+                            _append_unique_generated_images(
+                                images,
+                                _extract_generated_images_from_openai_response(
+                                    {"content": "".join(stream_text_fragments)},
+                                    headers=headers,
+                                    allowed_base_urls=[base_url],
+                                ),
+                                seen_images,
+                            )
+                        if not images:
+                            empty_image_context = _log_openai_empty_image_stream(
+                                route_label="chat",
+                                status_code=response.status_code,
+                                headers=dict(response.headers),
+                                event_count=stream_event_count,
+                                event_summaries=stream_event_summaries,
+                                text_fragments=stream_text_fragments,
                             )
 
                         try:
@@ -6164,9 +6782,22 @@ async def _generate_via_openai_chat_image(
         ) from error
 
     if not images:
+        context = empty_image_context or _build_openai_empty_image_context(
+            route_label="responses" if use_responses_api else "chat",
+            status_code=last_response_status,
+            headers=last_response_headers,
+            usage=usage,
+        )
+        try:
+            log.warning(
+                "openai_chat_image_empty_response context=%s",
+                json.dumps(context, ensure_ascii=False, default=str),
+            )
+        except Exception:
+            pass
         raise HTTPException(
             status_code=400,
-            detail="Upstream image generation completed but returned no images.",
+            detail=_build_openai_empty_image_error_detail(context),
         )
 
     return [
@@ -6285,18 +6916,23 @@ async def _generate_via_gemini_generate_content(
     aspect_ratio: Optional[str],
     source: dict[str, Any],
     image_url: Optional[str] = None,
+    image_urls: Optional[list[str]] = None,
 ) -> list[dict[str, str]]:
     base_url = source.get("base_url") or ""
     api_key = source.get("key") or ""
     api_config = source.get("api_config") or {}
     upstream_model_id = _strip_connection_model_prefix(model_id, api_config)
     parts: list[dict[str, Any]] = [{"text": prompt}]
-    if image_url:
-        resolved_image = _resolve_image_edit_input(request, user, image_url)
+    reference_image_urls = _normalize_reference_image_urls(image_url, image_urls)
+    for index, reference_image_url in enumerate(reference_image_urls):
+        resolved_image = _resolve_image_edit_input(request, user, reference_image_url)
         if not resolved_image:
             raise HTTPException(
                 status_code=400,
-                detail="Failed to resolve image input for Gemini generateContent request.",
+                detail=(
+                    "Failed to resolve image input "
+                    f"#{index + 1} for Gemini generateContent request."
+                ),
             )
         image_mime, image_bytes = resolved_image
         parts.append(
@@ -6441,6 +7077,12 @@ async def image_generations(
     if not requested_image_size:
         requested_image_size = _size_to_gemini_image_size(effective_size)
 
+    reference_image_urls = _normalize_reference_image_urls(
+        form_data.image_url,
+        form_data.image_urls,
+    )
+    reference_image_url = reference_image_urls[0] if reference_image_urls else None
+
     raster_size = effective_size or "512x512"
     width, height = tuple(map(int, raster_size.split("x")))
     selected_model_value = str(form_data.model or "").strip()
@@ -6538,6 +7180,12 @@ async def image_generations(
                 if sources:
                     selected_engine = provider
                     break
+
+    if reference_image_urls and selected_engine not in {"openai", "gemini", "grok"}:
+        raise HTTPException(
+            status_code=400,
+            detail="当前图片生成引擎不支持参考图。请切换到支持参考图的图片模型，或移除参考图后重新生成。",
+        )
 
     r = None
     try:
@@ -6647,7 +7295,8 @@ async def image_generations(
             openai_image_route = _resolve_openai_image_request_route(
                 selected_model_meta,
                 form_data.image_route_mode,
-                has_reference_image=bool(form_data.image_url),
+                has_reference_image=bool(reference_image_urls),
+                reference_image_count=len(reference_image_urls),
             )
             requested_n = (
                 max(1, min(int(form_data.n or 1), 4))
@@ -6663,12 +7312,17 @@ async def image_generations(
 
             try:
                 log.info(
-                    f"image_generation user_id={user.id} engine=openai credential_source={source.get('effective_source') or credential_source} connection_index={source.get('connection_index') if source.get('connection_index') is not None else ''} model={selected_model or ''} generation_mode={generation_mode} image_route={openai_image_route} chat_generation={'yes' if form_data.chat_generation else 'no'} reference_input={'yes' if form_data.image_url else 'no'} size={(openai_request_size or 'auto')} n={requested_n} steps={(form_data.steps if form_data.steps is not None else '')}"
+                    f"image_generation user_id={user.id} engine=openai credential_source={source.get('effective_source') or credential_source} connection_index={source.get('connection_index') if source.get('connection_index') is not None else ''} model={selected_model or ''} generation_mode={generation_mode} image_route={openai_image_route} chat_generation={'yes' if form_data.chat_generation else 'no'} reference_input={'yes' if reference_image_urls else 'no'} reference_input_count={len(reference_image_urls)} size={(openai_request_size or 'auto')} n={requested_n} steps={(form_data.steps if form_data.steps is not None else '')}"
                 )
             except Exception:
                 pass
 
             if generation_mode == "xai_images":
+                if reference_image_urls:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="当前 xAI 图片生成接口不支持参考图。请移除参考图，或切换到支持多图参考的图片模型。",
+                    )
                 return await _generate_via_xai_images(
                     request,
                     user,
@@ -6692,14 +7346,15 @@ async def image_generations(
                     prompt=form_data.prompt,
                     source=source,
                     stream=form_data.stream,
-                    image_url=form_data.image_url,
+                    image_url=reference_image_url,
+                    image_urls=reference_image_urls,
                     prefer_responses=openai_image_route == OPENAI_IMAGE_ROUTE_RESPONSES,
                     n=requested_n,
                     partial_image_callback=partial_image_callback,
                 )
 
             if openai_image_route == OPENAI_IMAGE_ROUTE_EDITS:
-                if not form_data.image_url:
+                if not reference_image_url:
                     raise HTTPException(
                         status_code=400,
                         detail="编辑接口需要先提供一张参考图。",
@@ -6710,12 +7365,19 @@ async def image_generations(
                     model_id=selected_model,
                     prompt=form_data.prompt,
                     stream=form_data.stream,
-                    image_url=form_data.image_url,
+                    image_url=reference_image_url,
+                    image_urls=reference_image_urls,
                     n=requested_n,
                     size=openai_request_size,
                     background=background,
                     source=source,
                     partial_image_callback=partial_image_callback,
+                )
+
+            if reference_image_urls:
+                raise HTTPException(
+                    status_code=400,
+                    detail="当前图片生成接口不支持参考图。请切换到支持参考图的 chat/responses 或 edits 图片接口，或移除参考图。",
                 )
 
             return await _generate_via_openai_images_endpoint(
@@ -6844,7 +7506,7 @@ async def image_generations(
 
             try:
                 log.info(
-                    f"image_generation user_id={user.id} engine=gemini credential_source={source.get('effective_source') or credential_source} connection_index={source.get('connection_index') if source.get('connection_index') is not None else ''} model={selected_model or ''} generation_mode={generation_mode} size={effective_size} n={requested_n} steps={(form_data.steps if form_data.steps is not None else '')}"
+                    f"image_generation user_id={user.id} engine=gemini credential_source={source.get('effective_source') or credential_source} connection_index={source.get('connection_index') if source.get('connection_index') is not None else ''} model={selected_model or ''} generation_mode={generation_mode} reference_input={'yes' if reference_image_urls else 'no'} reference_input_count={len(reference_image_urls)} size={effective_size} n={requested_n} steps={(form_data.steps if form_data.steps is not None else '')}"
                 )
             except Exception:
                 pass
@@ -6866,8 +7528,15 @@ async def image_generations(
                         == "aspect_ratio"
                         else None
                     ),
-                    image_url=form_data.image_url,
+                    image_url=reference_image_url,
+                    image_urls=reference_image_urls,
                     source=source,
+                )
+
+            if reference_image_urls:
+                raise HTTPException(
+                    status_code=400,
+                    detail="当前 Gemini predict 图片生成接口不支持参考图。请切换到支持多图参考的 Gemini generateContent 图片模型，或移除参考图。",
                 )
 
             return await _generate_via_gemini_predict(
@@ -6984,6 +7653,12 @@ async def image_generations(
                 )
             except Exception:
                 pass
+
+            if reference_image_urls:
+                raise HTTPException(
+                    status_code=400,
+                    detail="当前 Grok 图片生成接口不支持参考图。请移除参考图，或切换到支持多图参考的图片模型。",
+                )
 
             return await _generate_via_xai_images(
                 request,

@@ -25,7 +25,8 @@
 		config,
 		isApp,
 		models,
-		modelsStatus
+		modelsStatus,
+		requestNewChat
 	} from '$lib/stores';
 	import { onMount, getContext, tick, onDestroy } from 'svelte';
 
@@ -163,6 +164,21 @@
 
 	$: assistantScenes = getAssistantScenes($models ?? []);
 
+	const shouldLetBrowserHandleLinkClick = (event: MouseEvent) =>
+		event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
+
+	const openNewChat = async (event: MouseEvent, options: { closeMobileSidebar?: boolean } = {}) => {
+		if (shouldLetBrowserHandleLinkClick(event)) {
+			return;
+		}
+
+		event.preventDefault();
+		await startSidebarNewChat();
+		if (options.closeMobileSidebar && $mobile) {
+			showSidebar.set(false);
+		}
+	};
+
 	$: if (
 		$modelsStatus === 'ready' &&
 		$selectedAssistantScene &&
@@ -191,6 +207,20 @@
 		selectedAssistantScene.set(assistant);
 		await chatId.set('');
 		await goto('/');
+
+		if ($mobile) {
+			showSidebar.set(false);
+		}
+	};
+
+	const startSidebarNewChat = async () => {
+		selectedChatId = null;
+		selectedAssistantScene.set(null);
+		requestNewChat({ source: 'sidebar' });
+
+		if ($page.url.pathname !== '/' && !$page.url.pathname.startsWith('/c/')) {
+			await goto('/');
+		}
 
 		if ($mobile) {
 			showSidebar.set(false);
@@ -751,18 +781,7 @@
 					href="/"
 					draggable="false"
 					aria-label={$i18n.t('New Chat')}
-					on:click={async () => {
-						selectedChatId = null;
-						selectedAssistantScene.set(null);
-						await goto('/');
-						const newChatButton = document.getElementById('new-chat-button');
-						setTimeout(() => {
-							newChatButton?.click();
-							if ($mobile) {
-								showSidebar.set(false);
-							}
-						}, 0);
-					}}
+					on:click={(event) => openNewChat(event, { closeMobileSidebar: true })}
 				>
 					<ChatBubblePlus className="size-5" strokeWidth="2" />
 					<span class="text-sm font-medium whitespace-nowrap">{$i18n.t('New Chat')}</span>
@@ -814,15 +833,7 @@
 						class={iconButtonClass + ' no-drag-region'}
 						href="/"
 						draggable="false"
-						on:click={async () => {
-							selectedChatId = null;
-							selectedAssistantScene.set(null);
-							await goto('/');
-							const newChatButton = document.getElementById('new-chat-button');
-							setTimeout(() => {
-								newChatButton?.click();
-							}, 0);
-						}}
+						on:click={(event) => openNewChat(event)}
 					>
 						<ChatBubblePlus className="size-5" strokeWidth="2" />
 					</a>

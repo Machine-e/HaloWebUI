@@ -1149,21 +1149,34 @@ class PDFGenerator:
         return unique_candidates
 
     def _try_configure_legacy_fonts(self, pdf: FPDF, font_dir: Path) -> str | None:
-        regular = self._find_font_file(font_dir, "NotoSans-Regular", extensions=(".ttf", ".otf"))
+        regular = self._find_first_font_file(
+            font_dir,
+            ["NotoSans-Regular", "NotoSans"],
+            extensions=(".ttf", ".otf"),
+        )
         bold = self._find_font_file(font_dir, "NotoSans-Bold", extensions=(".ttf", ".otf"))
         italic = self._find_font_file(font_dir, "NotoSans-Italic", extensions=(".ttf", ".otf"))
+        bold_italic = self._find_first_font_file(
+            font_dir,
+            ["NotoSans-BoldItalic", "NotoSans-Bold-Italic"],
+            extensions=(".ttf", ".otf"),
+        )
 
-        if not regular or not bold:
+        if not regular:
             return (
-                "服务端缺少旧版 PDF 导出字体资源（NotoSans-Regular.ttf / NotoSans-Bold.ttf），"
+                "服务端缺少旧版 PDF 导出字体资源（NotoSans-Regular.ttf），"
                 "无法继续使用文档型 PDF 导出。"
             )
 
         try:
-            pdf.add_font("NotoSans", "", str(regular))
-            pdf.add_font("NotoSans", "b", str(bold))
-            if italic:
-                pdf.add_font("NotoSans", "i", str(italic))
+            self._register_pdf_font_family(
+                pdf,
+                "NotoSans",
+                regular=regular,
+                bold=bold,
+                italic=italic,
+                bold_italic=bold_italic,
+            )
 
             fallback_fonts: list[str] = []
             for family, filename in [
@@ -1184,7 +1197,7 @@ class PDFGenerator:
             if fallback_fonts:
                 pdf.set_fallback_fonts(fallback_fonts)
             return None
-        except Exception as exc:
+        except Exception:
             return "服务端缺少可用中文 PDF 字体，当前环境无法完成文档型 PDF 导出。"
 
     def _try_configure_halo_fonts(self, pdf: FPDF, font_dir: Path) -> str | None:
@@ -1198,14 +1211,29 @@ class PDFGenerator:
             "HarmonyOS_SansSC_Bold",
             extensions=(".ttf", ".otf", ".woff2"),
         )
+        italic = self._find_font_file(
+            font_dir,
+            "HarmonyOS_SansSC_Italic",
+            extensions=(".ttf", ".otf", ".woff2"),
+        )
+        bold_italic = self._find_first_font_file(
+            font_dir,
+            ["HarmonyOS_SansSC_BoldItalic", "HarmonyOS_SansSC_Bold_Italic"],
+            extensions=(".ttf", ".otf", ".woff2"),
+        )
 
         if not regular:
             return "服务端缺少可用中文 PDF 字体，当前环境无法完成文档型 PDF 导出。"
 
         try:
-            pdf.add_font("HaloSansSC", "", str(self._materialize_font_for_fpdf(regular)))
-            if bold:
-                pdf.add_font("HaloSansSC", "b", str(self._materialize_font_for_fpdf(bold)))
+            self._register_pdf_font_family(
+                pdf,
+                "HaloSansSC",
+                regular=regular,
+                bold=bold,
+                italic=italic,
+                bold_italic=bold_italic,
+            )
 
             self.font_family = "HaloSansSC"
             pdf.set_font(self.font_family, size=11)
@@ -1220,3 +1248,41 @@ class PDFGenerator:
             return int(value)
         except (TypeError, ValueError):
             return fallback
+
+    def _find_first_font_file(
+        self,
+        font_dir: Path,
+        base_names: list[str],
+        *,
+        extensions: tuple[str, ...],
+    ) -> Path | None:
+        for base_name in base_names:
+            font_path = self._find_font_file(font_dir, base_name, extensions=extensions)
+            if font_path:
+                return font_path
+        return None
+
+    def _register_pdf_font_family(
+        self,
+        pdf: FPDF,
+        family: str,
+        *,
+        regular: Path,
+        bold: Path | None = None,
+        italic: Path | None = None,
+        bold_italic: Path | None = None,
+    ) -> None:
+        regular_font = self._materialize_font_for_fpdf(regular)
+        bold_font = self._materialize_font_for_fpdf(bold) if bold else regular_font
+        italic_font = self._materialize_font_for_fpdf(italic) if italic else regular_font
+        bold_italic_font = (
+            self._materialize_font_for_fpdf(bold_italic) if bold_italic else bold_font
+        )
+
+        for style, font_path in [
+            ("", regular_font),
+            ("b", bold_font),
+            ("i", italic_font),
+            ("bi", bold_italic_font),
+        ]:
+            pdf.add_font(family, style, str(font_path))

@@ -8,6 +8,8 @@
 	import { getUserPosition } from '$lib/utils';
 	import { translateWithDefault } from '$lib/i18n';
 	import { resolveCopyFormattedPreference } from '$lib/utils/copy-format';
+	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import QuestionMarkCircle from '$lib/components/icons/QuestionMarkCircle.svelte';
 	import type { Writable } from 'svelte/store';
 	const dispatch = createEventDispatcher();
 
@@ -793,8 +795,18 @@
 
 			<div>
 				<div class=" py-0.5 flex w-full justify-between gap-3">
-					<div class=" self-center text-xs">
-						{tr('HTML 格式输出', 'HTML format output')}
+					<div class="self-center flex items-center gap-1.5 text-xs">
+						<span>{tr('HTML 格式输出', 'HTML format output')}</span>
+						<Tooltip
+							content={tr(
+								'开启后，模型回复会以 HTML 格式展示；关闭后使用 Markdown。',
+								'Render model replies as HTML when enabled; use Markdown when disabled.'
+							)}
+						>
+							<QuestionMarkCircle
+								className="w-3.5 h-3.5 cursor-help text-gray-400 dark:text-gray-500"
+							/>
+						</Tooltip>
 					</div>
 
 					<button
@@ -810,12 +822,6 @@
 							<span class="ml-2 self-center">{$i18n.t('Off')}</span>
 						{/if}
 					</button>
-				</div>
-				<div class="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-					{tr(
-						'开启后，回答完成后会被转换为安全的内联 HTML 卡片展示；关闭后继续使用 Markdown。',
-						'When enabled, completed replies are converted into safe inline HTML cards; when disabled, Markdown rendering is unchanged.'
-					)}
 				</div>
 			</div>
 

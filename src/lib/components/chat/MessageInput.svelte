@@ -65,6 +65,7 @@
 	import { getSuggestionRenderer } from '../common/RichTextInput/suggestions';
 	import Tooltip from '../common/Tooltip.svelte';
 	import FileItem from '../common/FileItem.svelte';
+	import ImageUploadProgressRing from '../common/ImageUploadProgressRing.svelte';
 	import Image from '../common/Image.svelte';
 	import ModelIcon from '../common/ModelIcon.svelte';
 	import { getModelChatDisplayName } from '$lib/utils/model-display';
@@ -81,6 +82,7 @@
 		getSmartWebSearchRouteLabel
 	} from '$lib/utils/native-web-search';
 	import { translateWithDefault } from '$lib/i18n';
+	import { saveUserSettingsPatch } from '$lib/utils/user-settings';
 
 	import XMark from '../icons/XMark.svelte';
 	import Headphone from '../icons/Headphone.svelte';
@@ -121,7 +123,9 @@
 	export let taskIds = null;
 
 	export let prompt = '';
-	export let files = [];
+	export let files: any[] = [];
+	export let imageGenerationReferenceFiles: any[] = [];
+	export let onCancelImageGenerationReference: (() => void) | null = null;
 
 	const isImageReferenceFile = (file: any) => {
 		const type = `${file?.type ?? ''}`.trim().toLowerCase();
@@ -243,8 +247,13 @@
 	let showInputVariablesModal = false;
 	let inputVariables = {};
 	let inputVariableValues = {};
+	$: hasActiveImageGenerationReference =
+		imageGenerationReferenceFiles.length > 0 && files.length === 0;
+	$: hasSubmittableContent = prompt !== '' || files.length > 0 || hasActiveImageGenerationReference;
 	$: hasReferenceImageForImageGeneration =
-		files.some(isImageReferenceFile) || historyHasImageReference(history);
+		files.some(isImageReferenceFile) ||
+		imageGenerationReferenceFiles.some(isImageReferenceFile) ||
+		historyHasImageReference(history);
 	let inputVariablesModalCallback = (_variableValues) => {};
 
 	const replaceVariablesInPlainText = (variables: Record<string, any>) => {
@@ -433,6 +442,34 @@
 		webSearchModeSource = 'user';
 	};
 
+	const setResponseHtmlFormatFromMenu = async (enabled: boolean) => {
+		const previousValue = $settings?.responseHtmlFormat ?? false;
+
+		settings.set({
+			...($settings ?? {}),
+			responseHtmlFormat: enabled
+		});
+
+		if (!localStorage.token) {
+			return;
+		}
+
+		try {
+			await saveUserSettingsPatch(localStorage.token, { responseHtmlFormat: enabled });
+		} catch (error) {
+			console.error('Failed to save HTML rendering setting:', error);
+
+			if ((error as { status?: number })?.status !== 409) {
+				settings.set({
+					...($settings ?? {}),
+					responseHtmlFormat: previousValue
+				});
+			}
+
+			toast.error(tr('保存 HTML 渲染设置失败', 'Failed to save HTML rendering setting'));
+		}
+	};
+
 	const disableImageGeneration = () => {
 		imageGenerationEnabled = false;
 		imageGenerationPanelOpen = false;
@@ -594,47 +631,6 @@
 		textarea.dispatchEvent(new Event('input'));
 	};
 
-	const screenCaptureHandler = async () => {
-		try {
-			// Request screen media
-			const mediaStream = await navigator.mediaDevices.getDisplayMedia({
-				video: { cursor: 'never' },
-				audio: false
-			});
-			// Once the user selects a screen, temporarily create a video element
-			const video = document.createElement('video');
-			video.srcObject = mediaStream;
-			// Ensure the video loads without affecting user experience or tab switching
-			await video.play();
-			// Set up the canvas to match the video dimensions
-			const canvas = document.createElement('canvas');
-			canvas.width = video.videoWidth;
-			canvas.height = video.videoHeight;
-			// Grab a single frame from the video stream using the canvas
-			const context = canvas.getContext('2d');
-			context.drawImage(video, 0, 0, canvas.width, canvas.height);
-			// Stop all video tracks (stop screen sharing) after capturing the image
-			mediaStream.getTracks().forEach((track) => track.stop());
-
-			// bring back focus to this current tab, so that the user can see the screen capture
-			window.focus();
-
-			const imageBlob = await new Promise<Blob | null>((resolve) =>
-				canvas.toBlob(resolve, 'image/png')
-			);
-			if (!imageBlob) {
-				throw new Error('Failed to capture screen image');
-			}
-
-			await uploadImageFileHandler(createNamedImageFile(imageBlob, 'Screen_Capture'));
-			// Clean memory: Clear video srcObject
-			video.srcObject = null;
-		} catch (error) {
-			// Handle any errors (e.g., user cancels screen sharing)
-			console.error('Error capturing screen:', error);
-		}
-	};
-
 	const getUploadLocalizeOptions = () => ({
 		isAdmin: $_user?.role === 'admin'
 	});
@@ -713,6 +709,7 @@
 			errorTitle: '',
 			errorHint: '',
 			diagnostic: null,
+			uploadProgress: 1,
 			itemId: tempItemId,
 			preview_url: previewUrl
 		};
@@ -727,7 +724,11 @@
 
 		try {
 			const uploadedFile = await uploadFile(localStorage.token, file, {
-				process: false
+				process: false,
+				onUploadProgress: (progress) => {
+					fileItem.uploadProgress = Math.min(99, Math.max(fileItem.uploadProgress, progress));
+					files = files;
+				}
 			});
 
 			if (uploadedFile) {
@@ -742,6 +743,7 @@
 				}
 
 				fileItem.status = 'uploaded';
+				fileItem.uploadProgress = 100;
 				fileItem.id = uploadedFile.id;
 				fileItem.name = uploadedFile?.meta?.name ?? file.name;
 				fileItem.size = uploadedFile?.meta?.size ?? file.size;
@@ -1057,7 +1059,7 @@
 							class=" absolute -top-12 left-0 right-0 flex justify-center z-30 pointer-events-none"
 						>
 							<button
-								class=" bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-600 p-1.5 rounded-full pointer-events-auto shadow-sm hover:bg-white dark:hover:bg-gray-700 transition-all"
+								class="liquid-glass-scroll-button p-1.5 rounded-full pointer-events-auto transition-all"
 								on:click={() => {
 									autoScroll = true;
 									scrollToBottom();
@@ -1086,24 +1088,31 @@
 							class="px-3 pb-0.5 pt-1.5 text-left w-full flex flex-col absolute bottom-0 left-0 right-0 bg-linear-to-t from-white dark:from-gray-900 z-10"
 						>
 							{#if atSelectedModel !== undefined}
-								<div class="flex items-center justify-between w-full">
-									<div class="pl-[1px] flex items-center gap-2 text-sm dark:text-gray-500">
+								<div class="flex min-w-0 items-center justify-between gap-2 w-full">
+									<div
+										class="pl-[1px] flex min-w-0 flex-1 items-center gap-2 text-sm dark:text-gray-500"
+									>
 										<ModelIcon
 											alt="model profile"
-											className="size-3.5 max-w-[28px] rounded-lg"
+											className="size-3.5 max-w-[28px] shrink-0 rounded-lg"
 											src={atSelectedModelListItem?.info?.meta?.profile_image_url ??
 												atSelectedModelListItem?.meta?.profile_image_url ??
 												`${WEBUI_BASE_URL}/static/favicon.png`}
 										/>
-										<div class="translate-y-[0.5px]">
-											Talking to <span class=" font-medium"
-												>{getModelChatDisplayName(atSelectedModel)}</span
+										<div class="flex min-w-0 translate-y-[0.5px] items-baseline gap-1">
+											<span class="shrink-0">Talking to</span>
+											<span
+												class="min-w-0 truncate font-medium"
+												title={getModelChatDisplayName(atSelectedModel)}
 											>
+												{getModelChatDisplayName(atSelectedModel)}
+											</span>
 										</div>
 									</div>
-									<div>
+									<div class="shrink-0">
 										<button
-											class="flex items-center dark:text-gray-500"
+											class="flex shrink-0 items-center dark:text-gray-500"
+											aria-label={$i18n.t('Cancel selected model')}
 											on:click={() => {
 												atSelectedModel = undefined;
 											}}
@@ -1200,9 +1209,49 @@
 								class="flex-1 flex flex-col relative w-full rounded-3xl border border-gray-200/50 dark:border-gray-700/20 hover:border-gray-300/60 dark:hover:border-gray-600/40 focus-within:border-primary-300/40 dark:focus-within:border-primary-500/25 shadow-sm dark:shadow-none focus-within:shadow-lg focus-within:shadow-primary-500/5 dark:focus-within:shadow-primary-400/[0.07] transition-all duration-300 px-1 pt-1 bg-white/80 dark:bg-white/[0.04] backdrop-blur-xl dark:text-gray-100"
 								dir={$settings?.chatDirection ?? 'auto'}
 							>
+								{#if hasActiveImageGenerationReference}
+									<div class="px-2.5 mt-0.5 mb-1.5 pt-1.5">
+										<div
+											class="rounded-2xl border border-dashed border-primary-200/80 bg-primary-50/60 px-3 py-2 dark:border-primary-500/25 dark:bg-primary-950/20"
+										>
+											<div class="mb-2 flex items-center justify-between gap-2">
+												<div
+													class="min-w-0 text-xs font-medium text-primary-700 dark:text-primary-200"
+												>
+													{tr(
+														'引用上一轮生成图 {{count}} 张',
+														'Referencing {{count}} generated image(s) from the previous turn',
+														{ count: imageGenerationReferenceFiles.length }
+													)}
+												</div>
+												<button
+													type="button"
+													class="shrink-0 rounded-full px-2 py-0.5 text-xs text-primary-700 transition hover:bg-primary-100 dark:text-primary-200 dark:hover:bg-primary-900/40"
+													on:click={() => onCancelImageGenerationReference?.()}
+												>
+													{tr('取消引用', 'Cancel reference')}
+												</button>
+											</div>
+											<div class="flex max-h-20 flex-wrap gap-2 overflow-y-auto scrollbar-none">
+												{#each imageGenerationReferenceFiles as file}
+													<div
+														class="relative shrink-0 rounded-xl ring-1 ring-primary-200/80 dark:ring-primary-500/25"
+													>
+														<Image
+															src={file.preview_url || file.url || file.content_url}
+															alt="referenced generated image"
+															imageClassName="size-12 rounded-xl object-cover"
+														/>
+													</div>
+												{/each}
+											</div>
+										</div>
+									</div>
+								{/if}
+
 								{#if files.length > 0}
 									<div
-										class="px-2.5 mt-0.5 mb-1.5 pt-1.5 flex items-end gap-2 overflow-x-auto scrollbar-none"
+										class="px-2.5 mt-0.5 mb-1.5 pt-1.5 flex max-h-36 flex-wrap items-end gap-2 overflow-y-auto scrollbar-none"
 									>
 										{#each files as file, fileIdx}
 											{#if file.type === 'image'}
@@ -1215,6 +1264,9 @@
 															alt="input"
 															imageClassName=" size-14 rounded-xl object-cover"
 														/>
+														{#if file.status === 'uploading'}
+															<ImageUploadProgressRing progress={file.uploadProgress ?? 1} />
+														{/if}
 														{#if atSelectedModel ? visionCapableModels.length === 0 : selectedModels.length !== visionCapableModels.length}
 															<Tooltip
 																className=" absolute top-1 left-1"
@@ -1404,7 +1456,7 @@
 
 															if (enterPressed) {
 																e.preventDefault();
-																if (prompt !== '' || files.length > 0) {
+																if (hasSubmittableContent) {
 																	dispatch('submit', prompt);
 																}
 															}
@@ -1577,7 +1629,7 @@
 														}
 
 														// Submit the prompt when Enter key is pressed
-														if ((prompt !== '' || files.length > 0) && enterPressed) {
+														if (hasSubmittableContent && enterPressed) {
 															dispatch('submit', prompt);
 														}
 													}
@@ -1677,8 +1729,8 @@
 											onWebSearchModeChange={setWebSearchModeFromUser}
 											bind:imageGenerationEnabled
 											bind:codeInterpreterEnabled
-											{screenCaptureHandler}
-											{inputFilesHandler}
+											responseHtmlFormat={$settings?.responseHtmlFormat ?? false}
+											onResponseHtmlFormatChange={setResponseHtmlFormatFromMenu}
 											uploadFilesHandler={() => {
 												filesInputElement.click();
 											}}
@@ -1745,7 +1797,10 @@
 										{#if $config?.features?.enable_image_generation && ($_user.role === 'admin' || $_user?.permissions?.features?.image_generation) && (imageGenerationEnabled || imageGenerationPanelOpen)}
 											{#if imageGenerationEnabled}
 												<Tooltip
-													content={tr('图片生成已开启，点击关闭', 'Image generation is on. Click to disable')}
+													content={tr(
+														'图片生成已开启，点击关闭',
+														'Image generation is on. Click to disable'
+													)}
 													placement="top"
 												>
 													<button
@@ -1877,8 +1932,8 @@
 													</Tooltip>
 												{/if}
 
-													{#if $config?.features?.enable_code_interpreter && ($_user.role === 'admin' || $_user?.permissions?.features?.code_interpreter) && codeInterpreterEnabled}
-														<Tooltip content={$i18n.t('已开启代码解释器，点击关闭')} placement="top">
+												{#if $config?.features?.enable_code_interpreter && ($_user.role === 'admin' || $_user?.permissions?.features?.code_interpreter) && codeInterpreterEnabled}
+													<Tooltip content={$i18n.t('已开启代码解释器，点击关闭')} placement="top">
 														<button
 															type="button"
 															class={compactFeatureBadgeClass}
@@ -1989,7 +2044,7 @@
 													</button>
 												</Tooltip>
 											</div>
-										{:else if prompt === '' && files.length === 0 && ($_user?.role === 'admin' || ($_user?.permissions?.chat?.call ?? true))}
+										{:else if !hasSubmittableContent && ($_user?.role === 'admin' || ($_user?.permissions?.chat?.call ?? true))}
 											<div class=" flex items-center">
 												<Tooltip content={$i18n.t('Call')}>
 													<button
@@ -2068,7 +2123,7 @@
 											</div>
 										{:else}
 											<div class="flex items-center group">
-												{#if !(prompt === '' && files.length === 0)}
+												{#if hasSubmittableContent}
 													<SendMenu
 														showThinkingOptions={true}
 														onSend={() => {
@@ -2084,15 +2139,15 @@
 													/>
 												{/if}
 
-												<Tooltip content={$i18n.t('Send message')}>
+												<Tooltip content={tr('发送消息', 'Send message')}>
 													<button
 														id="send-message-button"
-														class="{!(prompt === '' && files.length === 0)
+														class="{hasSubmittableContent
 															? 'bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 '
 															: 'text-white bg-gray-200 dark:text-gray-900 dark:bg-gray-700 disabled'} transition rounded-full p-[7px] self-center"
 														type="submit"
-														disabled={prompt === '' && files.length === 0}
-														aria-label={$i18n.t('Send message')}
+														disabled={!hasSubmittableContent}
+														aria-label={tr('发送消息', 'Send message')}
 													>
 														<svg
 															xmlns="http://www.w3.org/2000/svg"

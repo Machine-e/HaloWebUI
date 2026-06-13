@@ -2394,9 +2394,9 @@ def _extract_files_from_messages(messages: list[dict]) -> list[dict]:
     return result
 
 
-def _find_latest_image_url_from_messages(messages: Any) -> Optional[str]:
+def _find_latest_image_urls_from_messages(messages: Any) -> list[str]:
     if not isinstance(messages, list):
-        return None
+        return []
 
     for message in reversed(messages):
         if not isinstance(message, dict):
@@ -2405,6 +2405,8 @@ def _find_latest_image_url_from_messages(messages: Any) -> Optional[str]:
         normalized_files = _normalize_message_files(
             [message.get("files"), message.get("content")]
         )
+        urls: list[str] = []
+        seen: set[str] = set()
         for file_item in normalized_files:
             if not isinstance(file_item, dict):
                 continue
@@ -2412,10 +2414,19 @@ def _find_latest_image_url_from_messages(messages: Any) -> Optional[str]:
                 continue
 
             url = str(file_item.get("url") or "").strip()
-            if url:
-                return url
+            if url and url not in seen:
+                seen.add(url)
+                urls.append(url)
 
-    return None
+        if urls:
+            return urls
+
+    return []
+
+
+def _find_latest_image_url_from_messages(messages: Any) -> Optional[str]:
+    urls = _find_latest_image_urls_from_messages(messages)
+    return urls[0] if urls else None
 
 
 def _build_chat_image_generation_result_files(
@@ -2445,17 +2456,26 @@ def _build_chat_image_generation_result_files(
         if slot_index < 0 or slot_index >= slot_count:
             continue
 
-        url = str(image.get("url") or "").strip()
+        url = str(image.get("url") or image.get("content_url") or "").strip()
         if not url:
             continue
 
-        slots[slot_index] = {
+        image_file = {
             "type": "image",
             "url": url,
             "source": "image_generation",
             "status": "success",
             "slot_index": slot_index,
         }
+        file_id = str(image.get("id") or image.get("file_id") or "").strip()
+        if file_id:
+            image_file["id"] = file_id
+        for field in ("id", "name", "filename", "size", "content_type", "content_url"):
+            value = image.get(field)
+            if field != "id" and value is not None and str(value).strip() != "":
+                image_file[field] = value
+
+        slots[slot_index] = image_file
 
     for failure in failures:
         if not isinstance(failure, dict):
@@ -3838,16 +3858,136 @@ async def chat_web_search_handler(
     messages = form_data["messages"]
     user_message = get_last_user_message(messages)
 
-    if queries is None:
+    async def emit_web_search_status(description: str, **data):
         await event_emitter(
             {
                 "type": "status",
                 "data": {
                     "action": "web_search",
-                    "description": "Generating search query",
-                    "done": False,
+                    "description": description,
+                    **data,
                 },
             }
+        )
+
+    def build_search_error_status(exc: Exception) -> dict:
+        def is_duckduckgo_rate_limit_message(message: str) -> bool:
+            normalized = message.lower()
+            return (
+                ("ratelimit" in normalized or "rate limit" in normalized)
+                and (
+                    "duckduckgo" in normalized
+                    or "lite.duckduckgo.com" in normalized
+                    or "duckduckgo_search" in normalized
+                )
+            )
+
+        detail = getattr(exc, "detail", None)
+        if isinstance(detail, dict):
+            code = str(detail.get("code") or "web_search_error")
+            message = str(
+                detail.get("message")
+                or detail.get("detail")
+                or "联网搜索失败，已跳过该搜索词。"
+            )
+            return {
+                "code": code,
+                "message": message,
+                "engine": detail.get("engine"),
+                "known": code == "duckduckgo_rate_limit",
+                "warning": code == "duckduckgo_rate_limit",
+            }
+
+        if isinstance(detail, str) and detail.strip():
+            if is_duckduckgo_rate_limit_message(detail):
+                return {
+                    "code": "duckduckgo_rate_limit",
+                    "message": "DuckDuckGo 当前限流，已跳过该搜索词。",
+                    "known": True,
+                    "warning": True,
+                }
+
+            return {
+                "code": "web_search_error",
+                "message": detail.strip(),
+                "known": False,
+            }
+
+        message = str(exc).strip()
+        if is_duckduckgo_rate_limit_message(message):
+            return {
+                "code": "duckduckgo_rate_limit",
+                "message": "DuckDuckGo 当前限流，已跳过该搜索词。",
+                "known": True,
+                "warning": True,
+            }
+
+        return {
+            "code": "web_search_error",
+            "message": message or "联网搜索失败，已跳过该搜索词。",
+            "known": False,
+        }
+
+    async def process_web_search_with_progress(
+        search_query: str,
+        query_index: int,
+        total_queries: int,
+    ):
+        search_task = asyncio.create_task(
+            process_web_search(
+                request,
+                SearchForm(
+                    **{
+                        "query": search_query,
+                    }
+                ),
+                user=user,
+            )
+        )
+
+        elapsed = 0
+        progress_steps = [
+            (10, "正在等待搜索引擎返回结果，请稍候。"),
+            (30, "搜索引擎响应较慢，系统仍在等待上游返回。"),
+            (90, "上游搜索耗时较长，系统仍在等待，不会中断搜索。"),
+            (180, "搜索仍在进行，可能是上游网络波动或搜索服务较慢。"),
+        ]
+
+        for next_elapsed, description in progress_steps:
+            try:
+                return await asyncio.wait_for(
+                    asyncio.shield(search_task),
+                    timeout=max(next_elapsed - elapsed, 0.1),
+                )
+            except asyncio.TimeoutError:
+                elapsed = next_elapsed
+                await emit_web_search_status(
+                    description,
+                    query=search_query,
+                    query_index=query_index,
+                    total_queries=total_queries,
+                    elapsed_seconds=elapsed,
+                    done=False,
+                )
+
+        while True:
+            try:
+                return await asyncio.wait_for(asyncio.shield(search_task), timeout=120)
+            except asyncio.TimeoutError:
+                elapsed += 120
+                await emit_web_search_status(
+                    f"搜索已等待 {elapsed} 秒，仍在等待上游搜索服务返回结果。",
+                    query=search_query,
+                    query_index=query_index,
+                    total_queries=total_queries,
+                    elapsed_seconds=elapsed,
+                    done=False,
+                )
+
+    if queries is None:
+        await emit_web_search_status(
+            "正在生成联网搜索关键词。",
+            done=False,
         )
 
         queries = []
@@ -3886,46 +4026,52 @@ async def chat_web_search_handler(
         queries = _normalize_auto_web_search_queries(queries)
 
     if len(queries) == 0:
-        await event_emitter(
-            {
-                "type": "status",
-                "data": {
-                    "action": "web_search",
-                    "description": "No search query generated",
-                    "done": True,
-                },
-            }
+        await emit_web_search_status(
+            "没有生成可用的搜索关键词。",
+            done=True,
+            warning=True,
         )
         return form_data
 
     all_results = []
+    failed_queries = []
     emitted_loader_runtime_notices = set()
 
-    for searchQuery in queries:
-        await event_emitter(
-            {
-                "type": "status",
-                "data": {
-                    "action": "web_search",
-                    "description": 'Searching "{{searchQuery}}"',
-                    "query": searchQuery,
-                    "done": False,
-                },
-            }
+    total_queries = len(queries)
+    for query_index, searchQuery in enumerate(queries, start=1):
+        await emit_web_search_status(
+            f"正在搜索第 {query_index}/{total_queries} 个关键词：{searchQuery}",
+            query=searchQuery,
+            query_index=query_index,
+            total_queries=total_queries,
+            done=False,
         )
 
         try:
-            results = await process_web_search(
-                request,
-                SearchForm(
-                    **{
-                        "query": searchQuery,
-                    }
-                ),
-                user=user,
+            results = await process_web_search_with_progress(
+                searchQuery,
+                query_index,
+                total_queries,
             )
 
             if results:
+                result_count = len(results.get("filenames") or []) + len(
+                    results.get("collection_names") or []
+                )
+                await emit_web_search_status(
+                    (
+                        f"第 {query_index}/{total_queries} 个关键词搜索完成，找到 {result_count} 个来源。"
+                        if result_count > 0
+                        else f"第 {query_index}/{total_queries} 个关键词搜索完成，但没有找到可用来源。"
+                    ),
+                    query=searchQuery,
+                    query_index=query_index,
+                    total_queries=total_queries,
+                    count=result_count,
+                    done=False,
+                    warning=result_count == 0,
+                )
+
                 runtime_notice = results.get("loader_runtime_notice")
                 notification = build_tavily_loader_fallback_notification(runtime_notice)
                 if notification is not None:
@@ -3989,18 +4135,27 @@ async def chat_web_search_handler(
 
                 form_data["files"] = files
         except Exception as e:
-            log.exception(e)
-            await event_emitter(
-                {
-                    "type": "status",
-                    "data": {
-                        "action": "web_search",
-                        "description": 'Error searching "{{searchQuery}}"',
-                        "query": searchQuery,
-                        "done": True,
-                        "error": True,
-                    },
-                }
+            error_status = build_search_error_status(e)
+            failed_queries.append({"query": searchQuery, **error_status})
+            if error_status.get("known"):
+                log.warning(
+                    "Web search skipped known failure (query=%s, code=%s): %s",
+                    searchQuery,
+                    error_status.get("code"),
+                    error_status.get("message"),
+                )
+            else:
+                log.exception(e)
+
+            await emit_web_search_status(
+                error_status["message"],
+                query=searchQuery,
+                query_index=query_index,
+                total_queries=total_queries,
+                error=not error_status.get("warning"),
+                warning=bool(error_status.get("warning")),
+                error_code=error_status.get("code"),
+                done=False,
             )
 
     if all_results:
@@ -4012,41 +4167,44 @@ async def chat_web_search_handler(
             total_failed += results.get("failed_count", 0)
 
         if total_failed > 0:
-            await event_emitter(
-                {
-                    "type": "status",
-                    "data": {
-                        "action": "web_search",
-                        "description": "Searched {{count}} sites, {{failed}} failed to index",
-                        "urls": urls,
-                        "failed": total_failed,
-                        "done": True,
-                    },
-                }
+            await emit_web_search_status(
+                f"联网搜索完成，找到 {len(urls)} 个来源，其中 {total_failed} 个网页读取失败。",
+                urls=urls,
+                count=len(urls),
+                failed=total_failed,
+                failed_queries=failed_queries,
+                done=True,
+                warning=True,
+            )
+        elif failed_queries:
+            await emit_web_search_status(
+                f"联网搜索完成，找到 {len(urls)} 个来源，{len(failed_queries)} 个关键词失败。",
+                urls=urls,
+                count=len(urls),
+                failed_queries=failed_queries,
+                done=True,
+                warning=True,
             )
         else:
-            await event_emitter(
-                {
-                    "type": "status",
-                    "data": {
-                        "action": "web_search",
-                        "description": "Searched {{count}} sites",
-                        "urls": urls,
-                        "done": True,
-                    },
-                }
+            await emit_web_search_status(
+                f"联网搜索完成，找到 {len(urls)} 个来源。",
+                urls=urls,
+                count=len(urls),
+                done=True,
             )
+    elif failed_queries:
+        await emit_web_search_status(
+            f"联网搜索失败：{failed_queries[0].get('message')}",
+            failed_queries=failed_queries,
+            done=True,
+            error=not bool(failed_queries[0].get("warning")),
+            warning=bool(failed_queries[0].get("warning")),
+        )
     else:
-        await event_emitter(
-            {
-                "type": "status",
-                "data": {
-                    "action": "web_search",
-                    "description": "No search results found",
-                    "done": True,
-                    "error": True,
-                },
-            }
+        await emit_web_search_status(
+            "联网搜索完成，但没有找到可用结果。",
+            done=True,
+            warning=True,
         )
 
     return form_data
@@ -4181,6 +4339,7 @@ async def chat_image_generation_handler(
         task_id, _task = create_task(
             image_generation_task(),
             id=__metadata__["chat_id"],
+            message_id=__metadata__.get("message_id"),
         )
         try:
             Chats.upsert_message_to_chat_by_id_and_message_id(
@@ -4255,26 +4414,37 @@ async def _build_chat_image_generation_local_response(
 
     messages = form_data["messages"]
     user_message = get_last_user_message(messages)
-    source_image_url = _find_latest_image_url_from_messages(messages)
+    source_image_urls = _find_latest_image_urls_from_messages(messages)
+    source_image_url = source_image_urls[0] if source_image_urls else None
     try:
-        source_file_id = extract_chat_image_file_id(source_image_url)
-        source_file = Files.get_file_by_id(source_file_id) if source_file_id else None
-        source_file_meta = (
-            source_file.meta
-            if source_file and isinstance(getattr(source_file, "meta", None), dict)
-            else {}
-        )
+        source_summaries: list[dict[str, Any]] = []
+        for image_url in source_image_urls:
+            source_file_id = extract_chat_image_file_id(image_url)
+            source_file = (
+                Files.get_file_by_id(source_file_id) if source_file_id else None
+            )
+            source_file_meta = (
+                source_file.meta
+                if source_file and isinstance(getattr(source_file, "meta", None), dict)
+                else {}
+            )
+            source_summaries.append(
+                {
+                    "url": image_url,
+                    "file_id": source_file_id or "",
+                    "name": (
+                        source_file_meta.get("name")
+                        or getattr(source_file, "filename", None)
+                        or ""
+                    ),
+                    "size": source_file_meta.get("size") or "",
+                }
+            )
         log.info(
-            "chat_image_generation_source user_id=%s source_image_url=%s source_file_id=%s source_file_name=%s source_file_size=%s",
+            "chat_image_generation_source user_id=%s source_image_count=%s sources=%s",
             getattr(user, "id", None),
-            source_image_url or "",
-            source_file_id or "",
-            (
-                source_file_meta.get("name")
-                or getattr(source_file, "filename", None)
-                or ""
-            ),
-            source_file_meta.get("size") or "",
+            len(source_image_urls),
+            json.dumps(source_summaries, ensure_ascii=False, default=str),
         )
     except Exception:
         pass
@@ -4376,6 +4546,11 @@ async def _build_chat_image_generation_local_response(
                             if image_generation_options.get(key) is not None
                         },
                         **({"image_url": source_image_url} if source_image_url else {}),
+                        **(
+                            {"image_urls": source_image_urls}
+                            if source_image_urls
+                            else {}
+                        ),
                         "chat_generation": True,
                     }
                 ),
@@ -9724,7 +9899,9 @@ async def process_chat_response(
 
         # background_tasks.add_task(post_response_handler, response, events)
         task_id, _ = create_task(
-            post_response_handler(response, events), id=metadata["chat_id"]
+            post_response_handler(response, events),
+            id=metadata["chat_id"],
+            message_id=metadata.get("message_id"),
         )
         return {"status": True, "task_id": task_id}
 

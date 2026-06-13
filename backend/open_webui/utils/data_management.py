@@ -7,6 +7,7 @@ import tempfile
 import time
 import uuid
 import zipfile
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,9 @@ from open_webui.config import (
 BACKUP_KIND_SQLITE = "sqlite"
 BACKUP_KIND_FULL = "full"
 DB_RESTORE_CONFIRMATION = "RESTORE DATABASE"
+DB_MERGE_CONFIRMATION = "MERGE DATABASE BACKUP"
+DB_OPERATION_RESTORE = "restore"
+DB_OPERATION_MERGE = "merge"
 DB_RESTORE_TOKEN_TTL_SECONDS = 15 * 60
 FULL_BACKUP_KIND = "halo_full_backup"
 FULL_BACKUP_VERSION = 1
@@ -92,7 +96,13 @@ def prune_db_restore_tokens(app, now: float | None = None) -> None:
 
 
 def create_restore_token(
-    app, *, path: str, filename: str, user_id: str, kind: str = BACKUP_KIND_SQLITE
+    app,
+    *,
+    path: str,
+    filename: str,
+    user_id: str,
+    kind: str = BACKUP_KIND_SQLITE,
+    operation: str = DB_OPERATION_RESTORE,
 ) -> dict[str, Any]:
     _, tokens = ensure_db_restore_state(app)
     prune_db_restore_tokens(app)
@@ -103,6 +113,7 @@ def create_restore_token(
         "filename": filename,
         "user_id": user_id,
         "kind": kind,
+        "operation": operation,
         "expires_at": time.time() + DB_RESTORE_TOKEN_TTL_SECONDS,
     }
     tokens[token] = payload
@@ -153,9 +164,8 @@ def create_sqlite_snapshot(engine, filename: str = "webui.db") -> Path:
     snapshot_path = temp_dir / filename
 
     raw_connection = engine.raw_connection()
-    source_connection = (
-        getattr(raw_connection, "driver_connection", None)
-        or getattr(raw_connection, "connection", raw_connection)
+    source_connection = getattr(raw_connection, "driver_connection", None) or getattr(
+        raw_connection, "connection", raw_connection
     )
     target_connection = sqlite3.connect(snapshot_path)
 
@@ -391,11 +401,15 @@ def inspect_sqlite_backup(file_path: Path) -> dict[str, Any]:
         connection.close()
 
     if "config" not in tables or "chat" not in tables:
-        raise ValueError("The uploaded file is not a compatible Halo WebUI SQLite backup.")
+        raise ValueError(
+            "The uploaded file is not a compatible Halo WebUI SQLite backup."
+        )
 
     warnings: list[str] = []
     if "user" not in tables:
-        warnings.append("The backup is missing the user table; please verify the source file.")
+        warnings.append(
+            "The backup is missing the user table; please verify the source file."
+        )
 
     return {
         "kind": BACKUP_KIND_SQLITE,
@@ -446,14 +460,21 @@ def _validate_full_backup_upload_entries(
 
     for upload in uploads:
         if not isinstance(upload, dict):
-            raise ValueError("The full backup manifest contains invalid upload metadata.")
+            raise ValueError(
+                "The full backup manifest contains invalid upload metadata."
+            )
 
         stored_name = upload.get("stored_name")
         archive_path = upload.get("archive_path")
-        if not isinstance(stored_name, str) or _stored_upload_name(stored_name) != stored_name:
+        if (
+            not isinstance(stored_name, str)
+            or _stored_upload_name(stored_name) != stored_name
+        ):
             raise ValueError("The full backup manifest contains an unsafe upload name.")
         if archive_path != f"{FULL_BACKUP_UPLOAD_PREFIX}{stored_name}":
-            raise ValueError("The full backup manifest contains invalid upload metadata.")
+            raise ValueError(
+                "The full backup manifest contains invalid upload metadata."
+            )
         if archive_path not in zip_file.namelist():
             raise ValueError("The full backup package is missing an upload file.")
         declared_archive_paths.add(archive_path)
@@ -477,18 +498,27 @@ def _validate_full_backup_upload_entries(
             name.startswith(FULL_BACKUP_UPLOAD_PREFIX)
             and name not in declared_archive_paths
         ):
-            raise ValueError("The full backup package contains an undeclared upload file.")
+            raise ValueError(
+                "The full backup package contains an undeclared upload file."
+            )
 
     missing_uploads = manifest.get("missing_uploads") or []
     if not isinstance(missing_uploads, list):
-        raise ValueError("The full backup manifest contains invalid missing upload metadata.")
+        raise ValueError(
+            "The full backup manifest contains invalid missing upload metadata."
+        )
 
     missing_stored_names: set[str] = set()
     for upload in missing_uploads:
         if not isinstance(upload, dict):
-            raise ValueError("The full backup manifest contains invalid missing upload metadata.")
+            raise ValueError(
+                "The full backup manifest contains invalid missing upload metadata."
+            )
         stored_name = upload.get("stored_name")
-        if not isinstance(stored_name, str) or _stored_upload_name(stored_name) != stored_name:
+        if (
+            not isinstance(stored_name, str)
+            or _stored_upload_name(stored_name) != stored_name
+        ):
             raise ValueError("The full backup manifest contains an unsafe upload name.")
         missing_stored_names.add(stored_name)
 
@@ -513,16 +543,21 @@ def inspect_full_backup_package(
         with zipfile.ZipFile(file_path, "r") as zip_file:
             manifest = _load_full_backup_manifest(zip_file)
 
-            with zip_file.open(FULL_BACKUP_DB_FILENAME, "r") as source, db_path.open(
-                "wb"
-            ) as target:
+            with (
+                zip_file.open(FULL_BACKUP_DB_FILENAME, "r") as source,
+                db_path.open("wb") as target,
+            ):
                 shutil.copyfileobj(source, target, length=1024 * 1024)
 
             database = manifest.get("database")
             if not isinstance(database, dict):
-                raise ValueError("The full backup manifest is missing database metadata.")
+                raise ValueError(
+                    "The full backup manifest is missing database metadata."
+                )
             if database.get("filename") != FULL_BACKUP_DB_FILENAME:
-                raise ValueError("The full backup manifest contains invalid database metadata.")
+                raise ValueError(
+                    "The full backup manifest contains invalid database metadata."
+                )
 
             try:
                 expected_db_size = int(database.get("size", -1))
@@ -535,7 +570,9 @@ def inspect_full_backup_package(
 
             expected_db_sha256 = database.get("sha256")
             if not isinstance(expected_db_sha256, str) or not expected_db_sha256:
-                raise ValueError("The full backup manifest is missing database checksum.")
+                raise ValueError(
+                    "The full backup manifest is missing database checksum."
+                )
             if expected_db_sha256 != _sha256_file(db_path):
                 raise ValueError("The full backup database checksum does not match.")
 
@@ -549,7 +586,7 @@ def inspect_full_backup_package(
     warnings = list(sqlite_inspection["warnings"])
     if upload_summary["missing_upload_count"] > 0:
         warnings.append(
-            "The full backup is missing some referenced uploaded files; those attachments will remain unavailable after restore."
+            "The full backup is missing some referenced uploaded files; those attachments will remain unavailable after import."
         )
     orphan_count = int((manifest.get("summary") or {}).get("orphan_upload_count") or 0)
     if orphan_count > 0:
@@ -574,7 +611,9 @@ def inspect_full_backup_package(
     }
 
 
-def inspect_restore_backup(file_path: Path, expected_kind: str | None = None) -> dict[str, Any]:
+def inspect_restore_backup(
+    file_path: Path, expected_kind: str | None = None
+) -> dict[str, Any]:
     expected = normalize_backup_kind(expected_kind)
 
     if zipfile.is_zipfile(file_path):
@@ -586,16 +625,906 @@ def inspect_restore_backup(file_path: Path, expected_kind: str | None = None) ->
     if actual != expected:
         if actual == BACKUP_KIND_FULL:
             raise BackupKindMismatchError(
-                "The uploaded file is a full backup package. Select Full backup restore."
+                "The uploaded file is a full backup package. Select Full backup."
             )
         raise BackupKindMismatchError(
-            "The uploaded file is a SQLite-only backup. Select Database-only restore."
+            "The uploaded file is a SQLite-only backup. Select Database only."
         )
 
     if expected == BACKUP_KIND_FULL:
         _assert_local_storage_available()
 
     return inspection
+
+
+def _quote_sqlite_identifier(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
+
+
+def _sqlite_user_tables(cursor: sqlite3.Cursor) -> list[str]:
+    return [
+        table
+        for table in _read_sqlite_tables(cursor)
+        if not table.startswith("sqlite_")
+    ]
+
+
+def _sqlite_table_columns(cursor: sqlite3.Cursor, table: str) -> list[str]:
+    cursor.execute(f"PRAGMA table_info({_quote_sqlite_identifier(table)})")
+    return [row[1] for row in cursor.fetchall()]
+
+
+def _sqlite_primary_key_columns(cursor: sqlite3.Cursor, table: str) -> list[str]:
+    cursor.execute(f"PRAGMA table_info({_quote_sqlite_identifier(table)})")
+    rows = cursor.fetchall()
+    primary_key_rows = [row for row in rows if row[5] > 0]
+    primary_key_rows.sort(key=lambda row: row[5])
+    return [row[1] for row in primary_key_rows]
+
+
+def _sqlite_unique_indexes(cursor: sqlite3.Cursor, table: str) -> list[list[str]]:
+    cursor.execute(f"PRAGMA index_list({_quote_sqlite_identifier(table)})")
+    indexes = cursor.fetchall()
+    unique_indexes: list[list[str]] = []
+
+    for index in indexes:
+        # sqlite returns: seq, name, unique, origin, partial
+        if len(index) >= 5 and index[4]:
+            continue
+        if not index[2]:
+            continue
+
+        index_name = index[1]
+        cursor.execute(f"PRAGMA index_info({_quote_sqlite_identifier(index_name)})")
+        columns = [row[2] for row in cursor.fetchall() if row[2]]
+        if columns:
+            unique_indexes.append(columns)
+
+    return unique_indexes
+
+
+def _sqlite_row_exists(
+    cursor: sqlite3.Cursor, table: str, columns: list[str], values: list[Any]
+) -> bool:
+    where_clause = " AND ".join(
+        f"{_quote_sqlite_identifier(column)} IS ?" for column in columns
+    )
+    cursor.execute(
+        f"SELECT 1 FROM {_quote_sqlite_identifier(table)} WHERE {where_clause} LIMIT 1",
+        values,
+    )
+    return cursor.fetchone() is not None
+
+
+def _row_has_unique_conflict(
+    cursor: sqlite3.Cursor,
+    table: str,
+    row: sqlite3.Row,
+    unique_indexes: list[list[str]],
+) -> bool:
+    row_keys = set(row.keys())
+    for columns in unique_indexes:
+        if any(column not in row_keys or row[column] is None for column in columns):
+            continue
+        if _sqlite_row_exists(
+            cursor, table, columns, [row[column] for column in columns]
+        ):
+            return True
+    return False
+
+
+def _select_rows(
+    cursor: sqlite3.Cursor, table: str, columns: list[str]
+) -> list[sqlite3.Row]:
+    selected_columns = ", ".join(_quote_sqlite_identifier(column) for column in columns)
+    cursor.execute(f"SELECT {selected_columns} FROM {_quote_sqlite_identifier(table)}")
+    return cursor.fetchall()
+
+
+def _load_json_object(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        return deepcopy(value)
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            return None
+        return deepcopy(parsed) if isinstance(parsed, dict) else None
+    return None
+
+
+def _replace_mapped_json_strings(
+    value: Any, mapping: dict[str, str]
+) -> tuple[Any, bool]:
+    if isinstance(value, str):
+        replacement = mapping.get(value)
+        return (replacement, True) if replacement is not None else (value, False)
+
+    if isinstance(value, list):
+        changed = False
+        updated_items = []
+        for item in value:
+            updated_item, item_changed = _replace_mapped_json_strings(item, mapping)
+            updated_items.append(updated_item)
+            changed = changed or item_changed
+        return updated_items, changed
+
+    if isinstance(value, dict):
+        changed = False
+        updated_dict = {}
+        for key, item in value.items():
+            updated_key = mapping.get(key, key) if isinstance(key, str) else key
+            updated_item, item_changed = _replace_mapped_json_strings(item, mapping)
+            updated_dict[updated_key] = updated_item
+            changed = changed or item_changed or updated_key != key
+        return updated_dict, changed
+
+    return value, False
+
+
+def _remap_sqlite_cell_value(value: Any, mapping: dict[str, str]) -> tuple[Any, bool]:
+    if not isinstance(value, str) or not mapping:
+        return value, False
+
+    replacement = mapping.get(value)
+    if replacement is not None:
+        return replacement, True
+
+    if not any(source_id in value for source_id in mapping):
+        return value, False
+
+    stripped = value.strip()
+    if not stripped or stripped[0] not in ("{", "["):
+        return value, False
+
+    try:
+        parsed = json.loads(value)
+    except Exception:
+        return value, False
+
+    updated, changed = _replace_mapped_json_strings(parsed, mapping)
+    if not changed:
+        return value, False
+
+    return json.dumps(updated, ensure_ascii=False), True
+
+
+def _file_rows_match_for_merge(
+    source_row: sqlite3.Row, target_row: sqlite3.Row, columns: list[str]
+) -> bool:
+    ignored_columns = {"created_at", "updated_at"}
+    for column in columns:
+        if column in ignored_columns:
+            continue
+        if source_row[column] != target_row[column]:
+            return False
+    return True
+
+
+def _new_merge_file_id(existing_ids: set[str]) -> str:
+    for _ in range(100):
+        candidate = uuid.uuid4().hex
+        if candidate not in existing_ids:
+            existing_ids.add(candidate)
+            return candidate
+    raise ValueError("Unable to allocate a safe file id for merge import.")
+
+
+def _build_file_id_remap(source_db_path: Path, target_db_path: Path) -> dict[str, str]:
+    source_connection = sqlite3.connect(source_db_path)
+    target_connection = sqlite3.connect(f"file:{target_db_path}?mode=ro", uri=True)
+    source_connection.row_factory = sqlite3.Row
+    target_connection.row_factory = sqlite3.Row
+
+    try:
+        source_cursor = source_connection.cursor()
+        target_cursor = target_connection.cursor()
+        if "file" not in _sqlite_user_tables(
+            source_cursor
+        ) or "file" not in _sqlite_user_tables(target_cursor):
+            return {}
+
+        source_columns = _sqlite_table_columns(source_cursor, "file")
+        target_columns = _sqlite_table_columns(target_cursor, "file")
+        if "id" not in source_columns or "id" not in target_columns:
+            return {}
+
+        common_columns = [
+            column for column in source_columns if column in target_columns
+        ]
+        selected_columns = ", ".join(
+            _quote_sqlite_identifier(column) for column in common_columns
+        )
+
+        source_cursor.execute(f"SELECT {selected_columns} FROM file")
+        source_rows = source_cursor.fetchall()
+        target_cursor.execute("SELECT id FROM file")
+        existing_ids = {row[0] for row in target_cursor.fetchall() if row[0]}
+        existing_ids.update(row["id"] for row in source_rows if row["id"])
+
+        remap: dict[str, str] = {}
+        for source_row in source_rows:
+            source_id = source_row["id"]
+            target_cursor.execute(
+                f"SELECT {selected_columns} FROM file WHERE id = ? LIMIT 1",
+                (source_id,),
+            )
+            target_row = target_cursor.fetchone()
+            if target_row is None:
+                continue
+            if _file_rows_match_for_merge(source_row, target_row, common_columns):
+                continue
+            remap[source_id] = _new_merge_file_id(existing_ids)
+
+        return remap
+    finally:
+        target_connection.close()
+        source_connection.close()
+
+
+def _apply_sqlite_value_remap(db_path: Path, mapping: dict[str, str]) -> None:
+    if not mapping:
+        return
+
+    connection = sqlite3.connect(db_path)
+    connection.row_factory = sqlite3.Row
+    try:
+        cursor = connection.cursor()
+        for table in _sqlite_user_tables(cursor):
+            columns = _sqlite_table_columns(cursor, table)
+            if not columns:
+                continue
+
+            column_clause = ", ".join(
+                _quote_sqlite_identifier(column) for column in columns
+            )
+            try:
+                cursor.execute(
+                    f"SELECT rowid AS __merge_rowid__, {column_clause} FROM {_quote_sqlite_identifier(table)}"
+                )
+                rows = cursor.fetchall()
+                primary_key_columns: list[str] = []
+                use_rowid = True
+            except sqlite3.OperationalError:
+                primary_key_columns = _sqlite_primary_key_columns(cursor, table)
+                if not primary_key_columns:
+                    continue
+                cursor.execute(
+                    f"SELECT {column_clause} FROM {_quote_sqlite_identifier(table)}"
+                )
+                rows = cursor.fetchall()
+                use_rowid = False
+
+            for row in rows:
+                updates: dict[str, Any] = {}
+                for column in columns:
+                    updated_value, changed = _remap_sqlite_cell_value(
+                        row[column], mapping
+                    )
+                    if changed:
+                        updates[column] = updated_value
+
+                if not updates:
+                    continue
+
+                set_clause = ", ".join(
+                    f"{_quote_sqlite_identifier(column)} = ?" for column in updates
+                )
+                values = list(updates.values())
+                if use_rowid:
+                    cursor.execute(
+                        f"UPDATE {_quote_sqlite_identifier(table)} SET {set_clause} WHERE rowid = ?",
+                        [*values, row["__merge_rowid__"]],
+                    )
+                else:
+                    where_clause = " AND ".join(
+                        f"{_quote_sqlite_identifier(column)} IS ?"
+                        for column in primary_key_columns
+                    )
+                    cursor.execute(
+                        f"UPDATE {_quote_sqlite_identifier(table)} SET {set_clause} WHERE {where_clause}",
+                        [*values, *[row[column] for column in primary_key_columns]],
+                    )
+
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+def _prepare_sqlite_merge_source(
+    source_db_path: Path, target_db_path: Path
+) -> dict[str, str]:
+    file_id_mapping = _build_file_id_remap(source_db_path, target_db_path)
+    _apply_sqlite_value_remap(source_db_path, file_id_mapping)
+    return file_id_mapping
+
+
+def _merge_message_children(
+    existing_message: dict[str, Any], incoming_message: dict[str, Any]
+) -> None:
+    existing_children = existing_message.get("childrenIds")
+    incoming_children = incoming_message.get("childrenIds")
+    if not isinstance(existing_children, list) or not isinstance(
+        incoming_children, list
+    ):
+        return
+
+    for child_id in incoming_children:
+        if child_id not in existing_children:
+            existing_children.append(child_id)
+
+
+def _merge_chat_payload_messages(
+    current_payload: dict[str, Any], incoming_payload: dict[str, Any]
+) -> tuple[dict[str, Any], int]:
+    merged_payload = deepcopy(current_payload)
+    current_history = merged_payload.setdefault("history", {})
+    incoming_history = incoming_payload.get("history")
+    if not isinstance(current_history, dict) or not isinstance(incoming_history, dict):
+        return current_payload, 0
+
+    current_messages = current_history.setdefault("messages", {})
+    incoming_messages = incoming_history.get("messages")
+    if not isinstance(current_messages, dict) or not isinstance(
+        incoming_messages, dict
+    ):
+        return current_payload, 0
+
+    added_messages = 0
+    for message_id, incoming_message in incoming_messages.items():
+        if message_id not in current_messages:
+            current_messages[message_id] = deepcopy(incoming_message)
+            added_messages += 1
+            continue
+
+        existing_message = current_messages.get(message_id)
+        if isinstance(existing_message, dict) and isinstance(incoming_message, dict):
+            _merge_message_children(existing_message, incoming_message)
+
+    if not current_history.get("currentId"):
+        incoming_current_id = incoming_history.get("currentId")
+        if incoming_current_id in current_messages:
+            current_history["currentId"] = incoming_current_id
+
+    return merged_payload, added_messages
+
+
+def _merge_existing_chat_row(
+    target_cursor: sqlite3.Cursor, source_row: sqlite3.Row, table_columns: list[str]
+) -> int:
+    if "id" not in table_columns or "chat" not in table_columns:
+        return 0
+
+    target_cursor.execute(
+        "SELECT chat FROM chat WHERE id = ? LIMIT 1",
+        (source_row["id"],),
+    )
+    existing = target_cursor.fetchone()
+    if not existing:
+        return 0
+
+    current_payload = _load_json_object(existing[0])
+    incoming_payload = _load_json_object(source_row["chat"])
+    if current_payload is None or incoming_payload is None:
+        return 0
+
+    merged_payload, added_messages = _merge_chat_payload_messages(
+        current_payload, incoming_payload
+    )
+    if added_messages <= 0:
+        return 0
+
+    target_cursor.execute(
+        "UPDATE chat SET chat = ? WHERE id = ?",
+        (json.dumps(merged_payload, ensure_ascii=False), source_row["id"]),
+    )
+    return added_messages
+
+
+def _insert_row(
+    cursor: sqlite3.Cursor, table: str, row: sqlite3.Row, columns: list[str]
+) -> None:
+    column_clause = ", ".join(_quote_sqlite_identifier(column) for column in columns)
+    placeholders = ", ".join("?" for _ in columns)
+    cursor.execute(
+        f"INSERT INTO {_quote_sqlite_identifier(table)} ({column_clause}) VALUES ({placeholders})",
+        [row[column] for column in columns],
+    )
+
+
+def _empty_merge_plan() -> dict[str, Any]:
+    return {
+        "mode": "insert_only",
+        "table_count": 0,
+        "source_rows": 0,
+        "insert_rows": 0,
+        "skip_existing_rows": 0,
+        "skip_conflict_rows": 0,
+        "blocked_tables": [],
+        "chat_messages_merged": 0,
+        "file_ids_remapped": 0,
+        "tables": [],
+        "uploads": {
+            "copy_count": 0,
+            "reuse_count": 0,
+            "rename_count": 0,
+            "missing_count": 0,
+            "bytes_to_copy": 0,
+        },
+    }
+
+
+def _summarize_sqlite_merge_plan(
+    source_db_path: Path, target_db_path: Path
+) -> dict[str, Any]:
+    source_connection = sqlite3.connect(f"file:{source_db_path}?mode=ro", uri=True)
+    target_connection = sqlite3.connect(f"file:{target_db_path}?mode=ro", uri=True)
+    source_connection.row_factory = sqlite3.Row
+    target_connection.row_factory = sqlite3.Row
+
+    plan = _empty_merge_plan()
+    try:
+        source_cursor = source_connection.cursor()
+        target_cursor = target_connection.cursor()
+        source_tables = _sqlite_user_tables(source_cursor)
+        target_tables = set(_sqlite_user_tables(target_cursor))
+
+        for table in source_tables:
+            table_summary = {
+                "name": table,
+                "source_rows": 0,
+                "insert_rows": 0,
+                "skip_existing_rows": 0,
+                "skip_conflict_rows": 0,
+                "chat_messages_merged": 0,
+                "blocked": False,
+                "reason": None,
+            }
+
+            if table not in target_tables:
+                table_summary["blocked"] = True
+                table_summary["reason"] = "target_table_missing"
+                plan["blocked_tables"].append(table_summary)
+                plan["tables"].append(table_summary)
+                continue
+
+            source_columns = _sqlite_table_columns(source_cursor, table)
+            target_columns = _sqlite_table_columns(target_cursor, table)
+            common_columns = [
+                column for column in source_columns if column in target_columns
+            ]
+            primary_key_columns = _sqlite_primary_key_columns(target_cursor, table)
+            if not common_columns or not primary_key_columns:
+                table_summary["blocked"] = True
+                table_summary["reason"] = "primary_key_missing"
+                plan["blocked_tables"].append(table_summary)
+                plan["tables"].append(table_summary)
+                continue
+
+            unique_indexes = _sqlite_unique_indexes(target_cursor, table)
+            rows = _select_rows(source_cursor, table, common_columns)
+            table_summary["source_rows"] = len(rows)
+
+            for row in rows:
+                if _sqlite_row_exists(
+                    target_cursor,
+                    table,
+                    primary_key_columns,
+                    [row[column] for column in primary_key_columns],
+                ):
+                    table_summary["skip_existing_rows"] += 1
+                    if table == "chat" and "chat" in common_columns:
+                        target_cursor.execute(
+                            "SELECT chat FROM chat WHERE id = ? LIMIT 1",
+                            (row["id"],),
+                        )
+                        existing = target_cursor.fetchone()
+                        current_payload = (
+                            _load_json_object(existing[0]) if existing else None
+                        )
+                        incoming_payload = _load_json_object(row["chat"])
+                        if current_payload is not None and incoming_payload is not None:
+                            _merged_payload, added_messages = (
+                                _merge_chat_payload_messages(
+                                    current_payload, incoming_payload
+                                )
+                            )
+                            table_summary["chat_messages_merged"] += added_messages
+                    continue
+
+                if _row_has_unique_conflict(target_cursor, table, row, unique_indexes):
+                    table_summary["skip_conflict_rows"] += 1
+                    continue
+
+                table_summary["insert_rows"] += 1
+
+            plan["source_rows"] += table_summary["source_rows"]
+            plan["insert_rows"] += table_summary["insert_rows"]
+            plan["skip_existing_rows"] += table_summary["skip_existing_rows"]
+            plan["skip_conflict_rows"] += table_summary["skip_conflict_rows"]
+            plan["chat_messages_merged"] += table_summary["chat_messages_merged"]
+            plan["tables"].append(table_summary)
+
+        plan["table_count"] = len(plan["tables"])
+        return plan
+    finally:
+        target_connection.close()
+        source_connection.close()
+
+
+def _safe_merge_upload_name(upload_dir: Path, stored_name: str) -> str:
+    stem = Path(stored_name).stem or "upload"
+    suffix = Path(stored_name).suffix
+    for _ in range(100):
+        candidate = f"{stem}.merge-{uuid.uuid4().hex[:12]}{suffix}"
+        if not (upload_dir / candidate).exists():
+            return candidate
+    raise ValueError("Unable to allocate a safe upload filename for merge import.")
+
+
+def _safe_missing_upload_name(upload_dir: Path, stored_name: str) -> str:
+    stem = Path(stored_name).stem or "missing-upload"
+    suffix = Path(stored_name).suffix
+    for _ in range(100):
+        candidate = f"{stem}.missing-{uuid.uuid4().hex[:12]}{suffix}"
+        if not (upload_dir / candidate).exists():
+            return candidate
+    raise ValueError(
+        "Unable to allocate a safe missing upload filename for merge import."
+    )
+
+
+def _build_full_backup_upload_merge_plan(
+    package_path: Path, manifest: dict[str, Any], upload_dir: Path
+) -> dict[str, Any]:
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    entries: list[dict[str, Any]] = []
+    name_mapping: dict[str, str] = {}
+    summary = {
+        "copy_count": 0,
+        "reuse_count": 0,
+        "rename_count": 0,
+        "missing_count": 0,
+        "bytes_to_copy": 0,
+    }
+
+    with zipfile.ZipFile(package_path, "r") as zip_file:
+        _load_full_backup_manifest(zip_file)
+        _validate_full_backup_upload_entries(zip_file, manifest, verify_hashes=True)
+
+        for upload in manifest.get("uploads", []):
+            stored_name = upload["stored_name"]
+            target_name = stored_name
+            target_path = upload_dir / target_name
+            action = "copy"
+            if target_path.exists():
+                if upload.get("sha256") == _sha256_file(target_path):
+                    action = "reuse"
+                else:
+                    action = "rename"
+                    target_name = _safe_merge_upload_name(upload_dir, stored_name)
+
+            name_mapping[stored_name] = target_name
+            if action == "copy":
+                summary["copy_count"] += 1
+                summary["bytes_to_copy"] += int(upload.get("size") or 0)
+            elif action == "reuse":
+                summary["reuse_count"] += 1
+            else:
+                summary["rename_count"] += 1
+                summary["bytes_to_copy"] += int(upload.get("size") or 0)
+
+            entries.append(
+                {
+                    "stored_name": stored_name,
+                    "target_name": target_name,
+                    "archive_path": upload["archive_path"],
+                    "sha256": upload["sha256"],
+                    "size": int(upload.get("size") or 0),
+                    "action": action,
+                }
+            )
+
+    for missing_upload in manifest.get("missing_uploads") or []:
+        stored_name = missing_upload["stored_name"]
+        target_name = (
+            _safe_missing_upload_name(upload_dir, stored_name)
+            if (upload_dir / stored_name).exists()
+            else stored_name
+        )
+        name_mapping[stored_name] = target_name
+        summary["missing_count"] += 1
+
+    return {"entries": entries, "name_mapping": name_mapping, **summary}
+
+
+def _extract_full_backup_database(
+    package_path: Path, temp_dir: Path
+) -> tuple[Path, dict[str, Any], dict[str, Any]]:
+    db_path = temp_dir / FULL_BACKUP_DB_FILENAME
+    inspection = inspect_full_backup_package(package_path, verify_hashes=True)
+    manifest = inspection["manifest"]
+
+    with zipfile.ZipFile(package_path, "r") as zip_file:
+        with (
+            zip_file.open(FULL_BACKUP_DB_FILENAME, "r") as source,
+            db_path.open("wb") as target,
+        ):
+            shutil.copyfileobj(source, target, length=1024 * 1024)
+
+    return db_path, manifest, inspection
+
+
+def _rewrite_sqlite_upload_paths_with_name_mapping(
+    db_path: Path, upload_dir: Path, name_mapping: dict[str, str]
+) -> None:
+    if not name_mapping:
+        return
+
+    connection = sqlite3.connect(db_path)
+    try:
+        cursor = connection.cursor()
+        tables = _read_sqlite_tables(cursor)
+        if "file" not in tables:
+            return
+
+        cursor.execute(
+            "SELECT id, path FROM file WHERE path IS NOT NULL AND path != ''"
+        )
+        updates: list[tuple[str, str]] = []
+        for file_id, file_path in cursor.fetchall():
+            stored_name = _stored_upload_name(file_path)
+            if stored_name and stored_name in name_mapping:
+                updates.append((str(upload_dir / name_mapping[stored_name]), file_id))
+
+        if updates:
+            cursor.executemany("UPDATE file SET path = ? WHERE id = ?", updates)
+            connection.commit()
+    finally:
+        connection.close()
+
+
+def _copy_full_backup_uploads_for_merge(
+    package_path: Path, upload_plan: dict[str, Any], upload_dir: Path, temp_dir: Path
+) -> list[Path]:
+    copied_paths: list[Path] = []
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    with zipfile.ZipFile(package_path, "r") as zip_file:
+        for entry in upload_plan.get("entries", []):
+            if entry.get("action") == "reuse":
+                continue
+
+            target_path = upload_dir / entry["target_name"]
+            if target_path.exists():
+                raise ValueError(
+                    "Merge import refused to overwrite an existing upload file."
+                )
+
+            staged_path = temp_dir / f"staged-{uuid.uuid4().hex}-{entry['target_name']}"
+            with (
+                zip_file.open(entry["archive_path"], "r") as source,
+                staged_path.open("wb") as target,
+            ):
+                shutil.copyfileobj(source, target, length=1024 * 1024)
+
+            if entry["sha256"] != _sha256_file(staged_path):
+                raise ValueError(
+                    "The full backup package upload checksum does not match."
+                )
+
+            shutil.move(str(staged_path), target_path)
+            copied_paths.append(target_path)
+
+    return copied_paths
+
+
+def _rollback_copied_merge_uploads(paths: list[Path]) -> None:
+    for path in reversed(paths):
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:
+            continue
+
+
+def inspect_merge_backup(
+    file_path: Path, target_path: Path, expected_kind: str | None = None
+) -> dict[str, Any]:
+    expected = normalize_backup_kind(expected_kind)
+    temp_dir = Path(tempfile.mkdtemp(prefix="open-webui-db-merge-inspect-"))
+    try:
+        if expected == BACKUP_KIND_FULL:
+            _assert_local_storage_available()
+            source_db_path, manifest, inspection = _extract_full_backup_database(
+                file_path, temp_dir
+            )
+            upload_plan = _build_full_backup_upload_merge_plan(
+                file_path, manifest, Path(UPLOAD_DIR)
+            )
+            _rewrite_sqlite_upload_paths_with_name_mapping(
+                source_db_path, Path(UPLOAD_DIR), upload_plan["name_mapping"]
+            )
+        else:
+            inspection = inspect_restore_backup(file_path, expected_kind=expected)
+            source_db_path = temp_dir / FULL_BACKUP_DB_FILENAME
+            shutil.copy2(file_path, source_db_path)
+            upload_plan = _empty_merge_plan()["uploads"]
+
+        file_id_mapping = _prepare_sqlite_merge_source(source_db_path, target_path)
+        merge_plan = _summarize_sqlite_merge_plan(source_db_path, target_path)
+        merge_plan["file_ids_remapped"] = len(file_id_mapping)
+        merge_plan["uploads"] = {
+            "copy_count": upload_plan.get("copy_count", 0),
+            "reuse_count": upload_plan.get("reuse_count", 0),
+            "rename_count": upload_plan.get("rename_count", 0),
+            "missing_count": upload_plan.get("missing_count", 0),
+            "bytes_to_copy": upload_plan.get("bytes_to_copy", 0),
+        }
+
+        warnings = list(inspection.get("warnings") or [])
+        if expected == BACKUP_KIND_SQLITE and any(
+            _stored_upload_name(row.get("path"))
+            for row in _read_sqlite_file_rows(file_path)
+        ):
+            warnings.append(
+                "Database-only merge can import file records, but it cannot copy the referenced upload files. Use a full backup to bring attachments with the data."
+            )
+        if merge_plan["blocked_tables"]:
+            warnings.append(
+                "Some tables in the backup cannot be merged because the current database schema does not match."
+            )
+        if file_id_mapping:
+            warnings.append(
+                "Some file records in the backup use IDs that already exist in the current database. They will be imported with new safe IDs and related references will be updated."
+            )
+
+        return {
+            **inspection,
+            "warnings": warnings,
+            "merge": merge_plan,
+            "confirmation": DB_MERGE_CONFIRMATION,
+        }
+    finally:
+        cleanup_path(temp_dir)
+
+
+def merge_sqlite_backup(source_path: Path, target_path: Path) -> dict[str, Any]:
+    source_connection = sqlite3.connect(f"file:{source_path}?mode=ro", uri=True)
+    target_connection = sqlite3.connect(target_path)
+    source_connection.row_factory = sqlite3.Row
+    target_connection.row_factory = sqlite3.Row
+
+    result = _empty_merge_plan()
+    try:
+        source_cursor = source_connection.cursor()
+        target_cursor = target_connection.cursor()
+        source_tables = _sqlite_user_tables(source_cursor)
+        target_tables = set(_sqlite_user_tables(target_cursor))
+
+        target_cursor.execute("BEGIN IMMEDIATE")
+        for table in source_tables:
+            table_summary = {
+                "name": table,
+                "source_rows": 0,
+                "insert_rows": 0,
+                "skip_existing_rows": 0,
+                "skip_conflict_rows": 0,
+                "chat_messages_merged": 0,
+                "blocked": False,
+                "reason": None,
+            }
+
+            if table not in target_tables:
+                table_summary["blocked"] = True
+                table_summary["reason"] = "target_table_missing"
+                result["blocked_tables"].append(table_summary)
+                result["tables"].append(table_summary)
+                continue
+
+            source_columns = _sqlite_table_columns(source_cursor, table)
+            target_columns = _sqlite_table_columns(target_cursor, table)
+            common_columns = [
+                column for column in source_columns if column in target_columns
+            ]
+            primary_key_columns = _sqlite_primary_key_columns(target_cursor, table)
+            if not common_columns or not primary_key_columns:
+                table_summary["blocked"] = True
+                table_summary["reason"] = "primary_key_missing"
+                result["blocked_tables"].append(table_summary)
+                result["tables"].append(table_summary)
+                continue
+
+            unique_indexes = _sqlite_unique_indexes(target_cursor, table)
+            rows = _select_rows(source_cursor, table, common_columns)
+            table_summary["source_rows"] = len(rows)
+
+            for row in rows:
+                if _sqlite_row_exists(
+                    target_cursor,
+                    table,
+                    primary_key_columns,
+                    [row[column] for column in primary_key_columns],
+                ):
+                    table_summary["skip_existing_rows"] += 1
+                    if table == "chat":
+                        table_summary[
+                            "chat_messages_merged"
+                        ] += _merge_existing_chat_row(
+                            target_cursor, row, common_columns
+                        )
+                    continue
+
+                if _row_has_unique_conflict(target_cursor, table, row, unique_indexes):
+                    table_summary["skip_conflict_rows"] += 1
+                    continue
+
+                _insert_row(target_cursor, table, row, common_columns)
+                table_summary["insert_rows"] += 1
+
+            result["source_rows"] += table_summary["source_rows"]
+            result["insert_rows"] += table_summary["insert_rows"]
+            result["skip_existing_rows"] += table_summary["skip_existing_rows"]
+            result["skip_conflict_rows"] += table_summary["skip_conflict_rows"]
+            result["chat_messages_merged"] += table_summary["chat_messages_merged"]
+            result["tables"].append(table_summary)
+
+        target_connection.commit()
+        result["table_count"] = len(result["tables"])
+        return result
+    except Exception:
+        target_connection.rollback()
+        raise
+    finally:
+        target_connection.close()
+        source_connection.close()
+
+
+def merge_database_backup(
+    file_path: Path, target_path: Path, expected_kind: str | None = None
+) -> dict[str, Any]:
+    expected = normalize_backup_kind(expected_kind)
+    temp_dir = Path(tempfile.mkdtemp(prefix="open-webui-db-merge-"))
+    copied_upload_paths: list[Path] = []
+    try:
+        if expected == BACKUP_KIND_FULL:
+            _assert_local_storage_available()
+            source_db_path, manifest, inspection = _extract_full_backup_database(
+                file_path, temp_dir
+            )
+            upload_plan = _build_full_backup_upload_merge_plan(
+                file_path, manifest, Path(UPLOAD_DIR)
+            )
+            _rewrite_sqlite_upload_paths_with_name_mapping(
+                source_db_path, Path(UPLOAD_DIR), upload_plan["name_mapping"]
+            )
+            copied_upload_paths = _copy_full_backup_uploads_for_merge(
+                file_path, upload_plan, Path(UPLOAD_DIR), temp_dir
+            )
+        else:
+            inspection = inspect_restore_backup(file_path, expected_kind=expected)
+            source_db_path = file_path
+            upload_plan = _empty_merge_plan()["uploads"]
+
+        file_id_mapping = _prepare_sqlite_merge_source(source_db_path, target_path)
+        result = merge_sqlite_backup(source_db_path, target_path)
+        result["file_ids_remapped"] = len(file_id_mapping)
+        result["uploads"] = {
+            "copy_count": upload_plan.get("copy_count", 0),
+            "reuse_count": upload_plan.get("reuse_count", 0),
+            "rename_count": upload_plan.get("rename_count", 0),
+            "missing_count": upload_plan.get("missing_count", 0),
+            "bytes_to_copy": upload_plan.get("bytes_to_copy", 0),
+        }
+        result["kind"] = inspection["kind"]
+        return result
+    except Exception:
+        _rollback_copied_merge_uploads(copied_upload_paths)
+        raise
+    finally:
+        cleanup_path(temp_dir)
 
 
 def restore_sqlite_backup(source_path: Path, target_path: Path) -> None:
@@ -629,9 +1558,10 @@ def _copy_full_backup_uploads(
             archive_path = upload["archive_path"]
             staged_path = temp_dir / f"staged-{uuid.uuid4().hex}-{stored_name}"
 
-            with zip_file.open(archive_path, "r") as source, staged_path.open(
-                "wb"
-            ) as target:
+            with (
+                zip_file.open(archive_path, "r") as source,
+                staged_path.open("wb") as target,
+            ):
                 shutil.copyfileobj(source, target, length=1024 * 1024)
 
             if upload["sha256"] != _sha256_file(staged_path):
@@ -650,7 +1580,9 @@ def _copy_full_backup_uploads(
     return rollback_files
 
 
-def _rollback_full_backup_uploads(rollback_files: list[tuple[Path, Path | None]]) -> None:
+def _rollback_full_backup_uploads(
+    rollback_files: list[tuple[Path, Path | None]],
+) -> None:
     for target_path, rollback_path in reversed(rollback_files):
         try:
             if rollback_path and rollback_path.exists():
@@ -674,7 +1606,9 @@ def _rewrite_sqlite_upload_paths(
         if "file" not in tables:
             return
 
-        cursor.execute("SELECT id, path FROM file WHERE path IS NOT NULL AND path != ''")
+        cursor.execute(
+            "SELECT id, path FROM file WHERE path IS NOT NULL AND path != ''"
+        )
         updates: list[tuple[str, str]] = []
         for file_id, file_path in cursor.fetchall():
             stored_name = _stored_upload_name(file_path)
@@ -703,9 +1637,10 @@ def restore_full_backup(package_path: Path, target_path: Path) -> None:
 
     try:
         with zipfile.ZipFile(package_path, "r") as zip_file:
-            with zip_file.open(FULL_BACKUP_DB_FILENAME, "r") as source, db_path.open(
-                "wb"
-            ) as target:
+            with (
+                zip_file.open(FULL_BACKUP_DB_FILENAME, "r") as source,
+                db_path.open("wb") as target,
+            ):
                 shutil.copyfileobj(source, target, length=1024 * 1024)
 
         _rewrite_sqlite_upload_paths(db_path, upload_dir, referenced_stored_names)

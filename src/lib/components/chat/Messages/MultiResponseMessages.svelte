@@ -47,6 +47,7 @@
 	export let branchSupported = false;
 
 	export let triggerScroll: Function;
+	export let forceExpandContent = false;
 
 	const dispatch = createEventDispatcher();
 
@@ -58,6 +59,11 @@
 
 	let message = history.messages?.[messageId];
 	$: message = history.messages?.[messageId];
+	$: discussionMessageId = message?.discussion?.enabled
+		? messageId
+		: ((parentMessage?.childrenIds ?? []).find(
+				(id) => history.messages?.[id]?.discussion?.enabled === true
+			) ?? null);
 
 	const gotoMessage = async (modelIdx, messageIdx) => {
 		// Clamp messageIdx to ensure it's within valid range
@@ -258,7 +264,30 @@
 </script>
 
 {#if parentMessage}
-	<div>
+	{#if discussionMessageId}
+		<ResponseMessage
+			{chatId}
+			{history}
+			messageId={discussionMessageId}
+			isLastMessage={discussionMessageId === history?.currentId || isLastMessage}
+			siblings={[discussionMessageId]}
+			{updateChat}
+			{editMessage}
+			{saveMessage}
+			{deleteMessage}
+			{actionMessage}
+			{submitMessage}
+			{continueResponse}
+			{regenerateResponse}
+			{addMessages}
+			{onBranchMessage}
+			{branchingMessageId}
+			{branchSupported}
+			{readOnly}
+			{forceExpandContent}
+		/>
+	{:else}
+		<div>
 		<div
 			class="flex snap-x snap-mandatory overflow-x-auto scrollbar-hidden"
 			id="responses-container-{chatId}-{parentMessage.id}"
@@ -460,5 +489,6 @@
 				</div>
 			{/if}
 		{/if}
-	</div>
+		</div>
+	{/if}
 {/if}

@@ -396,7 +396,7 @@
 					/>
 
 					{#if editedFiles.length > 0}
-						<div class="mb-3 flex justify-end gap-2 overflow-x-auto pb-1">
+						<div class="mb-3 flex flex-wrap justify-end gap-2 pb-1">
 							{#each editedFiles as file, fileIdx}
 								{#if file.type === 'image'}
 									<div class="relative group shrink-0">
@@ -532,9 +532,14 @@
 				</div>
 			{:else}
 				{#if message.files}
-					<div class="mt-2.5 mb-1 w-full flex flex-col justify-end overflow-x-auto gap-1 flex-wrap">
+					<div
+						class="mt-2.5 mb-1 flex w-full flex-row flex-wrap items-end gap-2 {($settings?.chatBubble ??
+						true)
+							? 'justify-end'
+							: 'justify-start'}"
+					>
 						{#each message.files as file}
-							<div class={($settings?.chatBubble ?? true) ? 'self-end' : ''}>
+							<div class="max-w-full shrink-0">
 								{#if file.type === 'image'}
 									<Image
 										src={file.url}

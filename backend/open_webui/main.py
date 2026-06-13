@@ -495,6 +495,7 @@ from open_webui.utils.models import (
     get_all_models,
     get_all_base_models,
     check_model_access,
+    invalidate_base_model_cache,
 )
 from open_webui.utils.model_identity import resolve_model_from_lookup
 from open_webui.utils.chat import (
@@ -529,6 +530,7 @@ from open_webui.utils.security_headers import SecurityHeadersMiddleware
 
 from open_webui.tasks import (
     list_task_ids_by_chat_id,
+    list_tasks_by_chat_id,
     stop_task,
     list_tasks,
 )  # Import from tasks.py
@@ -1445,7 +1447,16 @@ if audit_level != AuditLevel.NONE:
 
 
 @app.get("/api/models")
-async def get_models(request: Request, user=Depends(get_verified_user)):
+async def get_models(
+    request: Request,
+    refresh: bool = False,
+    user=Depends(get_verified_user),
+):
+    if refresh:
+        request.app.state.BASE_MODELS = None
+        request.app.state.MODELS = {}
+        invalidate_base_model_cache(user.id)
+
     all_models = await get_all_models(request, user=user)
 
     models = []
@@ -1549,7 +1560,16 @@ def _raise_preserving_http_exception(exc: Exception, default_status: int) -> Non
 
 
 @app.get("/api/models/base")
-async def get_base_models(request: Request, user=Depends(get_admin_user)):
+async def get_base_models(
+    request: Request,
+    refresh: bool = False,
+    user=Depends(get_admin_user),
+):
+    if refresh:
+        request.app.state.BASE_MODELS = None
+        request.app.state.MODELS = {}
+        invalidate_base_model_cache(user.id)
+
     models = await get_all_base_models(request, user=user)
     return {"data": models}
 
@@ -1719,6 +1739,7 @@ async def chat_completion(
                 metadata,
                 model,
                 discussion,
+                events,
             )
 
         _emitter = get_event_emitter(metadata)
@@ -1968,11 +1989,8 @@ async def chat_action(
 
 @app.post("/api/tasks/stop/{task_id}")
 async def stop_task_endpoint(task_id: str, user=Depends(get_verified_user)):
-    try:
-        result = await stop_task(task_id)
-        return result
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    result = await stop_task(task_id)
+    return result
 
 
 @app.get("/api/tasks")
@@ -1984,12 +2002,13 @@ async def list_tasks_endpoint(user=Depends(get_verified_user)):
 async def list_tasks_by_chat_id_endpoint(chat_id: str, user=Depends(get_verified_user)):
     chat = Chats.get_chat_by_id(chat_id)
     if chat is None or chat.user_id != user.id:
-        return {"task_ids": []}
+        return {"task_ids": [], "tasks": []}
 
     task_ids = list_task_ids_by_chat_id(chat_id, blocks_completion_only=True)
+    tasks = list_tasks_by_chat_id(chat_id, blocks_completion_only=True)
 
     print(f"Task IDs for chat {chat_id}: {task_ids}")
-    return {"task_ids": task_ids}
+    return {"task_ids": task_ids, "tasks": tasks}
 
 
 ##################################

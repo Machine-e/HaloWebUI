@@ -11,8 +11,9 @@
 
 	const i18n: Writable<any> = getContext('i18n');
 
-	import { WEBUI_NAME, config, models as _models, settings, user } from '$lib/stores';
+	import { WEBUI_NAME, user } from '$lib/stores';
 	import { getModels } from '$lib/apis';
+	import { refreshModels } from '$lib/services/models';
 	import {
 		bulkUpsertBaseModels,
 		createNewModel,
@@ -55,7 +56,7 @@
 	type EnabledFilter = 'all' | 'enabled' | 'disabled';
 	type HiddenFilter = 'all' | 'hidden' | 'visible';
 	type VisibilityFilter = 'all' | 'public' | 'private' | 'unset';
-	type ProviderTab = 'all' | 'openai' | 'gemini' | 'anthropic' | 'ollama' | 'other';
+	type ProviderTab = 'all' | 'openai' | 'gemini' | 'grok' | 'anthropic' | 'ollama' | 'other';
 
 	type ModelLike = any;
 	type Row =
@@ -96,8 +97,10 @@
 	let showConfigModal = false;
 	let showManageModal = false;
 	let listLoading = false;
+	let refreshingModels = false;
 	let hasLoadedList = false;
 	let listLoadError = '';
+	let modelListLoadVersion = 0;
 
 	let searchValue = '';
 	let enabledFilter: EnabledFilter = 'all';
@@ -138,6 +141,12 @@
 			badgeColor: 'bg-blue-50 dark:bg-blue-950/30',
 			iconColor: 'text-blue-500 dark:text-blue-400'
 		},
+		grok: {
+			label: 'Grok 接口',
+			description: '管理通过 xAI Grok 接口连接的模型。',
+			badgeColor: 'bg-slate-50 dark:bg-slate-900/30',
+			iconColor: 'text-slate-500 dark:text-slate-400'
+		},
 		anthropic: {
 			label: 'Anthropic 接口',
 			description: '管理通过 Anthropic 接口连接的模型。',
@@ -161,7 +170,11 @@
 	$: activeTabMeta = tabMeta[selectedTab];
 
 	const getProviderTab = (m: any): Exclude<ProviderTab, 'all'> => {
+		const provider = (m?.model_ref?.provider ?? m?.provider ?? '').toString().toLowerCase();
+		if (provider === 'grok' || provider === 'xai' || provider.startsWith('grok')) return 'grok';
+
 		const owned = (m?.owned_by ?? '').toString().toLowerCase();
+		if (owned === 'grok' || owned === 'xai' || owned.startsWith('grok')) return 'grok';
 		if (owned === 'openai' || owned.startsWith('openai') || owned === 'system') return 'openai';
 		if (owned === 'google' || owned.startsWith('google')) return 'gemini';
 		if (owned === 'anthropic' || owned.startsWith('anthropic')) return 'anthropic';
@@ -198,6 +211,7 @@
 			all: 0,
 			openai: 0,
 			gemini: 0,
+			grok: 0,
 			anthropic: 0,
 			ollama: 0,
 			other: 0
@@ -210,7 +224,7 @@
 	})();
 
 	$: visibleTabs = (
-		['all', 'openai', 'gemini', 'anthropic', 'ollama', 'other'] as ProviderTab[]
+		['all', 'openai', 'gemini', 'grok', 'anthropic', 'ollama', 'other'] as ProviderTab[]
 	).filter((t) => t !== 'other' || tabCounts.other > 0);
 
 	$: if (selectedTab !== prevTab) {
@@ -365,6 +379,7 @@
 		(visibilityFilter !== 'all' ? 1 : 0);
 
 	const init = async () => {
+		const loadVersion = ++modelListLoadVersion;
 		listLoading = true;
 		listLoadError = '';
 
@@ -373,6 +388,8 @@
 				getBaseModels(localStorage.token),
 				getModels(localStorage.token, null, true)
 			]);
+
+			if (loadVersion !== modelListLoadVersion) return;
 
 			if (workspaceModelsResult.status === 'fulfilled') {
 				workspaceModels = (workspaceModelsResult.value ?? []) as any[];
@@ -454,21 +471,31 @@
 			console.error('Failed to initialize model management page', error);
 			listLoadError = error instanceof Error ? error.message : listLoadError || String(error);
 		} finally {
-			listLoading = false;
+			if (loadVersion === modelListLoadVersion) {
+				listLoading = false;
+			}
 		}
 	};
 
 	$: syncSelectedModelFromRoute();
 
 	const refreshGlobalModels = async () => {
-		_models.set(
-			await getModels(
-				localStorage.token,
-				($config as any)?.features?.enable_direct_connections &&
-					(($settings as any)?.directConnections ?? null)
-			)
-		);
+		await refreshModels(localStorage.token, { force: true, reason: 'admin-models' });
 		await init();
+	};
+
+	const manualRefreshModels = async () => {
+		if (refreshingModels || listLoading) return;
+
+		refreshingModels = true;
+		try {
+			await refreshGlobalModels();
+			toast.success($i18n.t('模型列表已刷新'));
+		} catch (error) {
+			toast.error($i18n.t('刷新模型列表失败：{{error}}', { error: String(error) }));
+		} finally {
+			refreshingModels = false;
+		}
 	};
 
 	const initExpandedGroups = () => {
@@ -1013,6 +1040,13 @@
 													d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
 												/>
 											</svg>
+										{:else if selectedTab === 'grok'}
+											<ModelIcon
+												src="/static/connection-avatars/xai.svg"
+												alt={$i18n.t('Grok 接口')}
+												bare
+												className="size-[18px]"
+											/>
 										{:else if selectedTab === 'anthropic'}
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -1135,6 +1169,13 @@
 													d="m3.127 10.604 3.135-1.76.053-.153-.053-.085H6.11l-.525-.032-1.791-.048-1.554-.065-1.505-.08-.38-.081L0 7.832l.036-.234.32-.214.455.04 1.009.069 1.513.105 1.097.064 1.626.17h.259l.036-.105-.089-.065-.068-.064-1.566-1.062-1.695-1.121-.887-.646-.48-.327-.243-.306-.104-.67.435-.48.585.04.15.04.593.456 1.267.981 1.654 1.218.242.202.097-.068.012-.049-.109-.181-.9-1.626-.96-1.655-.428-.686-.113-.411a2 2 0 0 1-.068-.484l.496-.674L4.446 0l.662.089.279.242.411.94.666 1.48 1.033 2.014.302.597.162.553.06.17h.105v-.097l.085-1.134.157-1.392.154-1.792.052-.504.25-.605.497-.327.387.186.319.456-.045.294-.19 1.23-.37 1.93-.243 1.29h.142l.161-.16.654-.868 1.097-1.372.484-.545.565-.601.363-.287h.686l.505.751-.226.775-.707.895-.585.759-.839 1.13-.524.904.048.072.125-.012 1.897-.403 1.024-.186 1.223-.21.553.258.06.263-.218.536-1.307.323-1.533.307-2.284.54-.028.02.032.04 1.029.098.44.024h1.077l2.005.15.525.346.315.424-.053.323-.807.411-3.631-.863-.872-.218h-.12v.073l.726.71 1.331 1.202 1.667 1.55.084.383-.214.302-.226-.032-1.464-1.101-.565-.497-1.28-1.077h-.084v.113l.295.432 1.557 2.34.08.718-.112.234-.404.141-.443-.08-.911-1.28-.94-1.44-.759-1.291-.093.053-.448 4.821-.21.246-.484.186-.403-.307-.214-.496.214-.98.258-1.28.21-1.016.19-1.263.112-.42-.008-.028-.092.012-.953 1.307-1.448 1.957-1.146 1.227-.274.109-.477-.247.045-.44.266-.39 1.586-2.018.956-1.25.617-.723-.004-.105h-.036l-4.212 2.736-.75.096-.324-.302.04-.496.154-.162 1.267-.871z"
 												/>
 											</svg>
+										{:else if tab === 'grok'}
+											<ModelIcon
+												src="/static/connection-avatars/xai.svg"
+												alt={$i18n.t('Grok 接口')}
+												bare
+												className="size-4 {selectedTab === tab ? '' : 'opacity-45'}"
+											/>
 										{:else if tab === 'ollama'}
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -1186,6 +1227,20 @@
 								placeholder={$i18n.t('Search Models')}
 							/>
 						</div>
+
+						<button
+							class="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border border-gray-200/60 dark:border-gray-800 text-gray-500 dark:text-gray-400 transition hover:bg-gray-100 dark:hover:bg-gray-800/60 disabled:cursor-not-allowed disabled:opacity-60"
+							type="button"
+							disabled={refreshingModels || listLoading}
+							on:click={manualRefreshModels}
+						>
+							{#if refreshingModels}
+								<Spinner className="size-3.5" />
+							{:else}
+								<span class="text-sm leading-none">↻</span>
+							{/if}
+							<span>{$i18n.t('刷新模型列表')}</span>
+						</button>
 
 						<button
 							class="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border transition

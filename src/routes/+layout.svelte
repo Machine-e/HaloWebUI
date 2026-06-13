@@ -19,7 +19,11 @@
 		isLastActiveTab,
 		isApp,
 		appInfo,
-		toolServers
+		toolServers,
+		socketConnectionState,
+		socketReconnectRevision,
+		socketLastConnectedAt,
+		socketLastDisconnectedAt
 	} from '$lib/stores';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -95,22 +99,33 @@
 
 	const handleSocketConnectError = (err) => {
 		console.log('connect_error', err);
+		socketConnectionState.set('disconnected');
 	};
 
 	const handleSocketConnect = () => {
 		console.log('connected', currentSocket?.id);
+		socketConnectionState.set('connected');
+		socketLastConnectedAt.set(Date.now());
+		socketReconnectRevision.update((value) => value + 1);
+		if (localStorage.token) {
+			currentSocket?.emit('user-join', { auth: { token: localStorage.token } });
+		}
 	};
 
 	const handleSocketReconnectAttempt = (attempt) => {
 		console.log('reconnect_attempt', attempt);
+		socketConnectionState.set('reconnecting');
 	};
 
 	const handleSocketReconnectFailed = () => {
 		console.log('reconnect_failed');
+		socketConnectionState.set('failed');
 	};
 
 	const handleSocketDisconnect = (reason, details) => {
 		console.log(`Socket ${currentSocket?.id} disconnected due to ${reason}`);
+		socketConnectionState.set('disconnected');
+		socketLastDisconnectedAt.set(Date.now());
 		if (details) {
 			console.log('Additional details:', details);
 		}
@@ -159,6 +174,7 @@
 
 		detachSocketEventHandlers(socketInstance);
 		socketInstance.disconnect();
+		socketConnectionState.set('disconnected');
 
 		if (currentSocket === socketInstance) {
 			currentSocket = null;
@@ -195,9 +211,12 @@
 
 	const setupSocket = async (enableWebsocket) => {
 		teardownSocket(currentSocket ?? $socket);
+		socketConnectionState.set('reconnecting');
 
 		const _socket = io(`${WEBUI_BASE_URL}` || undefined, {
+			timeout: 10000,
 			reconnection: true,
+			reconnectionAttempts: 8,
 			reconnectionDelay: 1000,
 			reconnectionDelayMax: 5000,
 			randomizationFactor: 0.5,
@@ -217,6 +236,31 @@
 		_socket.on('user-list', handleSocketUserList);
 		_socket.on('usage', handleSocketUsage);
 		attachSocketEventHandlers(_socket);
+	};
+
+	const attemptSocketRecovery = async (enableWebsocket) => {
+		if (!localStorage.token) {
+			return;
+		}
+
+		const socketInstance = currentSocket ?? $socket;
+		if (!socketInstance) {
+			await setupSocket(enableWebsocket);
+			return;
+		}
+
+		if (socketInstance.connected) {
+			socketInstance.emit('user-join', { auth: { token: localStorage.token } });
+			return;
+		}
+
+		if ($socketConnectionState === 'failed') {
+			await setupSocket(enableWebsocket);
+			return;
+		}
+
+		socketConnectionState.set('reconnecting');
+		socketInstance.connect();
 	};
 
 	const executePythonAsWorker = async (id, code, cb) => {
@@ -550,15 +594,21 @@
 		};
 
 		// Set yourself as the last active tab when this tab is focused
-		const handleVisibilityChange = () => {
+		const handleVisibilityChange = async () => {
 			if (document.visibilityState === 'visible') {
 				isLastActiveTab.set(true); // This tab is now the active tab
 				bc.postMessage('active'); // Notify other tabs that this tab is active
+				await attemptSocketRecovery($config?.features?.enable_websocket ?? true);
+				window.dispatchEvent(new CustomEvent('halo:foreground-resume'));
 			}
+		};
+		const handleAndroidResume = async () => {
+			await handleVisibilityChange();
 		};
 
 		// Add event listener for visibility state changes
 		document.addEventListener('visibilitychange', handleVisibilityChange);
+		window.addEventListener('halo:android-resume', handleAndroidResume);
 
 		// Call visibility change handler initially to set state on load
 		handleVisibilityChange();
@@ -674,6 +724,7 @@
 			unsubscribeUser?.();
 			unsubscribeUser = null;
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
+			window.removeEventListener('halo:android-resume', handleAndroidResume);
 			bc.onmessage = null;
 			bc.close();
 			teardownSocket(currentSocket);
