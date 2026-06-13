@@ -249,8 +249,7 @@
 	let inputVariableValues = {};
 	$: hasActiveImageGenerationReference =
 		imageGenerationReferenceFiles.length > 0 && files.length === 0;
-	$: hasSubmittableContent =
-		prompt !== '' || files.length > 0 || hasActiveImageGenerationReference;
+	$: hasSubmittableContent = prompt !== '' || files.length > 0 || hasActiveImageGenerationReference;
 	$: hasReferenceImageForImageGeneration =
 		files.some(isImageReferenceFile) ||
 		imageGenerationReferenceFiles.some(isImageReferenceFile) ||
@@ -1216,7 +1215,9 @@
 											class="rounded-2xl border border-dashed border-primary-200/80 bg-primary-50/60 px-3 py-2 dark:border-primary-500/25 dark:bg-primary-950/20"
 										>
 											<div class="mb-2 flex items-center justify-between gap-2">
-												<div class="min-w-0 text-xs font-medium text-primary-700 dark:text-primary-200">
+												<div
+													class="min-w-0 text-xs font-medium text-primary-700 dark:text-primary-200"
+												>
 													{tr(
 														'引用上一轮生成图 {{count}} 张',
 														'Referencing {{count}} generated image(s) from the previous turn',
@@ -1627,10 +1628,10 @@
 															e.preventDefault();
 														}
 
-																// Submit the prompt when Enter key is pressed
-																if (hasSubmittableContent && enterPressed) {
-																	dispatch('submit', prompt);
-																}
+														// Submit the prompt when Enter key is pressed
+														if (hasSubmittableContent && enterPressed) {
+															dispatch('submit', prompt);
+														}
 													}
 												}
 
