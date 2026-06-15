@@ -19,7 +19,7 @@ def test_legacy_single_key_normalizes_to_single_key_pool():
     pool = cfg["api_key_pool"]
     assert pool["mode"] == "round_robin"
     assert pool["retry"]["enabled"] is True
-    assert pool["retry"]["status_codes"] == [429, 500, 502, 503, 504]
+    assert pool["retry"]["status_codes"] == [429, 500, 502, 503, 504, 524]
     assert pool["keys"] == [
         {
             "id": pool["keys"][0]["id"],

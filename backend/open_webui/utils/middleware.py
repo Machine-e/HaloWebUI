@@ -187,6 +187,8 @@ from open_webui.env import (
     GLOBAL_LOG_LEVEL,
     BYPASS_MODEL_ACCESS_CONTROL,
     ENABLE_REALTIME_CHAT_SAVE,
+    CHAT_STREAM_IDLE_TIMEOUT,
+    CHAT_STREAM_START_TIMEOUT,
 )
 from open_webui.constants import TASKS
 
@@ -1311,6 +1313,29 @@ _REQUEST_INCOMPATIBLE_PATTERNS = (
     "tools[",
 )
 
+
+_UPSTREAM_RESPONSE_LOST_PATTERNS = (
+    "server disconnected without sending a response",
+    "remote protocol error",
+    "connection closed before receiving response",
+    "peer closed connection without sending complete message body",
+    "client abort request",
+    "client closed",
+    "client disconnected",
+    "disconnect",
+    "connection closed",
+)
+
+_TIMEOUT_ERROR_PATTERNS = (
+    "timeout",
+    "timed out",
+    "read timeout",
+    "stream idle timeout",
+    "stream start timeout",
+    "gateway timeout",
+    "origin timeout",
+)
+
 _API_ERROR_FAMILY_CONFIG: dict[str, dict[str, Any]] = {
     "request_incompatible": {
         "reasons": [
@@ -1335,6 +1360,10 @@ _API_ERROR_FAMILY_CONFIG: dict[str, dict[str, Any]] = {
     },
     "timeout": {
         "reasons": ["api_request_timeout"],
+        "suggestion": "wait_retry",
+    },
+    "cloudflare_timeout": {
+        "reasons": ["api_cloudflare_origin_timeout", "api_request_timeout", "proxy_error"],
         "suggestion": "wait_retry",
     },
     "upstream_response_lost": {
@@ -1449,15 +1478,12 @@ def _resolve_api_error_status(
 
 def _is_api_response_disconnected_error(raw_message: str) -> bool:
     text = (raw_message or "").lower()
-    return any(
-        marker in text
-        for marker in (
-            "server disconnected without sending a response",
-            "remote protocol error",
-            "connection closed before receiving response",
-            "peer closed connection without sending complete message body",
-        )
-    )
+    return any(marker in text for marker in _UPSTREAM_RESPONSE_LOST_PATTERNS)
+
+
+def _is_api_timeout_error(raw_message: str) -> bool:
+    text = (raw_message or "").lower()
+    return any(marker in text for marker in _TIMEOUT_ERROR_PATTERNS)
 
 
 def _classify_api_error_family(*, status: int | None, raw_message: str) -> str:
@@ -1465,13 +1491,19 @@ def _classify_api_error_family(*, status: int | None, raw_message: str) -> str:
 
     if _is_api_response_disconnected_error(raw_message):
         return "upstream_response_lost"
+    if status == 499:
+        return "upstream_response_lost"
     if status in {401, 403}:
         return "auth_error"
     if status == 404:
         return "model_not_found"
     if status == 429:
         return "rate_limited"
+    if status == 524:
+        return "cloudflare_timeout"
     if status in {408, 504}:
+        return "timeout"
+    if _is_api_timeout_error(raw_message):
         return "timeout"
     if status == 400:
         return "request_incompatible"
@@ -1551,6 +1583,12 @@ def _build_api_error_title(*, family: str, status: int | None) -> str:
             if status
             else "上游服务响应超时，请求失败"
         )
+    if family == "cloudflare_timeout":
+        return (
+            f"上游服务被 Cloudflare 超时中断，请求失败（HTTP {status}）"
+            if status
+            else "上游服务被 Cloudflare 超时中断，请求失败"
+        )
     if family == "upstream_response_lost":
         return (
             f"上游结果没有完整返回，请求失败（HTTP {status}）"
@@ -1571,6 +1609,7 @@ def _build_api_error_body(*, family: str, evidence: dict[str, str]) -> str:
         "model_not_found": "上游没有找到当前模型或目标接口。请检查模型名、连接配置，或确认该模型在上游可用。",
         "rate_limited": "上游在短时间内拒绝了更多请求。通常与速率限制、额度或并发控制有关。",
         "timeout": "请求已发出，但上游在限定时间内没有完成响应。",
+        "cloudflare_timeout": "请求已经发到上游服务，但 Cloudflare 等反代等待源站响应超时并中断了这次请求。请稍后重试或检查上游 origin 健康。",
         "upstream_response_lost": "请求已经发到模型服务，可能已经在上游完成或产生计费，但中转站/反代在把结果返回 HaloWebUI 前断开了。先查上游日志或计费记录，再决定是否重试，避免重复扣费。",
         "upstream_service_error": "上游服务返回了异常响应。问题可能来自上游服务本身、代理转发，或当前请求与上游能力不完全匹配。",
     }
@@ -2322,6 +2361,52 @@ def _build_api_error_payload(
         "suggestion": suggestion,
         "raw_message": raw_message or parsed_message,
         "evidence": evidence,
+    }
+
+
+class ChatStreamTimeoutError(TimeoutError):
+    def __init__(self, *, phase: str, timeout_s: int, had_output: bool):
+        self.phase = phase
+        self.timeout_s = timeout_s
+        self.had_output = had_output
+        super().__init__(
+            f"Chat stream {phase} timeout after {timeout_s}s "
+            f"({'after visible output' if had_output else 'before first visible output'})"
+        )
+
+
+def _build_stream_timeout_error_payload(
+    error: ChatStreamTimeoutError, model_id: str
+) -> dict:
+    family = "upstream_response_lost" if error.had_output else "timeout"
+    title = _build_api_error_title(family=family, status=None)
+    reasons, suggestion = _build_api_error_reasons_and_suggestion(
+        family=family, status=None
+    )
+    if error.had_output:
+        body = (
+            f"上游流式响应已经产生部分内容，但在 {error.timeout_s} 秒内没有继续返回有效数据。"
+            "当前回复已保留已有内容并结束，避免页面继续卡在等待状态。"
+        )
+    else:
+        body = (
+            f"上游流式响应在 {error.timeout_s} 秒内没有返回首个有效数据。"
+            "当前回复已结束，避免页面继续卡在等待状态。"
+        )
+
+    return {
+        "type": "api_error",
+        "model_id": model_id,
+        "family": family,
+        "status": None,
+        "title": title,
+        "body": body,
+        "content": title,
+        "reasons": list(reasons),
+        "suggestion": suggestion,
+        "raw_message": str(error),
+        "phase": error.phase,
+        "timeout_seconds": error.timeout_s,
     }
 
 
@@ -6580,6 +6665,7 @@ async def process_chat_response(
                     _stream_exit_reason = (
                         "normal"  # normal | break_code_interpreter | exception
                     )
+                    _stream_last_data_at = stream_started_at
                     try:
                         _stream_response_status = int(
                             getattr(response, "status_code", None) or 0
@@ -6587,7 +6673,52 @@ async def process_chat_response(
                     except Exception:
                         _stream_response_status = None
 
-                    async for line in response.body_iterator:
+                    stream_iterator = response.body_iterator.__aiter__()
+
+                    async def read_next_stream_line():
+                        timeout_s = (
+                            CHAT_STREAM_START_TIMEOUT
+                            if _stream_data_count == 0
+                            else CHAT_STREAM_IDLE_TIMEOUT
+                        )
+                        if timeout_s is None:
+                            return await stream_iterator.__anext__()
+
+                        phase = "start" if _stream_data_count == 0 else "idle"
+                        baseline = (
+                            stream_started_at
+                            if _stream_data_count == 0
+                            else _stream_last_data_at
+                        )
+                        remaining = float(timeout_s) - (time.time() - baseline)
+                        if remaining <= 0:
+                            raise ChatStreamTimeoutError(
+                                phase=phase,
+                                timeout_s=timeout_s,
+                                had_output=_has_visible_assistant_output(
+                                    content_blocks, message_files
+                                ),
+                            )
+
+                        try:
+                            return await asyncio.wait_for(
+                                stream_iterator.__anext__(), timeout=remaining
+                            )
+                        except asyncio.TimeoutError as exc:
+                            raise ChatStreamTimeoutError(
+                                phase=phase,
+                                timeout_s=timeout_s,
+                                had_output=_has_visible_assistant_output(
+                                    content_blocks, message_files
+                                ),
+                            ) from exc
+
+                    while True:
+                        try:
+                            line = await read_next_stream_line()
+                        except StopAsyncIteration:
+                            break
+
                         line = line.decode("utf-8") if isinstance(line, bytes) else line
                         data = line
                         _stream_line_count += 1
@@ -6623,6 +6754,7 @@ async def process_chat_response(
                             continue
 
                         _stream_data_count += 1
+                        _stream_last_data_at = time.time()
 
                         # Remove the prefix
                         data = data[len("data:") :].strip()
@@ -9849,19 +9981,27 @@ async def process_chat_response(
                 except Exception as e:
                     log.warning(f"Failed to persist stream cancellation metadata: {e}")
             except Exception as e:
-                log.exception("Chat response background task failed")
+                if isinstance(e, ChatStreamTimeoutError):
+                    log.warning("Chat response stream timed out: %s", e)
+                else:
+                    log.exception("Chat response background task failed")
 
                 if not response_finalized:
                     completed_at = int(time.time())
-                    error_payload = {
-                        "type": "generation_interrupted",
-                        "title": "生成回复时发生错误，请重试。",
-                        "body": "请求已经开始，但后台生成任务在返回完整结果前中断。当前回复已经结束，不会继续卡在生成中。",
-                        "content": "生成回复时发生错误，请重试。",
-                        "reasons": ["api_upstream_error", "proxy_error"],
-                        "suggestion": "retry_or_switch",
-                        "raw_message": _truncate_text(str(e), 4000),
-                    }
+                    if isinstance(e, ChatStreamTimeoutError):
+                        error_payload = _build_stream_timeout_error_payload(
+                            e, form_data.get("model", "")
+                        )
+                    else:
+                        error_payload = {
+                            "type": "generation_interrupted",
+                            "title": "生成回复时发生错误，请重试。",
+                            "body": "请求已经开始，但后台生成任务在返回完整结果前中断。当前回复已经结束，不会继续卡在生成中。",
+                            "content": "生成回复时发生错误，请重试。",
+                            "reasons": ["api_upstream_error", "proxy_error"],
+                            "suggestion": "retry_or_switch",
+                            "raw_message": _truncate_text(str(e), 4000),
+                        }
                     completion_payload = {
                         "done": True,
                         "content": serialize_content_blocks(content_blocks),
