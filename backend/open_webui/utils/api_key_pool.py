@@ -12,7 +12,7 @@ API_KEY_POOL_CONFIG_KEY = "api_key_pool"
 API_KEY_POOL_MODES = {"round_robin", "random", "priority"}
 DEFAULT_API_KEY_POOL_MODE = "round_robin"
 DEFAULT_RETRY_PRESET = "rate_limit_transient"
-DEFAULT_RETRY_STATUS_CODES = [429, 500, 502, 503, 504]
+DEFAULT_RETRY_STATUS_CODES = [429, 500, 502, 503, 504, 524]
 DEFAULT_RETRY_ERROR_KEYWORDS = [
     "rate limit",
     "rate_limit",

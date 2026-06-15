@@ -27,6 +27,8 @@ from open_webui.config import (
 )
 from open_webui.env import (
     AIOHTTP_CLIENT_SESSION_SSL,
+    AIOHTTP_CLIENT_CONNECT_TIMEOUT,
+    AIOHTTP_CLIENT_SOCK_READ_TIMEOUT,
     AIOHTTP_CLIENT_TIMEOUT,
     AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST,
     ENABLE_FORWARD_USER_INFO_HEADERS,
@@ -1659,6 +1661,14 @@ async def cleanup_response(
         await session.close()
 
 
+def _chat_client_timeout() -> aiohttp.ClientTimeout:
+    return aiohttp.ClientTimeout(
+        total=AIOHTTP_CLIENT_TIMEOUT,
+        sock_connect=AIOHTTP_CLIENT_CONNECT_TIMEOUT,
+        sock_read=AIOHTTP_CLIENT_SOCK_READ_TIMEOUT,
+    )
+
+
 def openai_o1_o3_handler(payload):
     """
     Handle o1, o3 specific parameters
@@ -3101,7 +3111,7 @@ async def generate_chat_completion(
     try:
         session = aiohttp.ClientSession(
             trust_env=True,
-            timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT),
+            timeout=_chat_client_timeout(),
         )
 
         async def _send_current_request(*, retry_reason: Optional[str] = None):
@@ -3697,7 +3707,7 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
     streaming = False
 
     try:
-        session = aiohttp.ClientSession(trust_env=True)
+        session = aiohttp.ClientSession(trust_env=True, timeout=_chat_client_timeout())
         r = await session.request(
             method=request.method,
             url=f"{url}/{path}",

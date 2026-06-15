@@ -441,6 +441,31 @@ else:
     except Exception:
         AIOHTTP_CLIENT_TIMEOUT = 300
 
+
+def _get_optional_positive_int_env(name: str, default: str) -> int | None:
+    value = os.environ.get(name, default)
+    if value == "":
+        return None
+    try:
+        value_int = int(value)
+    except Exception:
+        value_int = int(default)
+    return value_int if value_int > 0 else None
+
+
+AIOHTTP_CLIENT_CONNECT_TIMEOUT = _get_optional_positive_int_env(
+    "AIOHTTP_CLIENT_CONNECT_TIMEOUT", "30"
+)
+AIOHTTP_CLIENT_SOCK_READ_TIMEOUT = _get_optional_positive_int_env(
+    "AIOHTTP_CLIENT_SOCK_READ_TIMEOUT", "120"
+)
+CHAT_STREAM_START_TIMEOUT = _get_optional_positive_int_env(
+    "CHAT_STREAM_START_TIMEOUT", "120"
+)
+CHAT_STREAM_IDLE_TIMEOUT = _get_optional_positive_int_env(
+    "CHAT_STREAM_IDLE_TIMEOUT", "120"
+)
+
 AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST = os.environ.get(
     "AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST",
     os.environ.get("AIOHTTP_CLIENT_TIMEOUT_OPENAI_MODEL_LIST", "10"),
