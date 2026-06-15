@@ -3,7 +3,7 @@ import logging
 import time
 import uuid
 from copy import deepcopy
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 
 from open_webui.socket.main import get_event_emitter
@@ -35,7 +35,7 @@ from pydantic import BaseModel, Field
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.access_control import has_permission
 from open_webui.utils.chat_image_refs import normalize_chat_payload_image_refs
-from open_webui.tasks import list_task_ids_by_chat_id
+from open_webui.tasks import list_task_ids_by_chat_id, list_tasks_by_chat_id
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
@@ -59,6 +59,7 @@ def _chat_response_list(chats) -> list[ChatResponse]:
 class ChatContextResponse(BaseModel):
     tags: list[TagModel] = Field(default_factory=list)
     task_ids: list[str] = Field(default_factory=list)
+    tasks: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ChatImportItemForm(BaseModel):
@@ -816,6 +817,7 @@ async def get_chat_context_by_id(id: str, user=Depends(get_verified_user)):
 
     tag_models: list[TagModel] = []
     task_ids: list[str] = []
+    tasks: list[dict[str, Any]] = []
 
     try:
         tag_ids = chat_meta.get("tags", [])
@@ -825,10 +827,11 @@ async def get_chat_context_by_id(id: str, user=Depends(get_verified_user)):
 
     try:
         task_ids = list_task_ids_by_chat_id(id, blocks_completion_only=True)
+        tasks = list_tasks_by_chat_id(id, blocks_completion_only=True)
     except Exception:
         log.exception("Failed to load chat task ids for chat_id=%s", id)
 
-    return ChatContextResponse(tags=tag_models, task_ids=task_ids)
+    return ChatContextResponse(tags=tag_models, task_ids=task_ids, tasks=tasks)
 
 
 ############################
