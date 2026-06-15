@@ -176,6 +176,15 @@
 	const SOFT_SAVE_TIMEOUT_MS = 15_000;
 	const SOFT_MEMORY_TIMEOUT_MS = 10_000;
 	const SOFT_LOCATION_TIMEOUT_MS = 5_000;
+
+	type ChatTaskInfo = {
+		id: string;
+		chat_id?: string | null;
+		message_id?: string | null;
+		blocks_completion?: boolean;
+		created_at?: number;
+		updated_at?: number;
+	};
 	const SOFT_INLINE_IMAGE_TIMEOUT_MS = 20_000;
 	const SOFT_INLINE_IMAGE_TOTAL_TIMEOUT_MS = 60_000;
 	const MESSAGE_OUTLINE_SCROLL_KEYS = new Set([
@@ -2838,6 +2847,49 @@
 
 	const getActiveTaskIds = () => (Array.isArray(taskIds) ? taskIds.filter(Boolean) : []);
 
+	const normalizeChatTaskInfos = (tasks: unknown, fallbackTaskIds: string[] | null = null) => {
+		if (Array.isArray(tasks)) {
+			return tasks
+				.map((rawTask) => {
+					const task = rawTask as Record<string, any>;
+					return {
+						id: `${task?.id ?? ''}`.trim(),
+						chat_id: task?.chat_id ?? null,
+						message_id: task?.message_id ?? null,
+						blocks_completion: task?.blocks_completion,
+						created_at: task?.created_at,
+						updated_at: task?.updated_at
+					};
+				}))
+				.filter((task): task is ChatTaskInfo => Boolean(task.id));
+		}
+
+		return (fallbackTaskIds ?? [])
+			.map((id) => `${id ?? ''}`.trim())
+			.filter(Boolean)
+			.map((id) => ({ id }));
+	};
+
+	const buildTaskIdsByMessageId = (tasks: ChatTaskInfo[]) => {
+		const next: Record<string, string[]> = {};
+		for (const task of tasks) {
+			const messageId = `${task.message_id ?? ''}`.trim();
+			if (!messageId || !task.id) {
+				continue;
+			}
+			next[messageId] = Array.from(new Set([...(next[messageId] ?? []), task.id]));
+		}
+		return next;
+	};
+
+	const applyServerTaskTracking = (tasks: unknown, fallbackTaskIds: string[] | null = null) => {
+		const normalizedTasks = normalizeChatTaskInfos(tasks, fallbackTaskIds);
+		const ids = normalizedTasks.map((task) => task.id).filter(Boolean);
+		taskIds = ids.length > 0 ? Array.from(new Set(ids)) : null;
+		taskIdsByMessageId = buildTaskIdsByMessageId(normalizedTasks);
+		return normalizedTasks;
+	};
+
 	const resetTaskTracking = () => {
 		taskIds = null;
 		taskIdsByMessageId = {};
@@ -3951,9 +4003,11 @@
 					if (navigationId !== chatIdProp) return;
 
 					tags = nextContext?.tags ?? [];
-					taskIdsByMessageId = {};
-					taskIds = nextContext?.task_ids ?? [];
-					reconcileLoadedAssistantMessages(taskIds);
+					const nextTasks = applyServerTaskTracking(
+						nextContext?.tasks,
+						nextContext?.task_ids ?? []
+					);
+					reconcileLoadedAssistantMessages(taskIds, nextTasks);
 				})();
 
 				resetAutoScrollLock();
@@ -3964,20 +4018,38 @@
 		}
 	};
 
-	const reconcileLoadedAssistantMessages = (activeTaskIds: string[] | null) => {
-		const hasPendingTask = Array.isArray(activeTaskIds) && activeTaskIds.length > 0;
+	const reconcileLoadedAssistantMessages = (
+		activeTaskIds: string[] | null,
+		activeTasks: ChatTaskInfo[] | null = null
+	) => {
+		const normalizedTasks = normalizeChatTaskInfos(activeTasks, activeTaskIds);
+		const activeTaskIdList =
+			Array.isArray(activeTaskIds) && activeTaskIds.length > 0
+				? activeTaskIds
+				: normalizedTasks.map((task) => task.id);
+		const hasPendingTask = activeTaskIdList.length > 0;
 		const pendingAssistantIds = new Set<string>();
 
 		if (hasPendingTask) {
-			for (const [messageId, message] of Object.entries(history.messages)) {
-				if (message?.role === 'assistant' && message.done === false && !isResponseStopped(message)) {
+			for (const task of normalizedTasks) {
+				const messageId = `${task.message_id ?? ''}`.trim();
+				const message = messageId ? history.messages?.[messageId] : null;
+				if (message?.role === 'assistant' && !isResponseStopped(message)) {
 					pendingAssistantIds.add(messageId);
+				}
+			}
+
+			if (pendingAssistantIds.size === 0) {
+				for (const [messageId, message] of Object.entries(history.messages)) {
+					if (message?.role === 'assistant' && message.done === false && !isResponseStopped(message)) {
+						pendingAssistantIds.add(messageId);
+					}
 				}
 			}
 
 			const currentMessage = history.currentId ? history.messages[history.currentId] : null;
 			const currentMessageStopped = isResponseStopped(currentMessage);
-			if (currentMessage?.role === 'assistant' && !currentMessageStopped) {
+			if (pendingAssistantIds.size === 0 && currentMessage?.role === 'assistant' && !currentMessageStopped) {
 				pendingAssistantIds.add(currentMessage.id);
 
 				const parentMessage = currentMessage.parentId
@@ -4119,9 +4191,8 @@
 				history.currentId = serverChat.chat.history.currentId ?? history.currentId;
 			}
 
-			const nextTaskIds = chatContext?.task_ids ?? [];
-			taskIds = nextTaskIds.length > 0 ? nextTaskIds : null;
-			reconcileLoadedAssistantMessages(taskIds);
+			const nextTasks = applyServerTaskTracking(chatContext?.tasks, chatContext?.task_ids ?? []);
+			reconcileLoadedAssistantMessages(taskIds, nextTasks);
 
 			if (!taskIds || taskIds.length === 0) {
 				for (const [messageId, message] of Object.entries(history.messages ?? {}) as [string, any][]) {
@@ -5018,7 +5089,7 @@
 				? [message.status]
 				: [];
 
-		return statuses.some((status) => status?.done === false && !status?.hidden);
+		return statuses.length === 0 || statuses.some((status) => status?.done === false && !status?.hidden);
 	};
 
 	const markUnresolvedEmptyAssistantMessage = (message: any) => {
@@ -5033,6 +5104,7 @@
 			reasons: ['api_upstream_error', 'proxy_error'],
 			suggestion: 'retry_or_switch'
 		};
+		message.completedAt = Math.floor(Date.now() / 1000);
 	};
 
 	const markResponseMessagesStopped = async (targetMessageId: string | null = null) => {
@@ -6048,6 +6120,18 @@
 		'tools['
 	];
 
+	const UPSTREAM_RESPONSE_LOST_PATTERNS = [
+		'server disconnected without sending a response',
+		'remote protocol error',
+		'connection closed before receiving response',
+		'peer closed connection without sending complete message body',
+		'client abort request',
+		'client closed',
+		'client disconnected',
+		'disconnect',
+		'connection closed'
+	];
+
 	const extractOpenAIErrorStatus = (errorMessage: string): number | null => {
 		const message = `${errorMessage ?? ''}`;
 		const patterns = [
@@ -6074,12 +6158,10 @@
 	const inferOpenAIErrorFamily = (status: number | null, errorMessage: string): string => {
 		const message = `${errorMessage ?? ''}`.toLowerCase();
 
-		if (
-			message.includes('server disconnected without sending a response') ||
-			message.includes('remote protocol error') ||
-			message.includes('connection closed before receiving response') ||
-			message.includes('peer closed connection without sending complete message body')
-		) {
+		if (UPSTREAM_RESPONSE_LOST_PATTERNS.some((pattern) => message.includes(pattern))) {
+			return 'upstream_response_lost';
+		}
+		if (status === 499) {
 			return 'upstream_response_lost';
 		}
 		if (status === 401 || status === 403) {

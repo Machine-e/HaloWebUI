@@ -467,6 +467,10 @@
 			return false;
 		}
 
+		if (message?.done === true && status?.done === false) {
+			return false;
+		}
+
 		return true;
 	});
 	$: latestDisplayStatus = displayStatusHistory.at(-1);

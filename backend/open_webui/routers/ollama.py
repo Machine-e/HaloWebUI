@@ -63,6 +63,8 @@ from open_webui.config import (
 from open_webui.env import (
     ENV,
     SRC_LOG_LEVELS,
+    AIOHTTP_CLIENT_CONNECT_TIMEOUT,
+    AIOHTTP_CLIENT_SOCK_READ_TIMEOUT,
     AIOHTTP_CLIENT_TIMEOUT,
     AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST,
     BYPASS_MODEL_ACCESS_CONTROL,
@@ -118,6 +120,14 @@ async def cleanup_response(
         await session.close()
 
 
+def _chat_client_timeout() -> aiohttp.ClientTimeout:
+    return aiohttp.ClientTimeout(
+        total=AIOHTTP_CLIENT_TIMEOUT,
+        sock_connect=AIOHTTP_CLIENT_CONNECT_TIMEOUT,
+        sock_read=AIOHTTP_CLIENT_SOCK_READ_TIMEOUT,
+    )
+
+
 def _format_ollama_error_detail(payload=None, error=None) -> str:
     return build_error_detail(payload, error, prefix="Ollama")
 
@@ -144,7 +154,8 @@ async def send_post_request(
     r = None
     try:
         session = aiohttp.ClientSession(
-            trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
+            trust_env=True,
+            timeout=_chat_client_timeout(),
         )
 
         r = await session.post(

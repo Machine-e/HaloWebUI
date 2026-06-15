@@ -586,7 +586,8 @@ export const getChatContextById = async (token: string, id: string) => {
 	return (
 		res ?? {
 			tags: [],
-			task_ids: []
+			task_ids: [],
+			tasks: []
 		}
 	);
 };
