@@ -104,6 +104,29 @@ async def _stalled_stream_before_first_data():
     yield b'data: {"choices":[{"delta":{"content":"late"}}]}\n\n'
 
 
+async def _content_stream(text="retried"):
+    yield (
+        "data: "
+        + f'{{"choices":[{{"delta":{{"content":"{text}"}},"finish_reason":null}}]}}'
+        + "\n\n"
+    ).encode()
+    yield b'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n'
+    yield b"data: [DONE]\n\n"
+
+
+async def _reasoning_only_stream():
+    await asyncio.sleep(0.02)
+    yield (
+        b'data: {"choices":[{"delta":{"reasoning_content":"still thinking"},'
+        b'"finish_reason":null}]}\n\n'
+    )
+    await asyncio.sleep(0.02)
+    yield (
+        b'data: {"choices":[{"delta":{"reasoning_content":"more thinking"},'
+        b'"finish_reason":null}]}\n\n'
+    )
+
+
 def test_stream_background_task_exception_finalizes_message(monkeypatch):
     events = []
     upserts = []
@@ -202,6 +225,7 @@ def test_stream_start_timeout_finalizes_message(monkeypatch):
 
     monkeypatch.setattr(middleware, "CHAT_STREAM_START_TIMEOUT", 0.01)
     monkeypatch.setattr(middleware, "CHAT_STREAM_IDLE_TIMEOUT", 1)
+    monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY", False)
     monkeypatch.setattr(middleware, "get_event_emitter", lambda _metadata: fake_event_emitter)
     monkeypatch.setattr(middleware, "get_event_call", lambda _metadata: object())
     monkeypatch.setattr(middleware, "get_sorted_filters", lambda _model: [])
@@ -268,3 +292,212 @@ def test_stream_start_timeout_finalizes_message(monkeypatch):
     final_upsert = upserts[-1][2]
     assert final_upsert["done"] is True
     assert final_upsert["error"]["family"] == "timeout"
+
+
+def test_stream_start_timeout_auto_retries_before_visible_output(monkeypatch):
+    events = []
+    upserts = []
+    created = {}
+    retry_calls = []
+
+    async def fake_event_emitter(event):
+        events.append(event)
+
+    async def fake_process_filter_functions(**kwargs):
+        return kwargs["form_data"], {}
+
+    async def fake_generate_chat_completion(request, form_data, user):
+        retry_calls.append(form_data)
+        return StreamingResponse(
+            _content_stream("retried"), media_type="text/event-stream"
+        )
+
+    def fake_create_task(coroutine, id=None, *, blocks_completion=True, message_id=None):
+        created["coroutine"] = coroutine
+        created["chat_id"] = id
+        created["blocks_completion"] = blocks_completion
+        created["message_id"] = message_id
+        return "task-1", SimpleNamespace()
+
+    monkeypatch.setattr(middleware, "CHAT_STREAM_START_TIMEOUT", 0.01)
+    monkeypatch.setattr(middleware, "CHAT_STREAM_IDLE_TIMEOUT", 1)
+    monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY", True)
+    monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY_MAX_ATTEMPTS", 2)
+    monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY_BACKOFF_SECONDS", [0])
+    monkeypatch.setattr(middleware, "get_event_emitter", lambda _metadata: fake_event_emitter)
+    monkeypatch.setattr(middleware, "get_event_call", lambda _metadata: object())
+    monkeypatch.setattr(middleware, "get_sorted_filters", lambda _model: [])
+    monkeypatch.setattr(middleware, "process_filter_functions", fake_process_filter_functions)
+    monkeypatch.setattr(middleware, "generate_chat_completion", fake_generate_chat_completion)
+    monkeypatch.setattr(middleware, "create_task", fake_create_task)
+    monkeypatch.setattr(middleware, "set_current_task_blocks_completion", lambda _value: True)
+    monkeypatch.setattr(middleware.Chats, "get_chat_title_by_id", lambda _chat_id: "Chat")
+    monkeypatch.setattr(middleware.Chats, "get_messages_by_chat_id", lambda _chat_id: {})
+    monkeypatch.setattr(middleware, "get_active_status_by_user_id", lambda _user_id: "active")
+    monkeypatch.setattr(
+        middleware.Chats,
+        "upsert_message_to_chat_by_id_and_message_id",
+        lambda chat_id, message_id, payload, **_kwargs: upserts.append(
+            (chat_id, message_id, payload)
+        ),
+    )
+
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                WEBUI_NAME="Halo WebUI",
+                config=SimpleNamespace(
+                    ENABLE_CHAT_RESPONSE_BASE64_IMAGE_URL_CONVERSION=False,
+                    WEBUI_URL="http://localhost",
+                ),
+            )
+        )
+    )
+    user = SimpleNamespace(id="user-1", email="u@example.com", name="User", role="user")
+    metadata = {
+        "session_id": "session-1",
+        "chat_id": "chat-1",
+        "message_id": "assistant-1",
+    }
+    response = StreamingResponse(
+        _stalled_stream_before_first_data(), media_type="text/event-stream"
+    )
+
+    result = asyncio.run(
+        middleware.process_chat_response(
+            request,
+            response,
+            {
+                "model": "gpt-test",
+                "stream": True,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+            user,
+            metadata,
+            {},
+            [],
+            {},
+        )
+    )
+
+    assert result == {"status": True, "task_id": "task-1"}
+    asyncio.run(created["coroutine"])
+
+    assert len(retry_calls) == 1
+    assert retry_calls[0]["stream"] is True
+    assert any(
+        event.get("type") == "status"
+        and event.get("data", {}).get("action") == "chat_auto_retry"
+        for event in events
+    )
+    final_event = [
+        event
+        for event in events
+        if event.get("type") == "chat:completion" and event.get("data", {}).get("done")
+    ][-1]["data"]
+    assert final_event["done"] is True
+    assert final_event["content"] == "retried"
+    assert "error" not in final_event
+
+
+def test_reasoning_only_stream_auto_retries_after_no_visible_output(monkeypatch):
+    events = []
+    upserts = []
+    created = {}
+    retry_calls = []
+
+    async def fake_event_emitter(event):
+        events.append(event)
+
+    async def fake_process_filter_functions(**kwargs):
+        return kwargs["form_data"], {}
+
+    async def fake_generate_chat_completion(request, form_data, user):
+        retry_calls.append(form_data)
+        return StreamingResponse(
+            _content_stream("visible"), media_type="text/event-stream"
+        )
+
+    def fake_create_task(coroutine, id=None, *, blocks_completion=True, message_id=None):
+        created["coroutine"] = coroutine
+        return "task-1", SimpleNamespace()
+
+    monkeypatch.setattr(middleware, "CHAT_STREAM_START_TIMEOUT", 1)
+    monkeypatch.setattr(middleware, "CHAT_STREAM_IDLE_TIMEOUT", 1)
+    monkeypatch.setattr(middleware, "CHAT_COMPLETION_NO_VISIBLE_OUTPUT_TIMEOUT", 0.01)
+    monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY", True)
+    monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY_MAX_ATTEMPTS", 2)
+    monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY_BACKOFF_SECONDS", [0])
+    monkeypatch.setattr(middleware, "get_event_emitter", lambda _metadata: fake_event_emitter)
+    monkeypatch.setattr(middleware, "get_event_call", lambda _metadata: object())
+    monkeypatch.setattr(middleware, "get_sorted_filters", lambda _model: [])
+    monkeypatch.setattr(middleware, "process_filter_functions", fake_process_filter_functions)
+    monkeypatch.setattr(middleware, "generate_chat_completion", fake_generate_chat_completion)
+    monkeypatch.setattr(middleware, "create_task", fake_create_task)
+    monkeypatch.setattr(middleware, "set_current_task_blocks_completion", lambda _value: True)
+    monkeypatch.setattr(middleware.Chats, "get_chat_title_by_id", lambda _chat_id: "Chat")
+    monkeypatch.setattr(middleware.Chats, "get_messages_by_chat_id", lambda _chat_id: {})
+    monkeypatch.setattr(middleware, "get_active_status_by_user_id", lambda _user_id: "active")
+    monkeypatch.setattr(
+        middleware.Chats,
+        "upsert_message_to_chat_by_id_and_message_id",
+        lambda chat_id, message_id, payload, **_kwargs: upserts.append(
+            (chat_id, message_id, payload)
+        ),
+    )
+
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                WEBUI_NAME="Halo WebUI",
+                config=SimpleNamespace(
+                    ENABLE_CHAT_RESPONSE_BASE64_IMAGE_URL_CONVERSION=False,
+                    WEBUI_URL="http://localhost",
+                ),
+            )
+        )
+    )
+    user = SimpleNamespace(id="user-1", email="u@example.com", name="User", role="user")
+    metadata = {
+        "session_id": "session-1",
+        "chat_id": "chat-1",
+        "message_id": "assistant-1",
+    }
+    response = StreamingResponse(_reasoning_only_stream(), media_type="text/event-stream")
+
+    result = asyncio.run(
+        middleware.process_chat_response(
+            request,
+            response,
+            {
+                "model": "gpt-test",
+                "stream": True,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+            user,
+            metadata,
+            {},
+            [],
+            {},
+        )
+    )
+
+    assert result == {"status": True, "task_id": "task-1"}
+    asyncio.run(created["coroutine"])
+
+    assert len(retry_calls) == 1
+    retry_statuses = [
+        event
+        for event in events
+        if event.get("type") == "status"
+        and event.get("data", {}).get("action") == "chat_auto_retry"
+    ]
+    assert retry_statuses
+    assert retry_statuses[0]["data"]["reason"] == "stream_visible_output"
+    final_event = [
+        event
+        for event in events
+        if event.get("type") == "chat:completion" and event.get("data", {}).get("done")
+    ][-1]["data"]
+    assert final_event["content"] == "visible"
+    assert "error" not in final_event
