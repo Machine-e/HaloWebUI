@@ -453,6 +453,48 @@ def _get_optional_positive_int_env(name: str, default: str) -> int | None:
     return value_int if value_int > 0 else None
 
 
+def _get_bool_env(name: str, default: str) -> bool:
+    return os.environ.get(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _get_positive_int_env(name: str, default: str) -> int:
+    try:
+        value = int(os.environ.get(name, default))
+    except Exception:
+        value = int(default)
+    return max(value, 1)
+
+
+def _get_float_list_env(name: str, default: str) -> list[float]:
+    raw = os.environ.get(name, default)
+    values: list[float] = []
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            value = float(item)
+        except Exception:
+            continue
+        if value >= 0:
+            values.append(value)
+    return values or [float(default.split(",")[0])]
+
+
+def _get_int_set_env(name: str, default: str) -> set[int]:
+    raw = os.environ.get(name, default)
+    values: set[int] = set()
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            values.add(int(item))
+        except Exception:
+            continue
+    return values
+
+
 AIOHTTP_CLIENT_CONNECT_TIMEOUT = _get_optional_positive_int_env(
     "AIOHTTP_CLIENT_CONNECT_TIMEOUT", "30"
 )
@@ -464,6 +506,19 @@ CHAT_STREAM_START_TIMEOUT = _get_optional_positive_int_env(
 )
 CHAT_STREAM_IDLE_TIMEOUT = _get_optional_positive_int_env(
     "CHAT_STREAM_IDLE_TIMEOUT", "120"
+)
+CHAT_COMPLETION_AUTO_RETRY = _get_bool_env("CHAT_COMPLETION_AUTO_RETRY", "true")
+CHAT_COMPLETION_AUTO_RETRY_MAX_ATTEMPTS = _get_positive_int_env(
+    "CHAT_COMPLETION_AUTO_RETRY_MAX_ATTEMPTS", "2"
+)
+CHAT_COMPLETION_AUTO_RETRY_BACKOFF_SECONDS = _get_float_list_env(
+    "CHAT_COMPLETION_AUTO_RETRY_BACKOFF_SECONDS", "2"
+)
+CHAT_COMPLETION_AUTO_RETRY_STATUSES = _get_int_set_env(
+    "CHAT_COMPLETION_AUTO_RETRY_STATUSES", "408,429,500,502,503,504,524"
+)
+CHAT_COMPLETION_NO_VISIBLE_OUTPUT_TIMEOUT = _get_optional_positive_int_env(
+    "CHAT_COMPLETION_NO_VISIBLE_OUTPUT_TIMEOUT", "180"
 )
 
 AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST = os.environ.get(

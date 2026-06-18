@@ -187,6 +187,11 @@ from open_webui.env import (
     GLOBAL_LOG_LEVEL,
     BYPASS_MODEL_ACCESS_CONTROL,
     ENABLE_REALTIME_CHAT_SAVE,
+    CHAT_COMPLETION_AUTO_RETRY,
+    CHAT_COMPLETION_AUTO_RETRY_BACKOFF_SECONDS,
+    CHAT_COMPLETION_AUTO_RETRY_MAX_ATTEMPTS,
+    CHAT_COMPLETION_AUTO_RETRY_STATUSES,
+    CHAT_COMPLETION_NO_VISIBLE_OUTPUT_TIMEOUT,
     CHAT_STREAM_IDLE_TIMEOUT,
     CHAT_STREAM_START_TIMEOUT,
 )
@@ -1222,6 +1227,66 @@ def _has_visible_assistant_output(content_blocks: Any, message_files: Any) -> bo
     return _has_nonempty_text_content(content_blocks) or _has_visible_message_files(
         message_files
     )
+
+
+def _has_non_reasoning_text_content(content_blocks: Any) -> bool:
+    if not isinstance(content_blocks, list):
+        return False
+
+    for block in content_blocks:
+        if not isinstance(block, dict):
+            continue
+
+        block_type = str(block.get("type") or "").strip().lower()
+        if block_type != "text":
+            continue
+
+        block_content = strip_reasoning_details(str(block.get("content") or ""))
+        if block_content.strip():
+            return True
+
+    return False
+
+
+def _has_visible_answer_output(content_blocks: Any, message_files: Any) -> bool:
+    return _has_non_reasoning_text_content(content_blocks) or _has_visible_message_files(
+        message_files
+    )
+
+
+def _has_retry_blocking_output(content_blocks: Any, message_files: Any) -> bool:
+    if _has_visible_answer_output(content_blocks, message_files):
+        return True
+
+    if not isinstance(content_blocks, list):
+        return False
+
+    for block in content_blocks:
+        if not isinstance(block, dict):
+            continue
+
+        block_type = str(block.get("type") or "").strip().lower()
+        if block_type in {"tool_calls", "code_interpreter"}:
+            return True
+
+    return False
+
+
+def _is_retryable_api_error_payload(error_payload: Any) -> bool:
+    if not isinstance(error_payload, dict):
+        return False
+
+    status = error_payload.get("status")
+    try:
+        status = int(status) if status is not None else None
+    except Exception:
+        status = None
+
+    if status is not None:
+        return status in CHAT_COMPLETION_AUTO_RETRY_STATUSES
+
+    family = str(error_payload.get("family") or "").strip()
+    return family in {"timeout", "cloudflare_timeout", "rate_limited"}
 
 
 def _append_text_to_content_blocks(content_blocks: Any, text: str) -> Optional[dict]:
@@ -2383,7 +2448,12 @@ def _build_stream_timeout_error_payload(
     reasons, suggestion = _build_api_error_reasons_and_suggestion(
         family=family, status=None
     )
-    if error.had_output:
+    if error.phase == "visible_output":
+        body = (
+            f"上游流式响应在 {error.timeout_s} 秒内持续没有返回可显示的正文。"
+            "当前回复已结束，避免页面继续卡在等待状态。"
+        )
+    elif error.had_output:
         body = (
             f"上游流式响应已经产生部分内容，但在 {error.timeout_s} 秒内没有继续返回有效数据。"
             "当前回复已保留已有内容并结束，避免页面继续卡在等待状态。"
@@ -6490,6 +6560,8 @@ async def process_chat_response(
                 message.get("files") if message else None, None
             )
             pending_stream_images: dict[str, dict[str, Any]] = {}
+            initial_content = content
+            initial_message_files = deepcopy(message_files)
 
             content_blocks = [
                 {
@@ -6501,6 +6573,25 @@ async def process_chat_response(
             # Accumulate usage (token counts) across all LLM rounds so the
             # frontend info button can display them even after tool orchestration.
             accumulated_usage: dict = {}
+
+            def reset_stream_attempt_state() -> None:
+                nonlocal content
+                nonlocal content_blocks
+                nonlocal message_files
+                nonlocal accumulated_usage
+
+                content = initial_content
+                message_files = deepcopy(initial_message_files)
+                pending_stream_images.clear()
+                tool_calls.clear()
+                tool_call_batch_repairs.clear()
+                content_blocks = [
+                    {
+                        "type": "text",
+                        "content": content,
+                    }
+                ]
+                accumulated_usage = {}
 
             def _merge_usage(incoming: dict) -> None:
                 """Merge *incoming* usage dict into accumulated_usage (in-place)."""
@@ -6607,6 +6698,117 @@ async def process_chat_response(
                 _stream_response_status = None
                 _stream_non_sse_error_lines: list[str] = []
                 stream_started_at = time.time()
+                auto_retry_max_attempts = (
+                    max(1, CHAT_COMPLETION_AUTO_RETRY_MAX_ATTEMPTS)
+                    if CHAT_COMPLETION_AUTO_RETRY
+                    else 1
+                )
+
+                async def cleanup_stream_response(stream_response) -> None:
+                    background = getattr(stream_response, "background", None)
+                    if background is None:
+                        return
+                    try:
+                        await background()
+                    except Exception as cleanup_error:
+                        log.warning(
+                            "Failed to clean up failed retry stream response: %s",
+                            cleanup_error,
+                        )
+
+                async def emit_auto_retry_status(
+                    *,
+                    attempt: int,
+                    max_attempts: int,
+                    reason: str,
+                    done: bool = False,
+                ) -> None:
+                    try:
+                        await event_emitter(
+                            {
+                                "type": "status",
+                                "data": {
+                                    "action": "chat_auto_retry",
+                                    "description": (
+                                        "自动重试已恢复响应"
+                                        if done
+                                        else "上游在首个可见输出前失败，正在自动重试"
+                                    ),
+                                    "attempt": attempt,
+                                    "max_attempts": max_attempts,
+                                    "reason": reason,
+                                    "done": done,
+                                },
+                            }
+                        )
+                    except Exception:
+                        pass
+
+                def should_auto_retry_stream_failure(error: Exception | None) -> bool:
+                    if not CHAT_COMPLETION_AUTO_RETRY:
+                        return False
+                    if _has_retry_blocking_output(content_blocks, message_files):
+                        return False
+                    if isinstance(error, ChatStreamTimeoutError):
+                        return not error.had_output
+                    if isinstance(error, (asyncio.TimeoutError, TimeoutError)):
+                        return True
+                    return False
+
+                def build_retryable_empty_stream_reason() -> str | None:
+                    if _has_retry_blocking_output(content_blocks, message_files):
+                        return None
+
+                    if _stream_api_error:
+                        error_payload = _build_api_error_payload(
+                            _stream_api_error,
+                            form_data.get("model", ""),
+                            status_override=_stream_response_status,
+                        )
+                        if _is_retryable_api_error_payload(error_payload):
+                            status = error_payload.get("status")
+                            return (
+                                f"api_error_{status}"
+                                if status
+                                else f"api_error_{error_payload.get('family') or 'unknown'}"
+                            )
+                        return None
+
+                    if (
+                        _stream_response_status
+                        and _stream_response_status
+                        in CHAT_COMPLETION_AUTO_RETRY_STATUSES
+                    ):
+                        return f"http_{_stream_response_status}"
+
+                    if not _has_visible_answer_output(content_blocks, message_files):
+                        return "empty_response"
+
+                    return None
+
+                async def create_retry_response(next_attempt: int, reason: str):
+                    retry_form_data = deepcopy(form_data)
+                    retry_form_data["stream"] = True
+                    retry_form_data["metadata"] = metadata
+                    log.warning(
+                        "[CHAT AUTO RETRY] attempt=%s/%s reason=%s model=%s chat_id=%s message_id=%s",
+                        next_attempt,
+                        auto_retry_max_attempts,
+                        reason,
+                        form_data.get("model", ""),
+                        metadata.get("chat_id"),
+                        metadata.get("message_id"),
+                    )
+                    await emit_auto_retry_status(
+                        attempt=next_attempt,
+                        max_attempts=auto_retry_max_attempts,
+                        reason=reason,
+                    )
+                    backoffs = CHAT_COMPLETION_AUTO_RETRY_BACKOFF_SECONDS
+                    delay = backoffs[min(next_attempt - 2, len(backoffs) - 1)]
+                    if delay > 0:
+                        await asyncio.sleep(delay)
+                    return await generate_chat_completion(request, retry_form_data, user)
 
                 async def stream_body_handler(response):
                     nonlocal content
@@ -6675,6 +6877,20 @@ async def process_chat_response(
 
                     stream_iterator = response.body_iterator.__aiter__()
 
+                    def enforce_no_visible_output_timeout() -> None:
+                        timeout_s = CHAT_COMPLETION_NO_VISIBLE_OUTPUT_TIMEOUT
+                        if timeout_s is None:
+                            return
+                        if _has_visible_answer_output(content_blocks, message_files):
+                            return
+                        if time.time() - stream_started_at < float(timeout_s):
+                            return
+                        raise ChatStreamTimeoutError(
+                            phase="visible_output",
+                            timeout_s=timeout_s,
+                            had_output=False,
+                        )
+
                     async def read_next_stream_line():
                         timeout_s = (
                             CHAT_STREAM_START_TIMEOUT
@@ -6695,7 +6911,7 @@ async def process_chat_response(
                             raise ChatStreamTimeoutError(
                                 phase=phase,
                                 timeout_s=timeout_s,
-                                had_output=_has_visible_assistant_output(
+                                had_output=_has_visible_answer_output(
                                     content_blocks, message_files
                                 ),
                             )
@@ -6708,7 +6924,7 @@ async def process_chat_response(
                             raise ChatStreamTimeoutError(
                                 phase=phase,
                                 timeout_s=timeout_s,
-                                had_output=_has_visible_assistant_output(
+                                had_output=_has_visible_answer_output(
                                     content_blocks, message_files
                                 ),
                             ) from exc
@@ -6848,6 +7064,7 @@ async def process_chat_response(
                                                 },
                                             }
                                         )
+                                    enforce_no_visible_output_timeout()
                                     continue
 
                                 choice = (
@@ -7164,6 +7381,7 @@ async def process_chat_response(
                                     and not annotations
                                     and not _raw_usage
                                 ):
+                                    enforce_no_visible_output_timeout()
                                     continue
 
                                 if value:
@@ -7254,7 +7472,11 @@ async def process_chat_response(
                                         "data": data,
                                     }
                                 )
+                                enforce_no_visible_output_timeout()
                         except Exception as e:
+                            if isinstance(e, ChatStreamTimeoutError):
+                                raise
+
                             done = "data: [DONE]" in line
                             if done:
                                 log.info(
@@ -7380,7 +7602,71 @@ async def process_chat_response(
                     if response.background:
                         await response.background()
 
-                await stream_body_handler(response)
+                async def run_stream_with_auto_retry() -> None:
+                    nonlocal response
+                    nonlocal stream_started_at
+                    nonlocal _stream_api_error
+                    nonlocal _stream_response_status
+                    nonlocal _stream_non_sse_error_lines
+
+                    attempt = 1
+                    retried = False
+
+                    while True:
+                        reset_stream_attempt_state()
+                        _stream_api_error = None
+                        _stream_response_status = None
+                        _stream_non_sse_error_lines = []
+                        stream_started_at = time.time()
+
+                        try:
+                            await stream_body_handler(response)
+                        except Exception as stream_error:
+                            reason = (
+                                f"stream_{getattr(stream_error, 'phase')}"
+                                if isinstance(stream_error, ChatStreamTimeoutError)
+                                else stream_error.__class__.__name__
+                            )
+                            if (
+                                attempt < auto_retry_max_attempts
+                                and should_auto_retry_stream_failure(stream_error)
+                            ):
+                                await cleanup_stream_response(response)
+                                attempt += 1
+                                retried = True
+                                response = await create_retry_response(attempt, reason)
+                                if not isinstance(response, StreamingResponse):
+                                    raise RuntimeError(
+                                        "Auto retry returned a non-streaming response"
+                                    )
+                                continue
+                            raise
+
+                        retry_reason = build_retryable_empty_stream_reason()
+                        if attempt < auto_retry_max_attempts and retry_reason:
+                            attempt += 1
+                            retried = True
+                            response = await create_retry_response(
+                                attempt, retry_reason
+                            )
+                            if not isinstance(response, StreamingResponse):
+                                raise RuntimeError(
+                                    "Auto retry returned a non-streaming response"
+                                )
+                            continue
+
+                        if retried and _has_visible_answer_output(
+                            content_blocks, message_files
+                        ):
+                            await emit_auto_retry_status(
+                                attempt=attempt,
+                                max_attempts=auto_retry_max_attempts,
+                                reason="recovered",
+                                done=True,
+                            )
+                        return
+
+                await run_stream_with_auto_retry()
 
                 native_cfg = get_user_native_tools_config(request, user)
                 max_rounds_cfg = normalize_max_tool_call_rounds(
@@ -9812,7 +10098,7 @@ async def process_chat_response(
 
                 # Detect empty response (model returned 200 but no content).
                 # Common with reverse proxies / relay services that swallow errors.
-                if not finalize_error_payload and not _has_visible_assistant_output(
+                if not finalize_error_payload and not _has_visible_answer_output(
                     content_blocks, message_files
                 ):
                     model_id_display = form_data.get("model", "unknown")
