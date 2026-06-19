@@ -1581,6 +1581,15 @@ async def chat_completion(
     user=Depends(get_verified_user),
 ):
     original_request_body = await request.body()
+    log.info(
+        "[CHAT REQUEST] /api/chat/completions received | user=%s | chat_id=%s | message_id=%s | model=%s | stream=%s | direct=%s",
+        getattr(user, "id", None),
+        form_data.get("chat_id"),
+        form_data.get("id"),
+        form_data.get("model"),
+        form_data.get("stream"),
+        bool((form_data.get("model_item") or {}).get("direct", False)),
+    )
     model_item = form_data.pop("model_item", {})
     tasks = form_data.pop("background_tasks", None)
 
