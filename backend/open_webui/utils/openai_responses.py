@@ -130,6 +130,59 @@ def _stringify_reasoning_content(content: Any) -> str:
     return ""
 
 
+def responses_payload_expects_reasoning(payload: Any) -> bool:
+    """
+    Return True when a Responses API payload is configured to produce reasoning.
+
+    OpenAI-style payloads commonly use `reasoning.effort`; some compatible
+    providers and Halo controls use `thinking.type`/`budget_tokens` instead.
+    """
+    if not isinstance(payload, dict):
+        return False
+
+    off_values = {"", "none", "off", "disabled", "disable", "false", "0", "no"}
+    default_values = {"default"}
+
+    def enabled_scalar(value: Any) -> bool:
+        if value is None:
+            return False
+        normalized = str(value).strip().lower()
+        return normalized not in off_values and normalized not in default_values
+
+    reasoning = payload.get("reasoning")
+    if isinstance(reasoning, dict):
+        if enabled_scalar(reasoning.get("effort")):
+            return True
+        if enabled_scalar(reasoning.get("summary")) and enabled_scalar(
+            reasoning.get("effort")
+        ):
+            return True
+
+    if enabled_scalar(payload.get("reasoning_effort")):
+        return True
+
+    thinking = payload.get("thinking")
+    if isinstance(thinking, dict):
+        thinking_type = (
+            str(thinking.get("type")).strip().lower()
+            if thinking.get("type") is not None
+            else None
+        )
+        if thinking_type in off_values:
+            return False
+        if thinking_type in {"enabled", "enable", "true", "1", "yes", "on", "auto"}:
+            return True
+        if "budget_tokens" in thinking:
+            try:
+                return int(thinking.get("budget_tokens") or 0) > 0
+            except (TypeError, ValueError):
+                return True
+    elif enabled_scalar(thinking):
+        return True
+
+    return False
+
+
 def convert_tools_chat_to_responses(tools: Any) -> Any:
     """
     Chat Completions tools:
@@ -653,6 +706,7 @@ async def responses_events_to_chat_completions_sse(
     events: AsyncIterator[dict],
     *,
     model_id: str,
+    reasoning_expected: bool = False,
 ) -> AsyncIterator[str]:
     """
     Convert Responses streaming events to Chat Completions SSE chunks.
@@ -669,6 +723,7 @@ async def responses_events_to_chat_completions_sse(
     saw_content = False
     saw_text_content = False
     saw_reasoning_content = False
+    reasoning_started = False
     reasoning_delta_seen: set[str] = set()
 
     def _tool_state(stable_id: str, idx: int) -> Dict[str, Any]:
@@ -732,6 +787,20 @@ async def responses_events_to_chat_completions_sse(
         if usage is not None:
             chunk["usage"] = usage
         return chunk
+
+    def make_reasoning_start_chunk() -> Optional[dict]:
+        nonlocal reasoning_started, saw_content
+        if reasoning_started:
+            return None
+
+        reasoning_started = True
+        saw_content = True
+        return make_chunk(reasoning_content="")
+
+    if reasoning_expected:
+        chunk = make_reasoning_start_chunk()
+        if chunk is not None:
+            yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
 
     def _extract_provided_index(item: Any, event_obj: dict) -> Optional[int]:
         candidates = []
@@ -807,12 +876,14 @@ async def responses_events_to_chat_completions_sse(
 
         event_type = event.get("type", "") or ""
 
-        # Temporary diagnostic: log every upstream event type
-        if event_type and event_type not in ("response.output_text.delta",):
-            log.info("[RESPONSES SSE] event_type=%s keys=%s", event_type, sorted(event.keys()))
-        # Extra: log full payload for any reasoning-related event
-        if "reasoning" in event_type:
-            log.info("[RESPONSES SSE] REASONING_EVENT_FULL: %s", json.dumps(event, ensure_ascii=False, default=str)[:3000])
+        if log.isEnabledFor(logging.DEBUG) and event_type and event_type not in (
+            "response.output_text.delta",
+        ):
+            log.debug(
+                "[RESPONSES SSE] event_type=%s keys=%s",
+                event_type,
+                sorted(event.keys()),
+            )
 
         if event_type == "response.output_text.delta":
             delta = event.get("delta", "")
@@ -856,6 +927,17 @@ async def responses_events_to_chat_completions_sse(
                 saw_content = True
                 saw_reasoning_content = True
                 yield f"data: {json.dumps(make_chunk(reasoning_content=delta_text), ensure_ascii=False)}\n\n"
+            continue
+
+        if event_type in (
+            "response.reasoning_summary_part.added",
+            "response.reasoning_part.added",
+            "response.reasoning_text.created",
+            "response.reasoning.created",
+        ):
+            chunk = make_reasoning_start_chunk()
+            if chunk is not None:
+                yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
             continue
 
         if event_type in (
@@ -971,18 +1053,22 @@ async def responses_events_to_chat_completions_sse(
                     reasoning_text = _stringify_reasoning_content(
                         item.get("summary") or item.get("content") or item
                     )
-                    log.info(
-                        "[RESPONSES SSE] reasoning item: type=%s summary_len=%d content_len=%d has_encrypted=%s FULL_ITEM=%s",
-                        item_type,
-                        len(_stringify_reasoning_content(item.get("summary"))),
-                        len(_stringify_reasoning_content(item.get("content"))),
-                        bool(item.get("encrypted_content")),
-                        json.dumps(item, ensure_ascii=False, default=str)[:2000],
-                    )
+                    if log.isEnabledFor(logging.DEBUG):
+                        log.debug(
+                            "[RESPONSES SSE] reasoning item: type=%s summary_len=%d content_len=%d has_encrypted=%s",
+                            item_type,
+                            len(_stringify_reasoning_content(item.get("summary"))),
+                            len(_stringify_reasoning_content(item.get("content"))),
+                            bool(item.get("encrypted_content")),
+                        )
                     if reasoning_text:
                         saw_content = True
                         saw_reasoning_content = True
                         yield f"data: {json.dumps(make_chunk(reasoning_content=reasoning_text), ensure_ascii=False)}\n\n"
+                    elif event_type == "response.output_item.added":
+                        chunk = make_reasoning_start_chunk()
+                        if chunk is not None:
+                            yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
                     continue
 
                 if item_type == "message" and not saw_text_content and event_type == "response.output_item.done":
@@ -1017,14 +1103,22 @@ async def responses_events_to_chat_completions_sse(
                             )
                             if reasoning_text:
                                 completed_reasoning_texts.append(reasoning_text)
-                            log.info(
-                                "[RESPONSES SSE] FINAL reasoning output[%d]: summary_len=%d content_len=%d has_encrypted=%s FULL_ITEM=%s",
-                                oi_idx,
-                                len(_stringify_reasoning_content(oi.get("summary"))),
-                                len(_stringify_reasoning_content(oi.get("content"))),
-                                bool(oi.get("encrypted_content")),
-                                json.dumps(oi, ensure_ascii=False, default=str)[:3000],
-                            )
+                            if log.isEnabledFor(logging.DEBUG):
+                                log.debug(
+                                    "[RESPONSES SSE] final reasoning output[%d]: summary_len=%d content_len=%d has_encrypted=%s",
+                                    oi_idx,
+                                    len(
+                                        _stringify_reasoning_content(
+                                            oi.get("summary")
+                                        )
+                                    ),
+                                    len(
+                                        _stringify_reasoning_content(
+                                            oi.get("content")
+                                        )
+                                    ),
+                                    bool(oi.get("encrypted_content")),
+                                )
             if completed_reasoning_texts and not saw_reasoning_content:
                 reasoning_text = "\n".join(part for part in completed_reasoning_texts if part)
                 if reasoning_text:

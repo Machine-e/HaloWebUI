@@ -13,6 +13,7 @@ from open_webui.utils.openai_responses import (
     convert_chat_completions_to_responses_payload,
     convert_responses_to_chat_completions,
     iter_responses_events,
+    responses_payload_expects_reasoning,
     responses_events_to_chat_completions_sse,
 )
 
@@ -180,6 +181,22 @@ def test_convert_chat_completions_to_responses_payload_enables_reasoning_summary
     assert r["reasoning"] == {"effort": "high", "summary": "auto"}
 
 
+def test_responses_payload_expects_reasoning_controls():
+    assert responses_payload_expects_reasoning(
+        {"reasoning": {"effort": "high", "summary": "auto"}}
+    )
+    assert responses_payload_expects_reasoning(
+        {"thinking": {"type": "enabled", "budget_tokens": 2048}}
+    )
+    assert responses_payload_expects_reasoning({"thinking": {"budget_tokens": 2048}})
+
+    assert not responses_payload_expects_reasoning({"reasoning": {"effort": "none"}})
+    assert not responses_payload_expects_reasoning(
+        {"thinking": {"type": "disabled"}}
+    )
+    assert not responses_payload_expects_reasoning({"reasoning_effort": "default"})
+
+
 def test_convert_chat_completions_to_responses_payload_preserves_input_files():
     chat = {
         "model": "gpt-test",
@@ -296,6 +313,43 @@ def test_responses_events_to_chat_sse_reasoning_summary_part_done():
 
     lines = asyncio.run(run())
     assert any('"reasoning_content": "先看输入，再回答。"' in line for line in lines)
+
+
+def test_responses_events_to_chat_sse_starts_reasoning_when_expected():
+    events = [
+        {"type": "response.created", "response": {"id": "resp_1"}},
+        {"type": "response.reasoning_summary_text.delta", "delta": "先分析"},
+        {"type": "response.completed"},
+    ]
+
+    async def run():
+        sse = responses_events_to_chat_completions_sse(
+            _aiter(events),
+            model_id="gpt-test",
+            reasoning_expected=True,
+        )
+        return await _collect_async(sse)
+
+    lines = asyncio.run(run())
+    assert '"reasoning_content": ""' in lines[0]
+    assert any('"reasoning_content": "先分析"' in line for line in lines)
+
+
+def test_responses_events_to_chat_sse_starts_reasoning_on_placeholder_item():
+    events = [
+        {
+            "type": "response.output_item.added",
+            "item": {"id": "rs_1", "type": "reasoning", "summary": []},
+        },
+        {"type": "response.completed"},
+    ]
+
+    async def run():
+        sse = responses_events_to_chat_completions_sse(_aiter(events), model_id="gpt-test")
+        return await _collect_async(sse)
+
+    lines = asyncio.run(run())
+    assert any('"reasoning_content": ""' in line for line in lines)
 
 
 def test_responses_events_to_chat_sse_reasoning_text_delta():

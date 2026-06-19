@@ -6378,6 +6378,22 @@ async def process_chat_response(
                 )
                 return stringify_stream_content(value)
 
+            def has_reasoning_signal(message_or_delta: dict) -> bool:
+                if not isinstance(message_or_delta, dict):
+                    return False
+
+                return any(
+                    key in message_or_delta
+                    for key in (
+                        "reasoning_content",
+                        "reasoning",
+                        "thinking",
+                        "thinking_content",
+                        "thought",
+                        "thought_content",
+                    )
+                )
+
             def tag_content_handler(content_type, tags, content, content_blocks):
                 end_flag = False
 
@@ -7013,11 +7029,7 @@ async def process_chat_response(
                                     else {}
                                 )
                                 _evt_has_content = bool(_evt_delta.get("content"))
-                                _evt_has_reasoning = (
-                                    bool(extract_reasoning_content(_evt_delta))
-                                    if _evt_delta
-                                    else False
-                                )
+                                _evt_has_reasoning = has_reasoning_signal(_evt_delta)
                                 _evt_has_tool_calls = bool(_evt_delta.get("tool_calls"))
                                 _evt_content_snippet = (
                                     str(_evt_delta.get("content", ""))[:80]
@@ -7326,11 +7338,14 @@ async def process_chat_response(
                                     await emit_new_message_files(streamed_files)
 
                                 reasoning_content = extract_reasoning_content(delta)
+                                reasoning_signal = has_reasoning_signal(delta)
+                                if not reasoning_signal and isinstance(choice, dict):
+                                    reasoning_signal = has_reasoning_signal(choice)
                                 if not reasoning_content and isinstance(choice, dict):
                                     reasoning_content = extract_reasoning_content(
                                         choice
                                     )
-                                if reasoning_content:
+                                if reasoning_signal:
                                     if (
                                         not content_blocks
                                         or content_blocks[-1]["type"] != "reasoning"
@@ -7360,7 +7375,8 @@ async def process_chat_response(
                                     else:
                                         reasoning_block = content_blocks[-1]
 
-                                    reasoning_block["content"] += reasoning_content
+                                    if reasoning_content:
+                                        reasoning_block["content"] += reasoning_content
 
                                     data = {
                                         "content": serialize_content_blocks(
@@ -7376,7 +7392,7 @@ async def process_chat_response(
                                 if (
                                     streamed_files
                                     and not value
-                                    and not reasoning_content
+                                    and not reasoning_signal
                                     and not delta_tool_calls
                                     and not annotations
                                     and not _raw_usage

@@ -63,6 +63,7 @@ from open_webui.utils.openai_responses import (
     convert_chat_completions_to_responses_payload,
     convert_responses_to_chat_completions,
     iter_responses_events,
+    responses_payload_expects_reasoning,
     responses_events_to_chat_completions_sse,
 )
 from open_webui.utils.native_web_search import (
@@ -84,6 +85,7 @@ from open_webui.utils.api_key_pool import (
     normalize_api_key_pool_config,
     should_retry_api_key,
 )
+from open_webui.socket.main import get_event_emitter
 
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.access_control import has_access
@@ -643,6 +645,35 @@ def _has_explicit_reasoning_summary_setting(chat_payload: Optional[dict]) -> boo
         isinstance(reasoning, dict)
         and isinstance(reasoning.get("summary"), str)
         and reasoning.get("summary", "").strip()
+    )
+
+
+async def _emit_responses_reasoning_placeholder(
+    metadata: Any, payload: Any
+) -> None:
+    if not responses_payload_expects_reasoning(payload):
+        return
+    if not isinstance(metadata, dict):
+        return
+    if not (
+        metadata.get("user_id")
+        and metadata.get("chat_id")
+        and metadata.get("message_id")
+    ):
+        return
+
+    emitter = get_event_emitter(metadata, update_db=False)
+    await emitter(
+        {
+            "type": "chat:completion",
+            "data": {
+                "content": (
+                    '<details type="reasoning" done="false">\n'
+                    "<summary>Thinking…</summary>\n"
+                    "</details>"
+                ),
+            },
+        }
     )
 
 
@@ -3037,6 +3068,11 @@ async def generate_chat_completion(
         payload_dict,
         model_id=model_id,
     )
+    responses_reasoning_expected = (
+        use_responses_api
+        and bool(payload_dict.get("stream"))
+        and responses_payload_expects_reasoning(payload_dict)
+    )
 
     request_attempts = (
         [(request_url, payload_dict)]
@@ -3102,6 +3138,12 @@ async def generate_chat_completion(
             if "tools" in _diag_payload and _diag_payload["tools"]:
                 _diag_payload["tools"] = f"[{len(_diag_payload['tools'])} tools, omitted]"
             log.debug("[UPSTREAM REQUEST] payload=%s", json.dumps(_diag_payload, ensure_ascii=False, default=str)[:4000])
+
+    if responses_reasoning_expected:
+        try:
+            await _emit_responses_reasoning_placeholder(metadata, payload_dict)
+        except Exception as e:
+            log.debug("Failed to emit Responses reasoning placeholder: %s", e)
 
     r = None
     session = None
@@ -3406,7 +3448,9 @@ async def generate_chat_completion(
                     r.content.iter_any(), content_type=content_type
                 )
                 sse_iter = responses_events_to_chat_completions_sse(
-                    events, model_id=model_id
+                    events,
+                    model_id=model_id,
+                    reasoning_expected=responses_reasoning_expected,
                 )
                 return StreamingResponse(
                     sse_iter,
