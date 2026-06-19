@@ -958,8 +958,12 @@ export const deleteSharedChatById = async (token: string, id: string) => {
 
 export const updateChatById = async (token: string, id: string, chat: object) => {
 	let error = null;
+	const chatId = `${id ?? ''}`.trim();
+	if (!chatId) {
+		throw new Error('Missing chat id.');
+	}
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/chats/${id}`, {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/chats/${encodeURIComponent(chatId)}`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',

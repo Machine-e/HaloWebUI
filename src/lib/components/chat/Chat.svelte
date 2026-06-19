@@ -130,6 +130,7 @@
 	} from '$lib/apis/chats';
 	import { getModelById as getWorkspaceModelById } from '$lib/apis/models';
 	import { generateOpenAIChatCompletion } from '$lib/apis/openai';
+	import { getErrorDetail } from '$lib/apis/response';
 	import { processWeb, processWebSearch, processYoutubeVideo } from '$lib/apis/retrieval';
 	import { createOpenAITextStream } from '$lib/apis/streaming';
 	import { queryMemory } from '$lib/apis/memories';
@@ -415,6 +416,8 @@
 		message.files = mergeMessageFiles(message.files, normalizedReferenceFiles);
 		return requestHistory;
 	};
+	const formatError = (error: unknown, fallback = $i18n.t('Request failed')) =>
+		getErrorDetail(error, fallback);
 	const withTimeout = async <T>(
 		promise: Promise<T>,
 		timeoutMs: number,
@@ -2860,7 +2863,7 @@
 						created_at: task?.created_at,
 						updated_at: task?.updated_at
 					};
-				}))
+				})
 				.filter((task): task is ChatTaskInfo => Boolean(task.id));
 		}
 
@@ -5602,14 +5605,23 @@
 			}
 			history = history;
 
-			if (newChat && _history.messages[_history.currentId].parentId === null) {
-				_chatId = await initChatHandler(_history);
+			try {
+				if (newChat && _history.messages[_history.currentId].parentId === null) {
+					_chatId = await initChatHandler(_history);
+				}
+
+				await tick();
+
+				_history = structuredClone(history);
+				await saveChatHandler(_chatId, _history);
+			} catch (error) {
+				await failPendingResponseMessages(
+					[responseMessageId],
+					error,
+					$i18n.t('Failed to start chat request.')
+				);
+				return;
 			}
-
-			await tick();
-
-			_history = structuredClone(history);
-			await saveChatHandler(_chatId, _history);
 			const requestHistory: any = appendReferenceFilesToRequestHistory(
 				_history,
 				parentId,
@@ -5633,7 +5645,17 @@
 				}
 			}
 
-			let userContext = await getOptionalMemoryContext(prompt);
+			let userContext = null;
+			try {
+				userContext = await getOptionalMemoryContext(prompt);
+			} catch (error) {
+				await failPendingResponseMessages(
+					[responseMessageId],
+					error,
+					$i18n.t('Failed to prepare chat request.')
+				);
+				return;
+			}
 
 			_history.messages[responseMessageId].userContext = userContext;
 			(requestHistory.messages as Record<string, any>)[responseMessageId].userContext = userContext;
@@ -5693,16 +5715,25 @@
 		}
 		history = history;
 
-		// Create new chat if newChat is true and first user message
-		if (newChat && _history.messages[_history.currentId].parentId === null) {
-			_chatId = await initChatHandler(_history);
+		try {
+			// Create new chat if newChat is true and first user message
+			if (newChat && _history.messages[_history.currentId].parentId === null) {
+				_chatId = await initChatHandler(_history);
+			}
+
+			await tick();
+
+			_history = structuredClone(history);
+			// Save chat after all messages have been created
+			await saveChatHandler(_chatId, _history);
+		} catch (error) {
+			await failPendingResponseMessages(
+				Object.values(responseMessageIds),
+				error,
+				$i18n.t('Failed to start chat request.')
+			);
+			return;
 		}
-
-		await tick();
-
-		_history = structuredClone(history);
-		// Save chat after all messages have been created
-		await saveChatHandler(_chatId, _history);
 		const requestHistory: any = appendReferenceFilesToRequestHistory(
 			_history,
 			parentId,
@@ -5733,7 +5764,17 @@
 						responseMessageIds[`${modelId}-${modelIdx ? modelIdx : _modelIdx}`];
 					let responseMessage = (requestHistory.messages as Record<string, any>)[responseMessageId];
 
-					let userContext = await getOptionalMemoryContext(prompt);
+					let userContext = null;
+					try {
+						userContext = await getOptionalMemoryContext(prompt);
+					} catch (error) {
+						await failPendingResponseMessages(
+							[responseMessageId],
+							error,
+							$i18n.t('Failed to prepare chat request.')
+						);
+						return;
+					}
 					responseMessage.userContext = userContext;
 
 					const chatEventEmitter = await getChatEventEmitter(getModelRequestId(model), _chatId);
@@ -6416,6 +6457,33 @@
 
 		history.messages[responseMessage.id] = responseMessage;
 		clearTaskForCompletedResponse(responseMessage.id);
+	};
+
+	const failPendingResponseMessages = async (
+		responseMessageIds: Iterable<string>,
+		error: unknown,
+		fallback = $i18n.t('Failed to start chat request.')
+	) => {
+		const errorMessage = formatError(error, fallback);
+		toast.error(errorMessage);
+
+		for (const responseMessageId of responseMessageIds) {
+			const responseMessage = history.messages[responseMessageId];
+			if (!responseMessage || responseMessage.done === true) {
+				continue;
+			}
+
+			responseMessage.error = { content: errorMessage };
+			responseMessage.done = true;
+			responseMessage.statusHistory = (responseMessage.statusHistory ?? []).filter(
+				(status) => status.action !== 'knowledge_search'
+			);
+			history.messages[responseMessageId] = responseMessage;
+			clearTaskForCompletedResponse(responseMessageId);
+		}
+
+		history = history;
+		await tick();
 	};
 
 	const stopResponse = async () => {
