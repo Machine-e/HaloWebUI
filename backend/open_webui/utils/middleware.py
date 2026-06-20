@@ -1149,6 +1149,23 @@ def _finalize_reasoning_block_duration(
     return duration
 
 
+def _finalize_open_reasoning_blocks(
+    content_blocks: Any, *, ended_at: Optional[float] = None
+) -> None:
+    if not isinstance(content_blocks, list):
+        return
+
+    for block in content_blocks:
+        if not isinstance(block, dict):
+            continue
+
+        if (
+            str(block.get("type") or "").strip().lower() == "reasoning"
+            and block.get("duration") is None
+        ):
+            _finalize_reasoning_block_duration(block, ended_at=ended_at)
+
+
 def _get_tool_call_result(
     results: Any, tool_call_id: Any, *, fallback_index: Optional[int] = None
 ) -> tuple[bool, Any, Any]:
@@ -7639,13 +7656,7 @@ async def process_chat_response(
                         )
 
                     if content_blocks:
-                        for block in content_blocks:
-                            if (
-                                block["type"] == "reasoning"
-                                and block.get("duration") is None
-                                and "started_at" in block
-                            ):
-                                _finalize_reasoning_block_duration(block)
+                        _finalize_open_reasoning_blocks(content_blocks)
 
                         # Clean up the last text block
                         if content_blocks[-1]["type"] == "text":
@@ -10321,11 +10332,13 @@ async def process_chat_response(
                 log.warning("Task was cancelled!")
                 await event_emitter({"type": "task-cancelled"})
 
+                completed_at = int(time.time())
+                _finalize_open_reasoning_blocks(content_blocks, ended_at=completed_at)
                 _cancel_payload = {
                     "done": True,
                     "stopped": True,
                     "stoppedByUser": True,
-                    "completedAt": int(time.time()),
+                    "completedAt": completed_at,
                     "content": serialize_content_blocks(content_blocks),
                 }
                 if accumulated_usage:
@@ -10345,6 +10358,9 @@ async def process_chat_response(
 
                 if not response_finalized:
                     completed_at = int(time.time())
+                    _finalize_open_reasoning_blocks(
+                        content_blocks, ended_at=completed_at
+                    )
                     if isinstance(e, ChatStreamTimeoutError):
                         error_payload = _build_stream_timeout_error_payload(
                             e, form_data.get("model", "")

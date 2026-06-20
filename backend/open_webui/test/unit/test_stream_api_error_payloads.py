@@ -99,6 +99,14 @@ async def _failing_stream():
     yield b""
 
 
+async def _reasoning_then_failing_stream():
+    yield (
+        b'data: {"choices":[{"delta":{"reasoning_content":"thinking before error"},'
+        b'"finish_reason":null}]}\n\n'
+    )
+    raise RuntimeError("relay disconnected after reasoning")
+
+
 async def _stalled_stream_before_first_data():
     await asyncio.sleep(0.05)
     yield b'data: {"choices":[{"delta":{"content":"late"}}]}\n\n'
@@ -173,7 +181,9 @@ def test_stream_background_task_exception_finalizes_message(monkeypatch):
         "chat_id": "chat-1",
         "message_id": "assistant-1",
     }
-    response = StreamingResponse(_failing_stream(), media_type="text/event-stream")
+    response = StreamingResponse(
+        _reasoning_then_failing_stream(), media_type="text/event-stream"
+    )
 
     result = asyncio.run(
         middleware.process_chat_response(
@@ -201,11 +211,15 @@ def test_stream_background_task_exception_finalizes_message(monkeypatch):
     final_event = completion_events[-1]["data"]
     assert final_event["done"] is True
     assert final_event["error"]["type"] == "generation_interrupted"
-    assert "upstream stream crashed" in final_event["error"]["raw_message"]
+    assert "relay disconnected" in final_event["error"]["raw_message"]
+    assert '<details type="reasoning" done="true"' in final_event["content"]
+    assert 'done="false"' not in final_event["content"]
 
     final_upsert = upserts[-1][2]
     assert final_upsert["done"] is True
     assert final_upsert["error"]["type"] == "generation_interrupted"
+    assert '<details type="reasoning" done="true"' in final_upsert["content"]
+    assert 'done="false"' not in final_upsert["content"]
 
 
 def test_stream_start_timeout_finalizes_message(monkeypatch):
