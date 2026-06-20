@@ -400,7 +400,7 @@ def test_stream_start_timeout_auto_retries_before_visible_output(monkeypatch):
     assert "error" not in final_event
 
 
-def test_reasoning_only_stream_auto_retries_after_no_visible_output(monkeypatch):
+def test_reasoning_only_stream_does_not_retry_after_no_visible_output(monkeypatch):
     events = []
     upserts = []
     created = {}
@@ -424,6 +424,7 @@ def test_reasoning_only_stream_auto_retries_after_no_visible_output(monkeypatch)
 
     monkeypatch.setattr(middleware, "CHAT_STREAM_START_TIMEOUT", 1)
     monkeypatch.setattr(middleware, "CHAT_STREAM_IDLE_TIMEOUT", 1)
+    monkeypatch.setattr(middleware, "CHAT_STREAM_REASONING_IDLE_TIMEOUT", 1)
     monkeypatch.setattr(middleware, "CHAT_COMPLETION_NO_VISIBLE_OUTPUT_TIMEOUT", 0.01)
     monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY", True)
     monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY_MAX_ATTEMPTS", 2)
@@ -485,19 +486,20 @@ def test_reasoning_only_stream_auto_retries_after_no_visible_output(monkeypatch)
     assert result == {"status": True, "task_id": "task-1"}
     asyncio.run(created["coroutine"])
 
-    assert len(retry_calls) == 1
+    assert retry_calls == []
     retry_statuses = [
         event
         for event in events
         if event.get("type") == "status"
         and event.get("data", {}).get("action") == "chat_auto_retry"
     ]
-    assert retry_statuses
-    assert retry_statuses[0]["data"]["reason"] == "stream_visible_output"
+    assert retry_statuses == []
     final_event = [
         event
         for event in events
         if event.get("type") == "chat:completion" and event.get("data", {}).get("done")
     ][-1]["data"]
-    assert final_event["content"] == "visible"
+    assert '<details type="reasoning" done="true"' in final_event["content"]
+    assert "still thinking" in final_event["content"]
+    assert "more thinking" in final_event["content"]
     assert "error" not in final_event

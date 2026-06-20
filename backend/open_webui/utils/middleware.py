@@ -193,6 +193,7 @@ from open_webui.env import (
     CHAT_COMPLETION_AUTO_RETRY_STATUSES,
     CHAT_COMPLETION_NO_VISIBLE_OUTPUT_TIMEOUT,
     CHAT_STREAM_IDLE_TIMEOUT,
+    CHAT_STREAM_REASONING_IDLE_TIMEOUT,
     CHAT_STREAM_START_TIMEOUT,
 )
 from open_webui.constants import TASKS
@@ -1254,8 +1255,25 @@ def _has_visible_answer_output(content_blocks: Any, message_files: Any) -> bool:
     )
 
 
+def _has_reasoning_output(content_blocks: Any) -> bool:
+    if not isinstance(content_blocks, list):
+        return False
+
+    for block in content_blocks:
+        if not isinstance(block, dict):
+            continue
+
+        if str(block.get("type") or "").strip().lower() == "reasoning":
+            return True
+
+    return False
+
+
 def _has_retry_blocking_output(content_blocks: Any, message_files: Any) -> bool:
-    if _has_visible_answer_output(content_blocks, message_files):
+    if (
+        _has_visible_answer_output(content_blocks, message_files)
+        or _has_reasoning_output(content_blocks)
+    ):
         return True
 
     if not isinstance(content_blocks, list):
@@ -2436,7 +2454,7 @@ class ChatStreamTimeoutError(TimeoutError):
         self.had_output = had_output
         super().__init__(
             f"Chat stream {phase} timeout after {timeout_s}s "
-            f"({'after visible output' if had_output else 'before first visible output'})"
+            f"({'after stream output' if had_output else 'before first stream output'})"
         )
 
 
@@ -2451,6 +2469,11 @@ def _build_stream_timeout_error_payload(
     if error.phase == "visible_output":
         body = (
             f"上游流式响应在 {error.timeout_s} 秒内持续没有返回可显示的正文。"
+            "当前回复已结束，避免页面继续卡在等待状态。"
+        )
+    elif error.phase == "reasoning_idle":
+        body = (
+            f"上游已经进入深度思考阶段，但在 {error.timeout_s} 秒内没有继续返回思考或正文。"
             "当前回复已结束，避免页面继续卡在等待状态。"
         )
     elif error.had_output:
@@ -6884,6 +6907,7 @@ async def process_chat_response(
                         "normal"  # normal | break_code_interpreter | exception
                     )
                     _stream_last_data_at = stream_started_at
+                    _stream_last_reasoning_at = None
                     try:
                         _stream_response_status = int(
                             getattr(response, "status_code", None) or 0
@@ -6897,6 +6921,8 @@ async def process_chat_response(
                         timeout_s = CHAT_COMPLETION_NO_VISIBLE_OUTPUT_TIMEOUT
                         if timeout_s is None:
                             return
+                        if _has_reasoning_output(content_blocks):
+                            return
                         if _has_visible_answer_output(content_blocks, message_files):
                             return
                         if time.time() - stream_started_at < float(timeout_s):
@@ -6908,27 +6934,50 @@ async def process_chat_response(
                         )
 
                     async def read_next_stream_line():
+                        reasoning_only_phase = (
+                            _stream_last_reasoning_at is not None
+                            and not _has_visible_answer_output(
+                                content_blocks, message_files
+                            )
+                        )
                         timeout_s = (
                             CHAT_STREAM_START_TIMEOUT
                             if _stream_data_count == 0
-                            else CHAT_STREAM_IDLE_TIMEOUT
+                            else (
+                                CHAT_STREAM_REASONING_IDLE_TIMEOUT
+                                if reasoning_only_phase
+                                and CHAT_STREAM_REASONING_IDLE_TIMEOUT is not None
+                                else CHAT_STREAM_IDLE_TIMEOUT
+                            )
                         )
-                        if timeout_s is None:
-                            return await stream_iterator.__anext__()
-
-                        phase = "start" if _stream_data_count == 0 else "idle"
                         baseline = (
                             stream_started_at
                             if _stream_data_count == 0
                             else _stream_last_data_at
                         )
+                        phase = (
+                            "start"
+                            if _stream_data_count == 0
+                            else (
+                                "reasoning_idle"
+                                if reasoning_only_phase
+                                and CHAT_STREAM_REASONING_IDLE_TIMEOUT is not None
+                                else "idle"
+                            )
+                        )
+                        if timeout_s is None:
+                            return await stream_iterator.__anext__()
+
                         remaining = float(timeout_s) - (time.time() - baseline)
                         if remaining <= 0:
                             raise ChatStreamTimeoutError(
                                 phase=phase,
                                 timeout_s=timeout_s,
-                                had_output=_has_visible_answer_output(
-                                    content_blocks, message_files
+                                had_output=(
+                                    _has_visible_assistant_output(
+                                        content_blocks, message_files
+                                    )
+                                    or _has_reasoning_output(content_blocks)
                                 ),
                             )
 
@@ -6940,8 +6989,11 @@ async def process_chat_response(
                             raise ChatStreamTimeoutError(
                                 phase=phase,
                                 timeout_s=timeout_s,
-                                had_output=_has_visible_answer_output(
-                                    content_blocks, message_files
+                                had_output=(
+                                    _has_visible_assistant_output(
+                                        content_blocks, message_files
+                                    )
+                                    or _has_reasoning_output(content_blocks)
                                 ),
                             ) from exc
 
@@ -7346,6 +7398,7 @@ async def process_chat_response(
                                         choice
                                     )
                                 if reasoning_signal:
+                                    _stream_last_reasoning_at = time.time()
                                     if (
                                         not content_blocks
                                         or content_blocks[-1]["type"] != "reasoning"
@@ -10114,8 +10167,10 @@ async def process_chat_response(
 
                 # Detect empty response (model returned 200 but no content).
                 # Common with reverse proxies / relay services that swallow errors.
-                if not finalize_error_payload and not _has_visible_answer_output(
-                    content_blocks, message_files
+                if (
+                    not finalize_error_payload
+                    and not _has_visible_answer_output(content_blocks, message_files)
+                    and not _has_reasoning_output(content_blocks)
                 ):
                     model_id_display = form_data.get("model", "unknown")
                     if _stream_api_error:

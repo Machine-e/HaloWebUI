@@ -31,6 +31,7 @@ from open_webui.env import (
     AIOHTTP_CLIENT_SOCK_READ_TIMEOUT,
     AIOHTTP_CLIENT_TIMEOUT,
     AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST,
+    CHAT_STREAM_REASONING_IDLE_TIMEOUT,
     ENABLE_FORWARD_USER_INFO_HEADERS,
     BYPASS_MODEL_ACCESS_CONTROL,
     REQUESTS_VERIFY,
@@ -1692,11 +1693,11 @@ async def cleanup_response(
         await session.close()
 
 
-def _chat_client_timeout() -> aiohttp.ClientTimeout:
+def _chat_client_timeout(*, sock_read: Optional[int] = None) -> aiohttp.ClientTimeout:
     return aiohttp.ClientTimeout(
         total=AIOHTTP_CLIENT_TIMEOUT,
         sock_connect=AIOHTTP_CLIENT_CONNECT_TIMEOUT,
-        sock_read=AIOHTTP_CLIENT_SOCK_READ_TIMEOUT,
+        sock_read=AIOHTTP_CLIENT_SOCK_READ_TIMEOUT if sock_read is None else sock_read,
     )
 
 
@@ -3151,9 +3152,16 @@ async def generate_chat_completion(
     response = None
 
     try:
+        chat_sock_read_timeout = AIOHTTP_CLIENT_SOCK_READ_TIMEOUT
+        if responses_reasoning_expected and CHAT_STREAM_REASONING_IDLE_TIMEOUT is not None:
+            chat_sock_read_timeout = max(
+                chat_sock_read_timeout or 0,
+                CHAT_STREAM_REASONING_IDLE_TIMEOUT,
+            )
+
         session = aiohttp.ClientSession(
             trust_env=True,
-            timeout=_chat_client_timeout(),
+            timeout=_chat_client_timeout(sock_read=chat_sock_read_timeout),
         )
 
         async def _send_current_request(*, retry_reason: Optional[str] = None):
