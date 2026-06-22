@@ -767,6 +767,10 @@ def _normalize_message_files(files: Any) -> list[dict]:
                     add_file(image_file)
                 return
 
+            for nested_key in ("file", "files", "generated_files", "attachments"):
+                if nested_key in value:
+                    walk(value.get(nested_key))
+
             add_file(value)
             return
 

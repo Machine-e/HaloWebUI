@@ -13,6 +13,7 @@ from open_webui.models.files import FileForm, Files
 from open_webui.models.skills import SkillModel
 from open_webui.models.users import UserModel
 from open_webui.storage.provider import Storage
+from open_webui.utils.access_control import has_access
 
 try:
     from pptx import Presentation
@@ -31,7 +32,9 @@ except ImportError:
 
 BUILTIN_PPTX_SKILL_ID = "builtin:pptx-generator"
 BUILTIN_PPTX_SKILL_IDENTIFIER = "halo.builtin.pptx-generator"
-BUILTIN_PPTX_ENTRYPOINT_ID = "generate_pptx"
+BUILTIN_PPTX_GENERATE_ENTRYPOINT_ID = "generate_pptx"
+BUILTIN_PPTX_EDIT_ENTRYPOINT_ID = "edit_pptx"
+BUILTIN_PPTX_ENTRYPOINT_ID = BUILTIN_PPTX_GENERATE_ENTRYPOINT_ID
 
 PPTX_CONTENT_TYPE = (
     "application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -98,12 +101,15 @@ def get_builtin_pptx_skill() -> SkillModel:
     return SkillModel(
         id=BUILTIN_PPTX_SKILL_ID,
         user_id="system",
-        name="PPTX Generator",
-        description="服务端直接生成 PowerPoint .pptx 文件，并返回可下载链接。",
+        name="PPTX Generator / Editor",
+        description="服务端生成或编辑 PowerPoint .pptx 文件，并返回新的可下载文件。",
         content=(
-            "Use this runnable skill when the user asks to create, draft, or export "
-            "a PowerPoint/PPTX presentation. Generate structured slide content first, "
-            "then call the generate_pptx entrypoint."
+            "Use this runnable skill when the user asks to create, draft, export, "
+            "or edit a PowerPoint/PPTX presentation. For new decks, generate "
+            "structured slide content and call generate_pptx. For an uploaded PPTX, "
+            "use the file id from current_chat_resources as source_file_id and call "
+            "edit_pptx. Always return the generated file to the user instead of "
+            "printing raw JSON."
         ),
         source="builtin",
         identifier=BUILTIN_PPTX_SKILL_IDENTIFIER,
@@ -113,17 +119,17 @@ def get_builtin_pptx_skill() -> SkillModel:
             "builtin": True,
             "tags": ["pptx", "powerpoint", "presentation", "slides", "deck"],
             "manifest": {
-                "name": "PPTX Generator",
+                "name": "PPTX Generator / Editor",
                 "identifier": BUILTIN_PPTX_SKILL_IDENTIFIER,
-                "description": "Generate downloadable PPTX files on the HaloWebUI server.",
+                "description": "Generate or edit downloadable PPTX files on the HaloWebUI server.",
                 "category": "Documents",
-                "tags": ["pptx", "slides", "presentation"],
+                "tags": ["pptx", "slides", "presentation", "edit"],
             },
             "runtime": {
                 "mode": "runnable",
                 "entrypoints": [
                     {
-                        "id": BUILTIN_PPTX_ENTRYPOINT_ID,
+                        "id": BUILTIN_PPTX_GENERATE_ENTRYPOINT_ID,
                         "runtime": "python",
                         "path": "builtin/pptx_generator.py",
                         "timeout": 60,
@@ -140,7 +146,25 @@ def get_builtin_pptx_skill() -> SkillModel:
                             "and the skill will split it into slides. Returns JSON with "
                             "file.url and file.absolute_url."
                         ),
-                    }
+                    },
+                    {
+                        "id": BUILTIN_PPTX_EDIT_ENTRYPOINT_ID,
+                        "runtime": "python",
+                        "path": "builtin/pptx_editor.py",
+                        "timeout": 60,
+                        "description": (
+                            "Edit an uploaded .pptx file and return a new downloadable "
+                            ".pptx file. Required arg: source_file_id from "
+                            "current_chat_resources. Use operations such as "
+                            "[{\"type\":\"replace_text\",\"find\":\"old\",\"replace\":\"new\"}], "
+                            "[{\"type\":\"add_slide\",\"title\":\"Summary\","
+                            "\"bullets\":[\"point\"]}], "
+                            "or [{\"type\":\"append_notes\",\"slide\":2,"
+                            "\"notes\":\"speaker notes\"}]. "
+                            "You may also pass replacements as a mapping and slides_to_add "
+                            "or append_slides as slide objects. Do not overwrite the source file."
+                        ),
+                    },
                 ],
                 "install_status": "ready",
                 "installed_hash": "builtin",
@@ -591,10 +615,331 @@ def _add_content_slide(
         slide.notes_slide.notes_text_frame.text = notes
 
 
+def _iter_text_frames(slide: Any):
+    for shape in getattr(slide, "shapes", []):
+        if getattr(shape, "has_text_frame", False):
+            yield shape.text_frame
+        elif getattr(shape, "has_table", False):
+            for row in shape.table.rows:
+                for cell in row.cells:
+                    yield cell.text_frame
+
+
+def _replace_text_in_prs(
+    prs: Any, find: str, replace: str, slide_indexes: list[int]
+) -> int:
+    search = _clean_text(find, 240)
+    if not search:
+        return 0
+
+    replacement = str(replace or "")
+    replaced = 0
+    for index, slide in enumerate(prs.slides):
+        if slide_indexes and index not in slide_indexes:
+            continue
+        for text_frame in _iter_text_frames(slide):
+            for paragraph in text_frame.paragraphs:
+                for run in paragraph.runs:
+                    if search in run.text:
+                        run.text = run.text.replace(search, replacement)
+                        replaced += 1
+    return replaced
+
+
+def _append_notes_to_slide(slide: Any, notes: str) -> bool:
+    cleaned_notes = _clean_text(notes, 2000)
+    if not cleaned_notes:
+        return False
+
+    notes_frame = slide.notes_slide.notes_text_frame
+    existing = _clean_text(getattr(notes_frame, "text", "") or "", 2000)
+    notes_frame.text = (
+        f"{existing}\n{cleaned_notes}".strip() if existing else cleaned_notes
+    )
+    return True
+
+
+def _coerce_slide_indexes(value: Any, total_slides: int) -> list[int]:
+    if value is None:
+        return list(range(total_slides))
+
+    values = value if isinstance(value, (list, tuple, set)) else [value]
+    indexes: list[int] = []
+    for item in values:
+        try:
+            index = int(item)
+        except Exception:
+            continue
+        if index <= 0 or index > total_slides:
+            continue
+        zero_based = index - 1
+        if zero_based not in indexes:
+            indexes.append(zero_based)
+    return indexes
+
+
+def _normalize_edit_operations(args: dict[str, Any]) -> list[dict[str, Any]]:
+    operations: list[dict[str, Any]] = []
+
+    raw_operations = args.get("operations")
+    if isinstance(raw_operations, list):
+        for item in raw_operations:
+            if isinstance(item, dict):
+                operations.append(item)
+
+    replacements = args.get("replacements")
+    if isinstance(replacements, dict):
+        for find, replace in replacements.items():
+            operations.append(
+                {
+                    "type": "replace_text",
+                    "find": find,
+                    "replace": replace,
+                }
+            )
+    elif isinstance(replacements, list):
+        for item in replacements:
+            if not isinstance(item, dict):
+                continue
+            operations.append(
+                {
+                    "type": "replace_text",
+                    "find": item.get("find") or item.get("old"),
+                    "replace": item.get("replace") or item.get("new") or "",
+                    **(
+                        {"slide": item.get("slide")}
+                        if item.get("slide") is not None
+                        else {}
+                    ),
+                }
+            )
+
+    for key in ("slides_to_add", "append_slides"):
+        extra_slides = args.get(key)
+        if isinstance(extra_slides, list):
+            for item in extra_slides:
+                if isinstance(item, dict):
+                    operations.append({"type": "add_slide", **item})
+
+    if isinstance(args.get("slides"), list) and not operations:
+        for item in args.get("slides") or []:
+            if isinstance(item, dict):
+                operations.append({"type": "add_slide", **item})
+
+    return operations
+
+
+def _apply_edit_operations(prs: Any, args: dict[str, Any]) -> dict[str, Any]:
+    operations = _normalize_edit_operations(args)
+    if not operations:
+        raise RuntimeError("未提供可执行的编辑操作。")
+
+    applied = 0
+    replaced_total = 0
+    notes_total = 0
+    added_slides = 0
+    theme = (
+        _theme_from_args(args)
+        if args.get("theme")
+        else {key: _rgb(value) for key, value in THEMES["slate"].items()}
+    )
+
+    for operation in operations:
+        op_type = _clean_text(operation.get("type"), 80).lower().replace("-", "_")
+        if op_type in {"replace_text", "replace"}:
+            find = (
+                operation.get("find")
+                or operation.get("old")
+                or operation.get("search")
+            )
+            replace = operation.get("replace") or operation.get("new") or ""
+            slide_target = operation.get("slide")
+            slide_indexes = _coerce_slide_indexes(slide_target, len(prs.slides))
+            if slide_target is not None and not slide_indexes:
+                continue
+            replaced = _replace_text_in_prs(
+                prs, str(find or ""), str(replace or ""), slide_indexes
+            )
+            if replaced > 0:
+                applied += 1
+                replaced_total += replaced
+            continue
+
+        if op_type in {"append_notes", "add_notes"}:
+            slide_target = operation.get("slide")
+            slide_indexes = _coerce_slide_indexes(slide_target, len(prs.slides))
+            if slide_target is not None and not slide_indexes:
+                continue
+            note_text = str(operation.get("notes") or operation.get("text") or "")
+            for slide_index in slide_indexes or []:
+                if 0 <= slide_index < len(prs.slides):
+                    if _append_notes_to_slide(prs.slides[slide_index], note_text):
+                        notes_total += 1
+                        applied += 1
+            continue
+
+        if op_type in {"add_slide", "append_slide", "insert_slide"}:
+            slide_data = (
+                operation.get("slide")
+                if isinstance(operation.get("slide"), dict)
+                else operation
+            )
+            if not isinstance(slide_data, dict):
+                slide_data = {}
+            slide_number = len(prs.slides) + 1
+            _add_content_slide(
+                prs,
+                _slide_from_mapping(slide_data),
+                slide_number,
+                slide_number,
+                theme,
+            )
+            added_slides += 1
+            applied += 1
+            continue
+
+        if op_type in {"add_slides", "append_slides"}:
+            slides = operation.get("slides")
+            if isinstance(slides, list):
+                for slide_data in slides:
+                    if not isinstance(slide_data, dict):
+                        continue
+                    slide_number = len(prs.slides) + 1
+                    _add_content_slide(
+                        prs,
+                        _slide_from_mapping(slide_data),
+                        slide_number,
+                        slide_number,
+                        theme,
+                    )
+                    added_slides += 1
+                    applied += 1
+            continue
+
+    return {
+        "applied_operations": applied,
+        "replaced_count": replaced_total,
+        "notes_count": notes_total,
+        "added_slides": added_slides,
+    }
+
+
+def _save_pptx_file(
+    request: Request,
+    user: UserModel,
+    pptx_bytes: bytes,
+    filename: str,
+    *,
+    skill_source: str,
+    source_file_id: Optional[str] = None,
+) -> tuple[str, dict[str, Any]]:
+    file_id = str(uuid4())
+    storage_filename = f"{file_id}_{filename}"
+    file_path = None
+    try:
+        file_size, file_path = Storage.upload_file(
+            io.BytesIO(pptx_bytes), storage_filename
+        )
+        file_item = Files.insert_new_file(
+            user.id,
+            FileForm(
+                id=file_id,
+                filename=filename,
+                path=file_path,
+                meta={
+                    "name": filename,
+                    "content_type": PPTX_CONTENT_TYPE,
+                    "size": file_size,
+                    "data": {
+                        "source": skill_source,
+                        "skill_id": BUILTIN_PPTX_SKILL_ID,
+                        "generated": True,
+                        **(
+                            {"source_file_id": source_file_id}
+                            if source_file_id
+                            else {}
+                        ),
+                    },
+                },
+            ),
+        )
+    except Exception:
+        if file_path:
+            Storage.delete_file(file_path)
+        raise
+
+    if not file_item:
+        if file_path:
+            Storage.delete_file(file_path)
+        raise RuntimeError("生成的 PPTX 文件登记失败。")
+
+    download_url = f"/api/v1/files/{file_id}/content?attachment=true"
+    content_url = f"/api/v1/files/{file_id}/content"
+    base_url = str(request.base_url).rstrip("/") if request is not None else ""
+    file_result = {
+        "type": "file",
+        "id": file_id,
+        "name": filename,
+        "filename": filename,
+        "url": download_url,
+        "content_url": content_url,
+        "absolute_url": f"{base_url}{download_url}" if base_url else download_url,
+        "size": file_size,
+        "content_type": PPTX_CONTENT_TYPE,
+        "source": skill_source,
+        "generated": True,
+    }
+    if source_file_id:
+        file_result["source_file_id"] = source_file_id
+
+    return file_id, file_result
+
+
+def _load_source_pptx(
+    request: Request, user: UserModel, source_file_id: Any
+) -> tuple[bytes, str]:
+    file_id = _clean_text(source_file_id, 120)
+    if not file_id:
+        raise RuntimeError("未提供 source_file_id。")
+
+    file_item = Files.get_file_by_id(file_id)
+    if not file_item:
+        raise RuntimeError("找不到要编辑的源 PPTX 文件。")
+    if (
+        file_item.user_id != user.id
+        and getattr(user, "role", "") != "admin"
+        and not has_access(user.id, "read", file_item.access_control)
+    ):
+        raise RuntimeError("当前用户没有权限编辑这个文件。")
+
+    file_name = _clean_text(getattr(file_item, "filename", "") or "", 240)
+    content_type = str((file_item.meta or {}).get("content_type") or "").lower()
+    if not file_name.lower().endswith(".pptx") and content_type not in {
+        PPTX_CONTENT_TYPE,
+        "application/vnd.ms-powerpoint",
+    }:
+        raise RuntimeError("源文件不是可编辑的 PPTX。")
+
+    if not getattr(file_item, "path", None):
+        raise RuntimeError("源文件缺少存储路径。")
+
+    file_path = Storage.get_file(file_item.path)
+    with open(file_path, "rb") as file_handle:
+        return file_handle.read(), file_name
+
+
+def _presentation_bytes(prs: Any) -> bytes:
+    buffer = io.BytesIO()
+    prs.save(buffer)
+    return buffer.getvalue()
+
+
 def generate_pptx_bytes(args: dict[str, Any]) -> tuple[bytes, str, int]:
     args = args if isinstance(args, dict) else {}
     slides = _normalize_slides(args)
-    title = _clean_text(args.get("title"), 160) or _clean_text(slides[0].get("title"), 160)
+    title = _clean_text(args.get("title"), 160) or _clean_text(
+        slides[0].get("title"), 160
+    )
     title = title or "Presentation"
     subtitle = _clean_text(args.get("subtitle") or args.get("description"), 260)
     filename = _clean_filename(args.get("filename"), title)
@@ -617,6 +962,21 @@ def generate_pptx_bytes(args: dict[str, Any]) -> tuple[bytes, str, int]:
     return buffer.getvalue(), filename, len(prs.slides)
 
 
+def edit_pptx_bytes(
+    source_pptx_bytes: bytes,
+    args: dict[str, Any],
+    source_filename: str = "presentation.pptx",
+) -> tuple[bytes, str, int, dict[str, Any]]:
+    _ensure_pptx_available()
+    args = args if isinstance(args, dict) else {}
+    prs = Presentation(io.BytesIO(source_pptx_bytes))
+    edit_stats = _apply_edit_operations(prs, args)
+    filename = _clean_filename(
+        args.get("filename"), _clean_text(source_filename, 160) or "presentation"
+    )
+    return _presentation_bytes(prs), filename, len(prs.slides), edit_stats
+
+
 def create_pptx_file(
     request: Request,
     user: UserModel,
@@ -627,62 +987,63 @@ def create_pptx_file(
     except ImportError as exc:
         raise RuntimeError("服务端缺少 python-pptx，无法生成 PPTX。") from exc
 
-    file_id = str(uuid4())
-    storage_filename = f"{file_id}_{filename}"
-    file_path = None
-    try:
-        file_size, file_path = Storage.upload_file(io.BytesIO(pptx_bytes), storage_filename)
-        file_item = Files.insert_new_file(
-            user.id,
-            FileForm(
-                id=file_id,
-                filename=filename,
-                path=file_path,
-                meta={
-                    "name": filename,
-                    "content_type": PPTX_CONTENT_TYPE,
-                    "size": file_size,
-                    "data": {
-                        "source": "pptx_generator",
-                        "skill_id": BUILTIN_PPTX_SKILL_ID,
-                        "generated": True,
-                    },
-                },
-            ),
-        )
-    except Exception:
-        if file_path:
-            Storage.delete_file(file_path)
-        raise
-
-    if not file_item:
-        if file_path:
-            Storage.delete_file(file_path)
-        raise RuntimeError("生成的 PPTX 文件登记失败。")
-
-    download_url = f"/api/v1/files/{file_id}/content?attachment=true"
-    content_url = f"/api/v1/files/{file_id}/content"
-    base_url = str(request.base_url).rstrip("/") if request is not None else ""
     now = int(time.time())
+    _file_id, file_result = _save_pptx_file(
+        request,
+        user,
+        pptx_bytes,
+        filename,
+        skill_source="pptx_generator",
+    )
 
     return {
         "ok": True,
         "skill_id": BUILTIN_PPTX_SKILL_ID,
-        "entrypoint_id": BUILTIN_PPTX_ENTRYPOINT_ID,
+        "entrypoint_id": BUILTIN_PPTX_GENERATE_ENTRYPOINT_ID,
         "created_at": now,
         "slide_count": slide_count,
-        "file": {
-            "type": "file",
-            "id": file_id,
-            "name": filename,
-            "filename": filename,
-            "url": download_url,
-            "content_url": content_url,
-            "absolute_url": f"{base_url}{download_url}" if base_url else download_url,
-            "size": file_size,
-            "content_type": PPTX_CONTENT_TYPE,
-            "source": "pptx_generator",
-            "generated": True,
-        },
+        "file": file_result,
         "message": "PPTX generated. Share file.url or file.absolute_url with the user.",
+    }
+
+
+def create_pptx_edit_file(
+    request: Request,
+    user: UserModel,
+    args: dict[str, Any],
+) -> dict[str, Any]:
+    args = args if isinstance(args, dict) else {}
+    source_file_id = (
+        args.get("source_file_id")
+        or args.get("file_id")
+        or args.get("pptx_file_id")
+        or args.get("input_file_id")
+    )
+    source_bytes, source_filename = _load_source_pptx(request, user, source_file_id)
+    edited_bytes, filename, slide_count, edit_stats = edit_pptx_bytes(
+        source_bytes,
+        args,
+        source_filename=source_filename,
+    )
+
+    now = int(time.time())
+    _, file_result = _save_pptx_file(
+        request,
+        user,
+        edited_bytes,
+        filename,
+        skill_source="pptx_editor",
+        source_file_id=_clean_text(source_file_id, 120),
+    )
+
+    return {
+        "ok": True,
+        "skill_id": BUILTIN_PPTX_SKILL_ID,
+        "entrypoint_id": BUILTIN_PPTX_EDIT_ENTRYPOINT_ID,
+        "created_at": now,
+        "slide_count": slide_count,
+        "edit_stats": edit_stats,
+        "source_file_id": _clean_text(source_file_id, 120),
+        "file": file_result,
+        "message": "PPTX edited. Share file.url or file.absolute_url with the user.",
     }

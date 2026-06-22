@@ -496,7 +496,7 @@
 							>
 								<Presentation class="size-4" strokeWidth={2} />
 							</span>
-							<div class="truncate">PPTX Generator</div>
+							<div class="truncate">PPTX Editor</div>
 						</div>
 						<div class="shrink-0" on:click|stopPropagation>
 							<Switch
