@@ -46,6 +46,11 @@ from open_webui.routers.images import (
 from open_webui.routers.retrieval import search_web as _search_web
 from open_webui.utils.access_control import has_access, has_permission
 from open_webui.utils.error_handling import build_error_detail
+from open_webui.utils.pptx_skill import (
+    BUILTIN_PPTX_ENTRYPOINT_ID,
+    create_pptx_file,
+    is_builtin_pptx_skill_id,
+)
 from open_webui.utils.skill_runtime import (
     SkillRuntimeError,
     execute_skill_entrypoint,
@@ -1597,6 +1602,21 @@ def get_builtin_tools(
         ) -> str:
             if skill_id not in runnable_skill_ids:
                 raise ValueError("The requested skill is not enabled for this conversation.")
+
+            if is_builtin_pptx_skill_id(skill_id):
+                if str(entrypoint_id or "").strip() != BUILTIN_PPTX_ENTRYPOINT_ID:
+                    raise ValueError("Unknown built-in PPTX skill entrypoint.")
+                try:
+                    result = await asyncio.to_thread(
+                        create_pptx_file,
+                        request,
+                        user,
+                        args if isinstance(args, dict) else {},
+                    )
+                except Exception as exc:
+                    raise ValueError(str(exc)) from exc
+
+                return json.dumps(result, ensure_ascii=False)
 
             # Refresh from the database when available so install status changes are picked up.
             from open_webui.models.skills import Skills

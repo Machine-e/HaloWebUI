@@ -1,7 +1,7 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 import { parseJsonResponse } from '../response';
 
-export type SkillSourceType = 'manual' | 'url' | 'github' | 'zip';
+export type SkillSourceType = 'manual' | 'url' | 'github' | 'zip' | 'builtin' | 'shared';
 export type SkillCatalogKind =
 	| 'builtin'
 	| 'tool_server'
@@ -100,9 +100,13 @@ const requestJson = async <T>(path: string, token: string, init: RequestInit = {
 	return res as T;
 };
 
-export const getSkills = async (token: string = '', options: { includeLegacy?: boolean } = {}) => {
+export const getSkills = async (
+	token: string = '',
+	options: { includeLegacy?: boolean; includeBuiltin?: boolean } = {}
+) => {
 	const searchParams = new URLSearchParams();
 	if (options.includeLegacy) searchParams.append('include_legacy', 'true');
+	if (options.includeBuiltin) searchParams.append('include_builtin', 'true');
 	const suffix = searchParams.toString() ? `/?${searchParams.toString()}` : '/';
 	return requestJson<SkillModel[]>(suffix, token);
 };

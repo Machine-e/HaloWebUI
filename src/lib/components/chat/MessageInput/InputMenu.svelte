@@ -22,7 +22,8 @@
 		Sparkles,
 		CircleHelp,
 		Users,
-		Wand2
+		Wand2,
+		Presentation
 	} from 'lucide-svelte';
 	import GoogleDrive from '$lib/components/icons/GoogleDrive.svelte';
 	import OneDrive from '$lib/components/icons/OneDrive.svelte';
@@ -30,6 +31,8 @@
 	const i18n = getContext('i18n');
 	const tr = (zh: string, en: string, options: Record<string, any> = {}) =>
 		translateWithDefault($i18n, zh, en, options);
+	const BUILTIN_PPTX_SKILL_ID = 'builtin:pptx-generator';
+	const builtinPptxGeneratorAvailable = true;
 
 	export let uploadFilesHandler: Function;
 
@@ -100,6 +103,18 @@
 		skillSelectionTouched = true;
 	}
 
+	function toggleBuiltinPptxGenerator(enabled?: boolean) {
+		const nextEnabled = enabled ?? !selectedSkillIds.includes(BUILTIN_PPTX_SKILL_ID);
+		if (nextEnabled) {
+			if (!selectedSkillIds.includes(BUILTIN_PPTX_SKILL_ID)) {
+				selectedSkillIds = [...selectedSkillIds, BUILTIN_PPTX_SKILL_ID];
+			}
+		} else {
+			selectedSkillIds = selectedSkillIds.filter((id) => id !== BUILTIN_PPTX_SKILL_ID);
+		}
+		skillSelectionTouched = true;
+	}
+
 	const updateResponseHtmlFormat = (enabled: boolean) => {
 		responseHtmlFormat = enabled;
 		void onResponseHtmlFormatChange?.(enabled);
@@ -131,7 +146,9 @@
 		if (!loadingSkills) {
 			loadingSkills = true;
 			try {
-				const latestSkills = await getSkills(localStorage.token).catch(() => null);
+				const latestSkills = await getSkills(localStorage.token, { includeBuiltin: true }).catch(
+					() => null
+				);
 				if (latestSkills) {
 					_skills.set(latestSkills);
 				}
@@ -192,6 +209,10 @@
 		}, {});
 
 		skills = ($_skills ?? []).reduce((a, skill) => {
+			if (skill.id === BUILTIN_PPTX_SKILL_ID) {
+				return a;
+			}
+
 			// 检查是否已存在同名 Skill
 			const existingEntry = Object.entries(a).find(
 				([_, s]: [string, any]) => s.name === skill.name
@@ -237,6 +258,7 @@
 		getWebSearchModeLabel(webSearchMode, $i18n.t.bind($i18n));
 
 	const helpIconClass = 'size-3 shrink-0 cursor-help text-gray-400 dark:text-gray-500';
+	$: pptxGeneratorEnabled = selectedSkillIds.includes(BUILTIN_PPTX_SKILL_ID);
 </script>
 
 <Dropdown
@@ -375,7 +397,7 @@
 				<hr class="border-black/5 dark:border-white/5 my-1" />
 			{/if}
 
-			{#if webSearchFeatureEnabled || $config?.features?.enable_image_generation || $config?.features?.enable_code_interpreter}
+			{#if webSearchFeatureEnabled || $config?.features?.enable_image_generation || $config?.features?.enable_code_interpreter || builtinPptxGeneratorAvailable}
 				{#if webSearchFeatureEnabled && webSearchModeOptions.some((option) => option.value !== 'off') && ($user?.role === 'admin' || $user?.permissions?.features?.web_search)}
 					<DropdownMenu.Sub>
 						<DropdownMenu.SubTrigger
@@ -456,6 +478,33 @@
 						</div>
 						<div class="shrink-0 text-xs text-gray-500 dark:text-gray-400">
 							{imageGenerationEnabled ? tr('开启生图', 'Image on') : tr('关闭生图', 'Image off')}
+						</div>
+					</button>
+				{/if}
+
+				{#if builtinPptxGeneratorAvailable}
+					<button
+						type="button"
+						class="flex w-full justify-between gap-2 items-center px-3 py-2 text-sm font-medium cursor-pointer rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800"
+						on:click={() => {
+							toggleBuiltinPptxGenerator();
+						}}
+					>
+						<div class="flex gap-2 items-center min-w-0">
+							<span
+								class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600 dark:bg-gray-700/60 dark:text-gray-300"
+							>
+								<Presentation class="size-4" strokeWidth={2} />
+							</span>
+							<div class="truncate">PPTX Generator</div>
+						</div>
+						<div class="shrink-0" on:click|stopPropagation>
+							<Switch
+								state={pptxGeneratorEnabled}
+								on:change={async (e) => {
+									toggleBuiltinPptxGenerator(e.detail);
+								}}
+							/>
 						</div>
 					</button>
 				{/if}

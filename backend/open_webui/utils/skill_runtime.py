@@ -20,6 +20,7 @@ from open_webui.models.skills import SkillModel, Skills
 from open_webui.storage.provider import Storage
 from open_webui.utils.access_control import can_read_resource
 from open_webui.utils.mcp import get_mcp_runtime_profile
+from open_webui.utils.pptx_skill import get_builtin_skill_by_id
 
 
 SKILL_ARCHIVE_MAX_BYTES = 50 * 1024 * 1024
@@ -1017,6 +1018,11 @@ def execute_skill_entrypoint(
 def get_visible_skill_map(user: Any, skill_ids: list[str]) -> dict[str, SkillModel]:
     visible: dict[str, SkillModel] = {}
     for skill_id in skill_ids:
+        builtin_skill = get_builtin_skill_by_id(skill_id)
+        if builtin_skill:
+            visible[builtin_skill.id] = builtin_skill
+            continue
+
         skill = Skills.get_skill_by_id(skill_id)
         if not skill:
             continue

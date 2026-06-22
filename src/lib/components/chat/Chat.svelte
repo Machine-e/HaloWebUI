@@ -882,7 +882,10 @@
 		return nextSelectedModels.length > 0 ? nextSelectedModels : [''];
 	};
 	const getVisibleSkillIds = () =>
-		($skillsStore ?? []).map((skill) => String(skill?.id ?? '')).filter((id) => id);
+		[
+			...($skillsStore ?? []).map((skill) => String(skill?.id ?? '')).filter((id) => id),
+			'builtin:pptx-generator'
+		];
 	const filterVisibleSkillIds = (ids: string[] = []) => {
 		const visible = new Set(getVisibleSkillIds());
 		return ids.filter((id) => visible.has(id));
@@ -2702,13 +2705,18 @@
 			return;
 		}
 
-		if (!hasResolvedSkills && (!$skillsStore || $skillsStore.length === 0)) {
+		const hasBuiltinPptxSkill = getVisibleSkillIds().includes('builtin:pptx-generator');
+		if (
+			!hasResolvedSkills &&
+			(!$skillsStore || $skillsStore.length === 0 || !hasBuiltinPptxSkill)
+		) {
 			if (isLoadingSkills) {
 				return;
 			}
 			isLoadingSkills = true;
 			try {
-				const latestSkills = (await getSkills(localStorage.token).catch(() => null)) ?? [];
+				const latestSkills =
+					(await getSkills(localStorage.token, { includeBuiltin: true }).catch(() => null)) ?? [];
 				hasResolvedSkills = true;
 				// 关键：仅在内容真正变化时 set，避免写入新数组引用触发响应式循环
 				const current = $skillsStore ?? [];

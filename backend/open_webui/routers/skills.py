@@ -23,6 +23,10 @@ from open_webui.utils.mcp import (
     get_mcp_server_display_metadata,
     get_mcp_servers_cached_meta,
 )
+from open_webui.utils.pptx_skill import (
+    get_builtin_skill_by_id,
+    list_builtin_chat_skills,
+)
 from open_webui.utils.skill_importer import (
     ImportedSkillPayload,
     SkillImportError,
@@ -644,12 +648,16 @@ async def _upsert_imported_skill(user, payload: ImportedSkillPayload) -> SkillIm
 async def get_skills(
     request: Request,
     include_legacy: bool = False,
+    include_builtin: bool = False,
     user=Depends(get_verified_user),
 ):
     visible = _filter_visible_skills(Skills.get_skills(), user)
+    items = visible if include_legacy else _filter_skill_packages(visible)
     if include_legacy:
-        return visible
-    return _filter_skill_packages(visible)
+        return items
+    if include_builtin:
+        return [*list_builtin_chat_skills(user), *items]
+    return items
 
 
 @router.get("/list", response_model=SkillListResponse)
@@ -1073,6 +1081,10 @@ async def update_skill_auto_activation_route(
 
 @router.get("/{skill_id}", response_model=SkillModel)
 async def get_skill_by_id(skill_id: str, user=Depends(get_verified_user)):
+    builtin_skill = get_builtin_skill_by_id(skill_id)
+    if builtin_skill:
+        return builtin_skill
+
     skill = Skills.get_skill_by_id(skill_id)
     if not skill:
         raise HTTPException(
