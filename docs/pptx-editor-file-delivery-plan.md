@@ -323,6 +323,13 @@
 8. 补测试。
 9. 构建前端并重启 Docker 挂载版本。
 
+### 触发与兜底策略
+
+- 当 `PPTX Editor` 已开启、当前聊天资源包含 `.pptx`，且用户请求包含“美化 / 修改 / 编辑 / 优化 / 排版 / 返回 PPT 文件”等编辑意图时，后端会注入 `pptx_editor_trigger` 系统提示，要求模型调用 `execute_skill_entrypoint` 的 `edit_pptx`。
+- `edit_pptx` 支持 `beautify` 操作，适合“美化这个 PPT”这类没有明确文字替换参数的请求。
+- 如果模型仍然只回复文本、没有产生 PPTX 附件，服务端在最终保存 assistant 消息前自动执行一次 `edit_pptx` 兜底，生成新的 PPTX 附件并发送 `chat:message:files` 事件。
+- 如果 assistant 消息里已经有 PPTX 附件，兜底不会重复生成。
+
 ## 八、验收标准
 
 - 聊天中能看到 `PPTX Editor` 开关。

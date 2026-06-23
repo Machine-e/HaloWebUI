@@ -156,6 +156,7 @@ def get_builtin_pptx_skill() -> SkillModel:
                             "Edit an uploaded .pptx file and return a new downloadable "
                             ".pptx file. Required arg: source_file_id from "
                             "current_chat_resources. Use operations such as "
+                            "[{\"type\":\"beautify\"}] for general polish/format requests, "
                             "[{\"type\":\"replace_text\",\"find\":\"old\",\"replace\":\"new\"}], "
                             "[{\"type\":\"add_slide\",\"title\":\"Summary\","
                             "\"bullets\":[\"point\"]}], "
@@ -659,6 +660,61 @@ def _append_notes_to_slide(slide: Any, notes: str) -> bool:
     return True
 
 
+def _beautify_existing_slide(
+    prs: Any,
+    slide: Any,
+    slide_index: int,
+    total_slides: int,
+    theme: dict[str, Any],
+) -> bool:
+    _set_background(slide, theme["background"])
+
+    accent = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        0,
+        0,
+        prs.slide_width,
+        Inches(0.07),
+    )
+    accent.fill.solid()
+    accent.fill.fore_color.rgb = theme["accent"]
+    accent.line.color.rgb = theme["accent"]
+
+    footer = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        0,
+        prs.slide_height - Inches(0.07),
+        prs.slide_width,
+        Inches(0.07),
+    )
+    footer.fill.solid()
+    footer.fill.fore_color.rgb = theme["accent_dark"]
+    footer.line.color.rgb = theme["accent_dark"]
+
+    _add_text_box(
+        slide,
+        left=prs.slide_width - Inches(1.1),
+        top=prs.slide_height - Inches(0.38),
+        width=Inches(0.85),
+        height=Inches(0.25),
+        text=f"{slide_index + 1}/{total_slides}",
+        size=8,
+        color=theme["muted"],
+        align=PP_ALIGN.RIGHT,
+    )
+
+    for text_frame in _iter_text_frames(slide):
+        for paragraph_index, paragraph in enumerate(text_frame.paragraphs):
+            for run in paragraph.runs:
+                if not str(run.text or "").strip():
+                    continue
+                run.font.name = FONT_FAMILY
+                if run.font.size is None:
+                    run.font.size = Pt(24 if paragraph_index == 0 else 15)
+                run.font.color.rgb = theme["text"]
+    return True
+
+
 def _coerce_slide_indexes(value: Any, total_slides: int) -> list[int]:
     if value is None:
         return list(range(total_slides))
@@ -738,6 +794,7 @@ def _apply_edit_operations(prs: Any, args: dict[str, Any]) -> dict[str, Any]:
     replaced_total = 0
     notes_total = 0
     added_slides = 0
+    beautified_slides = 0
     theme = (
         _theme_from_args(args)
         if args.get("theme")
@@ -776,6 +833,35 @@ def _apply_edit_operations(prs: Any, args: dict[str, Any]) -> dict[str, Any]:
                     if _append_notes_to_slide(prs.slides[slide_index], note_text):
                         notes_total += 1
                         applied += 1
+            continue
+
+        if op_type in {
+            "beautify",
+            "polish",
+            "style",
+            "restyle",
+            "design",
+            "redesign",
+            "format",
+            "reformat",
+        }:
+            slide_target = operation.get("slide")
+            slide_indexes = _coerce_slide_indexes(slide_target, len(prs.slides))
+            if slide_target is not None and not slide_indexes:
+                continue
+            current_total = len(prs.slides)
+            for slide_index in slide_indexes or []:
+                if 0 <= slide_index < current_total:
+                    if _beautify_existing_slide(
+                        prs,
+                        prs.slides[slide_index],
+                        slide_index,
+                        current_total,
+                        theme,
+                    ):
+                        beautified_slides += 1
+            if beautified_slides > 0:
+                applied += 1
             continue
 
         if op_type in {"add_slide", "append_slide", "insert_slide"}:
@@ -821,6 +907,7 @@ def _apply_edit_operations(prs: Any, args: dict[str, Any]) -> dict[str, Any]:
         "replaced_count": replaced_total,
         "notes_count": notes_total,
         "added_slides": added_slides,
+        "beautified_slides": beautified_slides,
     }
 
 

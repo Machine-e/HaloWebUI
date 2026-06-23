@@ -104,3 +104,37 @@ def test_edit_pptx_bytes_replaces_text_and_adds_slide():
     assert stats["replaced_count"] >= 1
     assert "New Title" in all_text
     assert "Added Summary" in all_text
+
+
+def test_edit_pptx_bytes_beautifies_existing_deck():
+    pptx = pytest.importorskip("pptx")
+
+    source_bytes, _, source_slide_count = generate_pptx_bytes(
+        {
+            "title": "Raw Deck",
+            "slides": [
+                {
+                    "title": "Needs Polish",
+                    "bullets": ["Make the deck visually consistent"],
+                }
+            ],
+        }
+    )
+
+    edited_bytes, filename, slide_count, stats = edit_pptx_bytes(
+        source_bytes,
+        {
+            "filename": "polished-deck.pptx",
+            "theme": "emerald",
+            "operations": [{"type": "beautify"}],
+        },
+        source_filename="raw.pptx",
+    )
+
+    deck = pptx.Presentation(BytesIO(edited_bytes))
+
+    assert filename == "polished-deck.pptx"
+    assert slide_count == source_slide_count
+    assert len(deck.slides) == source_slide_count
+    assert stats["beautified_slides"] == source_slide_count
+    assert stats["applied_operations"] == 1

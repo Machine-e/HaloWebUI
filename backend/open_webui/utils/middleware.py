@@ -151,6 +151,13 @@ from open_webui.utils.mcp import (
     get_mcp_servers_data,
 )
 from open_webui.utils.builtin_tools import get_builtin_tools
+from open_webui.utils.pptx_skill import (
+    BUILTIN_PPTX_EDIT_ENTRYPOINT_ID,
+    BUILTIN_PPTX_SKILL_ID,
+    PPTX_CONTENT_TYPE,
+    create_pptx_edit_file,
+    is_builtin_pptx_skill_id,
+)
 from open_webui.utils.server_files import emit_server_files
 from open_webui.utils.user_tools import (
     MAX_TOOL_CALL_ROUNDS_DEFAULT,
@@ -376,6 +383,14 @@ _ARCHIVE_RESOURCE_EXTENSIONS = {
 _RESOURCE_PREVIEW_INTENT_RE = re.compile(
     r"(文件|附件|文档|资料|内容|里面|这是什么|是什么内容|概括|总结|预览|看看|说明|"
     r"file|attachment|document|resource|content|summary|summarize|overview|describe)",
+    re.IGNORECASE,
+)
+_PPTX_EDIT_INTENT_RE = re.compile(
+    r"(美化|优化|润色|修改|编辑|改成|改为|调整|排版|重排|重新设计|设计一下|"
+    r"替换|更新|新增|添加|加一页|删除|移除|另存|导出|下载|返回.*ppt|返回.*pptx|"
+    r"发给我.*ppt|发给我.*pptx|生成.*新.*ppt|生成.*新.*pptx|"
+    r"edit|modify|update|beautif(?:y|ul)|polish|improve|redesign|reformat|"
+    r"format|replace|add\s+slide|remove\s+slide|export|download|send.*pptx|return.*pptx)",
     re.IGNORECASE,
 )
 
@@ -677,6 +692,157 @@ def _build_current_chat_resources_context(files: Any, prompt: Any) -> str:
         lines.append("</current_chat_resource_previews>")
 
     return "\n".join(lines).strip()
+
+
+def _get_selected_runnable_skill_ids(metadata: Any) -> list[str]:
+    if not isinstance(metadata, dict):
+        return []
+
+    runnable_context = metadata.get("selected_runnable_skills") or {}
+    if not isinstance(runnable_context, dict):
+        return []
+
+    raw_skill_ids = runnable_context.get("skill_ids") or []
+    if not isinstance(raw_skill_ids, list):
+        return []
+
+    return [str(skill_id or "").strip() for skill_id in raw_skill_ids if skill_id]
+
+
+def _is_pptx_editor_skill_enabled(metadata: Any) -> bool:
+    return any(
+        is_builtin_pptx_skill_id(skill_id)
+        for skill_id in _get_selected_runnable_skill_ids(metadata)
+    )
+
+
+def _is_pptx_file_item(file_item: Any) -> bool:
+    if not isinstance(file_item, dict):
+        return False
+
+    name = _get_file_item_name(file_item).lower()
+    media_type = _get_file_item_media_type(file_item, name).lower()
+    return name.endswith(".pptx") or media_type == PPTX_CONTENT_TYPE
+
+
+def _find_current_chat_pptx_file(files: Any) -> Optional[dict]:
+    if not isinstance(files, list):
+        return None
+
+    for file_item in reversed(files):
+        if not isinstance(file_item, dict):
+            continue
+        if _is_code_interpreter_generated_file(file_item):
+            continue
+        if _is_pptx_file_item(file_item) and _get_attachment_file_id(file_item):
+            return file_item
+
+    return None
+
+
+def _has_pptx_message_file(message_files: Any) -> bool:
+    for file_item in _normalize_message_files(message_files):
+        if _is_pptx_file_item(file_item):
+            return True
+    return False
+
+
+def _has_pptx_edit_intent(prompt: Any) -> bool:
+    text = str(prompt or "").strip()
+    if not text:
+        return False
+    return bool(_PPTX_EDIT_INTENT_RE.search(text))
+
+
+def _build_pptx_edit_fallback_args(prompt: Any, source_file: dict) -> dict[str, Any]:
+    source_file_id = _get_attachment_file_id(source_file)
+    source_name = _get_file_item_name(source_file) or "presentation.pptx"
+    base_name = os.path.splitext(source_name)[0] or "presentation"
+    safe_base_name = re.sub(r"[<>:\"/\\|?*\x00-\x1f]", "_", base_name).strip(" ._")
+    filename = f"{safe_base_name or 'presentation'}-edited.pptx"
+
+    return {
+        "source_file_id": source_file_id,
+        "filename": filename,
+        "theme": "blue",
+        "operations": [{"type": "beautify"}],
+        "edit_request": _truncate_text(prompt, 1000),
+    }
+
+
+def _should_run_pptx_editor_fallback(
+    metadata: Any,
+    prompt: Any,
+    message_files: Any,
+) -> bool:
+    if not _is_pptx_editor_skill_enabled(metadata):
+        return False
+    if not _has_pptx_edit_intent(prompt):
+        return False
+    if _has_pptx_message_file(message_files):
+        return False
+    files = metadata.get("files") if isinstance(metadata, dict) else None
+    return _find_current_chat_pptx_file(files) is not None
+
+
+def _build_pptx_editor_trigger_context(metadata: Any, prompt: Any) -> str:
+    if not isinstance(metadata, dict):
+        return ""
+    if not _is_pptx_editor_skill_enabled(metadata):
+        return ""
+    if not _has_pptx_edit_intent(prompt):
+        return ""
+
+    source_file = _find_current_chat_pptx_file(metadata.get("files"))
+    if not source_file:
+        return ""
+
+    args = _build_pptx_edit_fallback_args(prompt, source_file)
+    source_file_id = args["source_file_id"]
+    source_name = _get_file_item_name(source_file) or "presentation.pptx"
+    example_args = json.dumps(args, ensure_ascii=False)
+
+    return (
+        '<pptx_editor_trigger v="1">\n'
+        "The user enabled PPTX Editor and attached a PPTX file.\n"
+        f"Source PPTX file id: {source_file_id}\n"
+        f"Source PPTX file name: {source_name}\n"
+        f'You MUST call execute_skill_entrypoint with skill_id "{BUILTIN_PPTX_SKILL_ID}" '
+        f'and entrypoint_id "{BUILTIN_PPTX_EDIT_ENTRYPOINT_ID}".\n'
+        "Do not answer with only advice, markdown, JSON, or plain text. The assistant reply must include the new downloadable PPTX file returned by the skill.\n"
+        f"For general beautify/format/polish requests, use args like: {example_args}\n"
+        "</pptx_editor_trigger>"
+    )
+
+
+async def _maybe_run_pptx_editor_fallback(
+    request: Request,
+    user: UserModel,
+    metadata: dict,
+    prompt: Any,
+    message_files: Any,
+    event_emitter: Any = None,
+) -> list[dict]:
+    if not _should_run_pptx_editor_fallback(metadata, prompt, message_files):
+        return []
+
+    source_file = _find_current_chat_pptx_file(metadata.get("files"))
+    if not source_file:
+        return []
+
+    args = _build_pptx_edit_fallback_args(prompt, source_file)
+    try:
+        result = await asyncio.to_thread(create_pptx_edit_file, request, user, args)
+    except Exception as exc:
+        log.warning("[PPTX EDIT FALLBACK] failed: %s", exc)
+        return []
+
+    fallback_files = _normalize_message_files(
+        result.get("files") if isinstance(result, dict) else result
+    )
+    if fallback_files and event_emitter:
+        await emit_server_files(event_emitter, fallback_files)
+    return fallback_files
 
 
 _DATA_IMAGE_MARKDOWN_RE = re.compile(
@@ -5501,6 +5667,17 @@ async def process_chat_payload(request, form_data, user, metadata, model, tasks=
         )
         metadata["current_chat_resources_context"] = current_chat_resources_context
 
+    last_user_prompt = get_last_user_message(form_data.get("messages", []))
+    pptx_editor_trigger_context = _build_pptx_editor_trigger_context(
+        metadata, last_user_prompt
+    )
+    if pptx_editor_trigger_context:
+        form_data["messages"] = add_or_update_system_message(
+            pptx_editor_trigger_context,
+            form_data.get("messages", []),
+        )
+        metadata["pptx_editor_trigger_context"] = pptx_editor_trigger_context
+
     # Server side tools
     tool_ids = metadata.get("tool_ids", None)
     # Client side tools
@@ -6026,6 +6203,17 @@ async def process_chat_response(
                     allow_base64_image_url_conversion=allow_base64_image_url_conversion,
                 )
                 response_message = response["choices"][0].setdefault("message", {})
+
+                fallback_files = await _maybe_run_pptx_editor_fallback(
+                    request,
+                    user,
+                    metadata,
+                    get_last_user_message(form_data.get("messages", [])),
+                    message_files,
+                    None,
+                )
+                if fallback_files:
+                    message_files = _merge_message_files(message_files, fallback_files)
 
                 if message_files:
                     await emit_server_files(event_emitter, message_files)
@@ -10184,6 +10372,24 @@ async def process_chat_response(
                         except Exception as e:
                             log.debug(e)
                             break
+
+                fallback_files = await _maybe_run_pptx_editor_fallback(
+                    request,
+                    user,
+                    metadata,
+                    get_last_user_message(form_data.get("messages", [])),
+                    message_files,
+                    event_emitter,
+                )
+                if fallback_files:
+                    message_files = _merge_message_files(message_files, fallback_files)
+                    if ENABLE_REALTIME_CHAT_SAVE:
+                        try:
+                            upsert_response_message({"files": message_files})
+                        except Exception as e:
+                            log.warning(
+                                "Failed to persist PPTX fallback files: %s", e
+                            )
 
                 title = Chats.get_chat_title_by_id(metadata["chat_id"])
 
