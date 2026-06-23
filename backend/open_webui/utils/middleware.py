@@ -393,6 +393,15 @@ _PPTX_EDIT_INTENT_RE = re.compile(
     r"format|replace|add\s+slide|remove\s+slide|export|download|send.*pptx|return.*pptx)",
     re.IGNORECASE,
 )
+_PPTX_RESOURCE_RE = re.compile(
+    r"(pptx?|powerpoint|presentation|slide deck|slides|幻灯片|演示文稿)",
+    re.IGNORECASE,
+)
+_PPTX_GENERATION_INTENT_RE = re.compile(
+    r"(生成|创建|制作|做一个|做份|导出|返回|发给我|下载|"
+    r"generate|create|make|draft|export|download|send|return)",
+    re.IGNORECASE,
+)
 
 
 def _get_file_item_nested_file(file_item: Any) -> dict:
@@ -752,6 +761,78 @@ def _has_pptx_edit_intent(prompt: Any) -> bool:
     if not text:
         return False
     return bool(_PPTX_EDIT_INTENT_RE.search(text))
+
+
+def _mentions_pptx_resource(prompt: Any) -> bool:
+    text = str(prompt or "").strip()
+    if not text:
+        return False
+    return bool(_PPTX_RESOURCE_RE.search(text))
+
+
+def _has_pptx_generation_intent(prompt: Any) -> bool:
+    text = str(prompt or "").strip()
+    if not text:
+        return False
+    return bool(
+        _mentions_pptx_resource(text) and _PPTX_GENERATION_INTENT_RE.search(text)
+    )
+
+
+def _find_latest_pptx_file_from_messages(messages: Any) -> Optional[dict]:
+    if not isinstance(messages, list):
+        return None
+
+    for message in reversed(messages):
+        if not isinstance(message, dict):
+            continue
+        for file_item in reversed(_normalize_message_files(message.get("files") or [])):
+            if not isinstance(file_item, dict):
+                continue
+            if _is_code_interpreter_generated_file(file_item):
+                continue
+            if _is_pptx_file_item(file_item) and _get_attachment_file_id(file_item):
+                return file_item
+
+            file_id = _get_attachment_file_id(file_item)
+            if not file_id:
+                continue
+            try:
+                file_obj = Files.get_file_by_id(file_id)
+            except Exception:
+                file_obj = None
+            if not file_obj:
+                continue
+            candidate = {
+                "type": "file",
+                "id": file_id,
+                "filename": getattr(file_obj, "filename", "") or "",
+                "content_type": (getattr(file_obj, "meta", None) or {}).get(
+                    "content_type", ""
+                ),
+                "size": (getattr(file_obj, "meta", None) or {}).get("size", 0),
+            }
+            if _is_pptx_file_item(candidate):
+                return candidate
+
+    return None
+
+
+def _should_auto_select_builtin_pptx_skill(
+    prompt: Any,
+    messages: Any,
+    existing_skill_ids: Any,
+) -> bool:
+    if any(is_builtin_pptx_skill_id(skill_id) for skill_id in existing_skill_ids or []):
+        return False
+
+    if not (_has_pptx_edit_intent(prompt) or _has_pptx_generation_intent(prompt)):
+        return False
+
+    return bool(
+        _mentions_pptx_resource(prompt)
+        or _find_latest_pptx_file_from_messages(messages) is not None
+    )
 
 
 def _build_pptx_edit_fallback_args(prompt: Any, source_file: dict) -> dict[str, Any]:
@@ -5567,11 +5648,23 @@ async def process_chat_payload(request, form_data, user, metadata, model, tasks=
         skill_id = str(raw_skill_id or "").strip()
         if skill_id and skill_id not in base_skill_ids:
             base_skill_ids.append(skill_id)
+    last_user_prompt_for_skills = get_last_user_message(form_data.get("messages", []))
     auto_skill_ids = select_auto_skill_ids(
         user,
         form_data.get("messages", []),
         existing_skill_ids=base_skill_ids,
     )
+    builtin_pptx_auto_selected = _should_auto_select_builtin_pptx_skill(
+        last_user_prompt_for_skills,
+        form_data.get("messages", []),
+        [*base_skill_ids, *auto_skill_ids],
+    )
+    if builtin_pptx_auto_selected:
+        auto_skill_ids.append(BUILTIN_PPTX_SKILL_ID)
+        log.info(
+            "[PPTX EDIT] Auto-selected built-in PPTX skill for prompt: %s",
+            _truncate_text(last_user_prompt_for_skills, 160),
+        )
     skill_context = get_selected_skill_context(
         user,
         [*(skill_ids or []), *auto_skill_ids],
@@ -5630,6 +5723,24 @@ async def process_chat_payload(request, form_data, user, metadata, model, tasks=
                 metadata["files"] = existing
         except Exception as e:
             log.debug(f"Error extracting files from messages: {e}")
+    elif (
+        not metadata.get("files")
+        and _is_pptx_editor_skill_enabled(metadata)
+        and _has_pptx_edit_intent(last_user_prompt_for_skills)
+    ):
+        try:
+            latest_pptx_file = _find_latest_pptx_file_from_messages(
+                form_data.get("messages", [])
+            )
+            if latest_pptx_file:
+                metadata["files"] = [latest_pptx_file]
+                log.info(
+                    "[PPTX EDIT] Recovered latest PPTX from message history: id=%s name=%s",
+                    _get_attachment_file_id(latest_pptx_file),
+                    _get_file_item_name(latest_pptx_file),
+                )
+        except Exception as e:
+            log.debug(f"Error recovering PPTX file from message history: {e}")
 
     form_data["metadata"] = metadata
 
