@@ -1,5 +1,5 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
-import { parseBlobResponse, parseJsonResponse } from '../response';
+import { parseArrayBufferResponse, parseBlobResponse, parseJsonResponse } from '../response';
 
 type UploadFileOptions = {
 	processingMode?: string;
@@ -220,7 +220,7 @@ export const updateFileDataContentById = async (token: string, id: string, conte
 export const getFileContentById = async (id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/${id}/content`, {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/files/${encodeURIComponent(id)}/content`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json'
@@ -228,6 +228,32 @@ export const getFileContentById = async (id: string) => {
 		credentials: 'include'
 	})
 		.then(parseBlobResponse)
+		.catch((err) => {
+			error = err.detail;
+			console.log(err);
+
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const readFileArrayBufferById = async (token: string, id: string) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/files/${encodeURIComponent(id)}/content`, {
+		method: 'GET',
+		headers: {
+			Accept: 'application/octet-stream',
+			...(token ? { authorization: `Bearer ${token}` } : {})
+		},
+		credentials: 'include'
+	})
+		.then(parseArrayBufferResponse)
 		.catch((err) => {
 			error = err.detail;
 			console.log(err);

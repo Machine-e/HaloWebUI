@@ -5,15 +5,15 @@ import re
 import time
 from datetime import datetime, timezone
 from typing import Any, Optional
-from uuid import uuid4
 
 from fastapi import Request
 
-from open_webui.models.files import FileForm, Files
+from open_webui.models.files import Files
 from open_webui.models.skills import SkillModel
 from open_webui.models.users import UserModel
 from open_webui.storage.provider import Storage
 from open_webui.utils.access_control import has_access
+from open_webui.utils.server_files import save_server_file
 
 try:
     from pptx import Presentation
@@ -832,67 +832,29 @@ def _save_pptx_file(
     *,
     skill_source: str,
     source_file_id: Optional[str] = None,
+    edit_stats: Optional[dict[str, Any]] = None,
 ) -> tuple[str, dict[str, Any]]:
-    file_id = str(uuid4())
-    storage_filename = f"{file_id}_{filename}"
-    file_path = None
-    try:
-        file_size, file_path = Storage.upload_file(
-            io.BytesIO(pptx_bytes), storage_filename
-        )
-        file_item = Files.insert_new_file(
-            user.id,
-            FileForm(
-                id=file_id,
-                filename=filename,
-                path=file_path,
-                meta={
-                    "name": filename,
-                    "content_type": PPTX_CONTENT_TYPE,
-                    "size": file_size,
-                    "data": {
-                        "source": skill_source,
-                        "skill_id": BUILTIN_PPTX_SKILL_ID,
-                        "generated": True,
-                        **(
-                            {"source_file_id": source_file_id}
-                            if source_file_id
-                            else {}
-                        ),
-                    },
-                },
+    attachment = save_server_file(
+        request,
+        user,
+        pptx_bytes,
+        filename,
+        PPTX_CONTENT_TYPE,
+        producer=skill_source,
+        metadata={
+            "skill_id": BUILTIN_PPTX_SKILL_ID,
+            "created_from_skill_id": BUILTIN_PPTX_SKILL_ID,
+            **(
+                {"source_file_id": source_file_id}
+                if source_file_id
+                else {}
             ),
-        )
-    except Exception:
-        if file_path:
-            Storage.delete_file(file_path)
-        raise
+            **({"edit_stats": edit_stats} if edit_stats else {}),
+        },
+        preview={"kind": "pptx", "strategy": "client_ooxml"},
+    )
 
-    if not file_item:
-        if file_path:
-            Storage.delete_file(file_path)
-        raise RuntimeError("生成的 PPTX 文件登记失败。")
-
-    download_url = f"/api/v1/files/{file_id}/content?attachment=true"
-    content_url = f"/api/v1/files/{file_id}/content"
-    base_url = str(request.base_url).rstrip("/") if request is not None else ""
-    file_result = {
-        "type": "file",
-        "id": file_id,
-        "name": filename,
-        "filename": filename,
-        "url": download_url,
-        "content_url": content_url,
-        "absolute_url": f"{base_url}{download_url}" if base_url else download_url,
-        "size": file_size,
-        "content_type": PPTX_CONTENT_TYPE,
-        "source": skill_source,
-        "generated": True,
-    }
-    if source_file_id:
-        file_result["source_file_id"] = source_file_id
-
-    return file_id, file_result
+    return attachment["id"], attachment
 
 
 def _load_source_pptx(
@@ -1003,7 +965,8 @@ def create_pptx_file(
         "created_at": now,
         "slide_count": slide_count,
         "file": file_result,
-        "message": "PPTX generated. Share file.url or file.absolute_url with the user.",
+        "files": [file_result],
+        "message": "PPTX generated and attached to the chat message.",
     }
 
 
@@ -1034,6 +997,7 @@ def create_pptx_edit_file(
         filename,
         skill_source="pptx_editor",
         source_file_id=_clean_text(source_file_id, 120),
+        edit_stats=edit_stats,
     )
 
     return {
@@ -1045,5 +1009,6 @@ def create_pptx_edit_file(
         "edit_stats": edit_stats,
         "source_file_id": _clean_text(source_file_id, 120),
         "file": file_result,
-        "message": "PPTX edited. Share file.url or file.absolute_url with the user.",
+        "files": [file_result],
+        "message": "PPTX edited and attached to the chat message.",
     }

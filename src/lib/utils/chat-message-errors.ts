@@ -1,4 +1,14 @@
 const MISSING_OUTPUT_ERROR_TYPES = new Set(['empty_response', 'tool_no_output']);
+const VISIBLE_MESSAGE_FILE_KEYS = [
+	'url',
+	'content_url',
+	'download_url',
+	'preview_url',
+	'id',
+	'name',
+	'filename',
+	'path'
+];
 
 export const hasVisibleMessageFiles = (files: unknown): boolean => {
 	if (!Array.isArray(files)) {
@@ -14,18 +24,22 @@ export const hasVisibleMessageFiles = (files: unknown): boolean => {
 		const type = `${candidate.type ?? ''}`.trim().toLowerCase();
 		const source = `${candidate.source ?? ''}`.trim().toLowerCase();
 		const status = `${candidate.status ?? ''}`.trim().toLowerCase();
-		if (type === 'image_generation_error' || (source === 'image_generation' && status === 'failed')) {
+		if (
+			type === 'image_generation_error' ||
+			(source === 'image_generation' && status === 'failed')
+		) {
 			return true;
 		}
 
 		const generated =
-			candidate.generated === true || source === 'code_interpreter';
+			candidate.generated === true ||
+			candidate.server_generated === true ||
+			source === 'code_interpreter' ||
+			source === 'server_file';
 
 		return (
-			(type === 'image' || generated) &&
-			['url', 'content_url', 'id', 'name', 'filename', 'path'].some(
-				(key) => `${candidate[key] ?? ''}`.trim() !== ''
-			)
+			(type === 'image' || type === 'file' || generated) &&
+			VISIBLE_MESSAGE_FILE_KEYS.some((key) => `${candidate[key] ?? ''}`.trim() !== '')
 		);
 	});
 };

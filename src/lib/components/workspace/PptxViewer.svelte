@@ -9,6 +9,7 @@
 	// ── Props ──────────────────────────────────────────────
 	export let data: ArrayBuffer;
 	export let filePath: string = '';
+	export let showClose: boolean = true;
 
 	// ── Types ──────────────────────────────────────────────
 	interface SlideContent {
@@ -190,12 +191,14 @@
 		>
 			{viewAll ? $i18n.t('Single') : $i18n.t('All Slides')}
 		</button>
-		<button
-			class="px-2 py-1 text-xs rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-			on:click={() => dispatch('close')}
-		>
-			{$i18n.t('Close')}
-		</button>
+		{#if showClose}
+			<button
+				class="px-2 py-1 text-xs rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+				on:click={() => dispatch('close')}
+			>
+				{$i18n.t('Close')}
+			</button>
+		{/if}
 	</div>
 </div>
 

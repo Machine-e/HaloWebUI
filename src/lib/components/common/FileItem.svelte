@@ -37,8 +37,52 @@
 		}
 	};
 
+	const PPTX_CONTENT_TYPE =
+		'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+	const getString = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+	const getItemFileName = () =>
+		getString(item?.name) ||
+		getString(item?.filename) ||
+		getString(item?.file?.filename) ||
+		getString(name);
+	const getItemContentType = () =>
+		(
+			getString(item?.content_type) ||
+			getString(item?.meta?.content_type) ||
+			getString(item?.file?.meta?.content_type)
+		).toLowerCase();
+	const getItemPreviewKind = () =>
+		(
+			getString(item?.preview?.kind) ||
+			getString(item?.meta?.preview?.kind) ||
+			getString(item?.file?.meta?.preview?.kind)
+		).toLowerCase();
+	const isPptxFile = () =>
+		getItemPreviewKind() === 'pptx' ||
+		getItemContentType() === PPTX_CONTENT_TYPE ||
+		getItemFileName().toLowerCase().endsWith('.pptx');
+	const resolveContentUrl = () => {
+		const directUrl = getString(item?.content_url) || getString(item?.preview_url);
+		if (directUrl) {
+			return directUrl;
+		}
+
+		const targetUrl = getString(url) || getString(item?.url);
+		if (!targetUrl) {
+			return '';
+		}
+
+		if (type === 'file' && !/\/content(?:[?#]|$)/.test(targetUrl)) {
+			return `${targetUrl.replace(/\/$/, '')}/content`;
+		}
+
+		return targetUrl;
+	};
+
 	$: failed = item?.status === 'failed';
 	$: uploading = loading || item?.status === 'uploading';
+	$: previewablePptx = isPptxFile();
+	$: contentUrl = resolveContentUrl();
 	$: failureTitle = item?.errorTitle ?? item?.diagnostic?.title ?? $i18n.t('Upload failed');
 	$: failureMessage = item?.error ?? item?.diagnostic?.message ?? '';
 	$: failureHint = item?.errorHint ?? item?.diagnostic?.hint ?? '';
@@ -65,15 +109,17 @@
 			return;
 		}
 
-		if (edit || item?.file?.data?.content || item?.processing_mode || item?.file?.meta?.processing_mode) {
+		if (
+			edit ||
+			previewablePptx ||
+			item?.file?.data?.content ||
+			item?.processing_mode ||
+			item?.file?.meta?.processing_mode
+		) {
 			showModal = !showModal;
 		} else {
-			if (url) {
-				if (type === 'file') {
-					window.open(`${url}/content`, '_blank').focus();
-				} else {
-					window.open(`${url}`, '_blank').focus();
-				}
+			if (contentUrl) {
+				window.open(contentUrl, '_blank')?.focus();
 			}
 		}
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { uploadFile } from './index';
+import { readFileArrayBufferById, uploadFile } from './index';
 
 type ProgressHandler = (event: {
 	lengthComputable: boolean;
@@ -91,5 +91,30 @@ describe('uploadFile', () => {
 			})
 		).rejects.toBe('File is too large');
 		expect(consoleLog).toHaveBeenCalled();
+	});
+});
+
+describe('readFileArrayBufferById', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	it('fetches file content as an array buffer with bearer auth', async () => {
+		const data = new Uint8Array([80, 75, 3, 4]).buffer;
+		const fetchMock = vi.fn().mockResolvedValue(new Response(data));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const result = await readFileArrayBufferById('token-1', 'pptx file');
+
+		expect(new Uint8Array(result ?? [])).toEqual(new Uint8Array([80, 75, 3, 4]));
+		expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/files/pptx%20file/content'), {
+			method: 'GET',
+			headers: {
+				Accept: 'application/octet-stream',
+				authorization: 'Bearer token-1'
+			},
+			credentials: 'include'
+		});
 	});
 });

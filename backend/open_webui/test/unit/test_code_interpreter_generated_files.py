@@ -222,7 +222,7 @@ def test_register_generated_file_cleans_upload_when_db_insert_fails(monkeypatch)
     assert deleted[0].endswith("_report.pdf")
 
 
-def test_generated_non_image_files_count_as_visible_output():
+def test_non_image_file_attachments_count_as_visible_output():
     assert middleware._has_visible_message_files(
         [
             {
@@ -234,7 +234,19 @@ def test_generated_non_image_files_count_as_visible_output():
             }
         ]
     )
-    assert not middleware._has_visible_message_files([{"type": "file", "id": "file-1"}])
+    assert middleware._has_visible_message_files([{"type": "file", "id": "file-1"}])
+    assert middleware._has_visible_message_files(
+        [
+            {
+                "type": "file",
+                "id": "server-file-1",
+                "name": "edited.pptx",
+                "source": "server_file",
+                "server_generated": True,
+            }
+        ]
+    )
+    assert not middleware._has_visible_message_files([{"type": "file"}])
 
 
 def test_generated_files_are_not_reused_as_user_input_attachments(monkeypatch):
@@ -268,6 +280,18 @@ def test_generated_files_are_not_reused_as_user_input_attachments(monkeypatch):
             "type": "file",
             "id": "generated-1",
             "source": "code_interpreter",
+            "generated": True,
+        }
+    )
+
+
+def test_non_code_generated_pptx_is_not_treated_as_code_interpreter_file():
+    assert not middleware._is_code_interpreter_generated_file(
+        {
+            "type": "file",
+            "id": "pptx-1",
+            "name": "edited.pptx",
+            "source": "pptx_editor",
             "generated": True,
         }
     )

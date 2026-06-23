@@ -106,12 +106,17 @@
 			type?: string;
 			url?: string;
 			content_url?: string;
+			download_url?: string;
+			preview_url?: string;
 			id?: string;
 			name?: string;
 			filename?: string;
 			path?: string;
+			content_type?: string;
 			source?: string;
 			generated?: boolean;
+			server_generated?: boolean;
+			preview?: Record<string, unknown>;
 			status?: string;
 			slot_index?: number;
 			error?: string;
@@ -242,7 +247,7 @@
 	$: messageContent = message?.content ?? '';
 	$: hasVisibleAssistantOutput = getVisibleAssistantOutput(message?.content ?? '') !== '';
 	$: visibleMessageFiles = (message?.files ?? []).filter(
-		(file) => file?.source !== 'code_interpreter' && file?.generated !== true
+		(file) => file?.source !== 'code_interpreter'
 	);
 	const getTrimmedMessageFileValue = (value: unknown) =>
 		typeof value === 'string' ? value.trim() : '';

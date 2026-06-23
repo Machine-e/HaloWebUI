@@ -23,13 +23,26 @@ describe('chat-message-errors', () => {
 				}
 			])
 		).toBe(true);
+		expect(
+			hasVisibleMessageFiles([
+				{
+					type: 'file',
+					id: 'pptx_file',
+					name: 'edited.pptx',
+					content_type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+					source: 'server_file',
+					server_generated: true,
+					download_url: '/api/v1/files/pptx_file/content?attachment=true'
+				}
+			])
+		).toBe(true);
 	});
 
 	it('does not treat empty file payloads as visible output', () => {
 		expect(hasVisibleMessageFiles([])).toBe(false);
 		expect(hasVisibleMessageFiles([{}])).toBe(false);
 		expect(hasVisibleMessageFiles(null)).toBe(false);
-		expect(hasVisibleMessageFiles([{ type: 'file', id: 'file_123' }])).toBe(false);
+		expect(hasVisibleMessageFiles([{ type: 'file', id: 'file_123' }])).toBe(true);
 		expect(hasVisibleMessageFiles([{ type: 'file', source: 'code_interpreter' }])).toBe(false);
 	});
 
@@ -76,6 +89,23 @@ describe('chat-message-errors', () => {
 		expect(shouldHideMissingOutputError(error, files)).toBe(true);
 		expect(getRenderableMessageError(error, files)).toBeNull();
 		expect(getRenderableMessageError(error, [])).toEqual(error);
+	});
+
+	it('hides empty-response errors when server file attachments exist', () => {
+		const error = { type: 'empty_response', content: '模型返回了空响应（0 token）。' };
+		const files = [
+			{
+				type: 'file',
+				id: 'pptx_file',
+				name: 'edited.pptx',
+				source: 'server_file',
+				server_generated: true,
+				content_url: '/api/v1/files/pptx_file/content'
+			}
+		];
+
+		expect(shouldHideMissingOutputError(error, files)).toBe(true);
+		expect(getRenderableMessageError(error, files)).toBeNull();
 	});
 
 	it('does not hide real api errors even when files exist', () => {

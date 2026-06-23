@@ -52,6 +52,16 @@ describe('generated-file-links', () => {
 			generated: true
 		},
 		{
+			id: 'file-8',
+			name: 'edited.pptx',
+			path: 'edited.pptx',
+			url: '/api/v1/files/file-8',
+			source: 'server_file',
+			server_generated: true,
+			download_url: '/api/v1/files/file-8/content?attachment=true',
+			content_url: '/api/v1/files/file-8/content'
+		},
+		{
 			id: 'file-3',
 			name: 'input.pdf',
 			source: 'user_upload'
@@ -107,6 +117,9 @@ describe('generated-file-links', () => {
 		expect(resolveGeneratedFileDownloadUrl('artifacts/data.bin', files)).toBe(
 			'/api/v1/files/file-7/content?attachment=true'
 		);
+		expect(resolveGeneratedFileDownloadUrl('edited.pptx', files)).toBe(
+			'/api/v1/files/file-8/content?attachment=true'
+		);
 	});
 
 	it('resolves generated file content urls for embedded media separately from downloads', () => {
@@ -115,6 +128,9 @@ describe('generated-file-links', () => {
 		);
 		expect(resolveGeneratedFileContentUrl('exports/workbook.xlsx', files)).toBe(
 			'/api/v1/files/file-6/content'
+		);
+		expect(resolveGeneratedFileContentUrl('edited.pptx', files)).toBe(
+			'/api/v1/files/file-8/content'
 		);
 	});
 

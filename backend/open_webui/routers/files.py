@@ -51,6 +51,10 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 router = APIRouter()
 
+PPTX_CONTENT_TYPE = (
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+)
+
 
 def _cleanup_failed_uploaded_file(file_id: str, file_path: str | None) -> None:
     if file_id:
@@ -516,18 +520,26 @@ async def get_file_content_by_id(
                 encoded_filename = quote(filename)
                 headers = {}
 
+                if filename.lower().endswith(".pptx"):
+                    content_type = PPTX_CONTENT_TYPE
+
                 if attachment:
                     headers["Content-Disposition"] = (
                         f"attachment; filename*=UTF-8''{encoded_filename}"
                     )
                 else:
-                    if content_type == "application/pdf" or filename.lower().endswith(
-                        ".pdf"
+                    if (
+                        content_type == "application/pdf"
+                        or filename.lower().endswith(".pdf")
                     ):
                         headers["Content-Disposition"] = (
                             f"inline; filename*=UTF-8''{encoded_filename}"
                         )
                         content_type = "application/pdf"
+                    elif content_type == PPTX_CONTENT_TYPE:
+                        headers["Content-Disposition"] = (
+                            f"inline; filename*=UTF-8''{encoded_filename}"
+                        )
                     elif content_type != "text/plain":
                         headers["Content-Disposition"] = (
                             f"attachment; filename*=UTF-8''{encoded_filename}"

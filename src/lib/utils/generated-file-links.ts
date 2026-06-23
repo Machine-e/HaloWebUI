@@ -6,13 +6,17 @@ export type GeneratedMessageFile = {
 	relative_path?: string;
 	url?: string;
 	content_url?: string;
+	download_url?: string;
+	preview_url?: string;
 	type?: string;
 	source?: string;
 	generated?: boolean;
+	server_generated?: boolean;
 	[key: string]: unknown;
 };
 
 const GENERATED_FILE_SOURCE = 'code_interpreter';
+const SERVER_FILE_SOURCE = 'server_file';
 
 const splitLinkTarget = (href: string) => {
 	const hashIndex = href.indexOf('#');
@@ -50,9 +54,8 @@ export const normalizeGeneratedFileLinkPath = (value: unknown): string | null =>
 	}
 
 	const normalizedInput = trimmed.replaceAll('\\', '/');
-	const knownSandboxUrlMatch = /^(?:sandbox:|file:\/\/)(\/mnt\/(?:data|generated|uploads)\/.+)$/i.exec(
-		normalizedInput
-	);
+	const knownSandboxUrlMatch =
+		/^(?:sandbox:|file:\/\/)(\/mnt\/(?:data|generated|uploads)\/.+)$/i.exec(normalizedInput);
 	const linkTarget = knownSandboxUrlMatch?.[1] ?? normalizedInput;
 
 	if (!knownSandboxUrlMatch && /^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
@@ -60,8 +63,7 @@ export const normalizeGeneratedFileLinkPath = (value: unknown): string | null =>
 	}
 
 	const { path } = splitLinkTarget(linkTarget);
-	const normalizedPath =
-		path.startsWith('/') ? stripKnownGeneratedFileSandboxPrefix(path) : path;
+	const normalizedPath = path.startsWith('/') ? stripKnownGeneratedFileSandboxPrefix(path) : path;
 	if (!normalizedPath) {
 		return null;
 	}
@@ -86,21 +88,32 @@ export const normalizeGeneratedFileLinkPath = (value: unknown): string | null =>
 };
 
 const isGeneratedFile = (file: GeneratedMessageFile) =>
-	file?.generated === true || file?.source === GENERATED_FILE_SOURCE;
+	file?.generated === true ||
+	file?.server_generated === true ||
+	file?.source === GENERATED_FILE_SOURCE ||
+	file?.source === SERVER_FILE_SOURCE;
 
 const buildFileContentUrl = (file: GeneratedMessageFile, attachment: boolean): string | null => {
-	if (!attachment && typeof file?.content_url === 'string' && file.content_url.trim()) {
-		return file.content_url.trim();
+	if (attachment && typeof file?.download_url === 'string' && file.download_url.trim()) {
+		return file.download_url.trim();
 	}
 
-	if (attachment && typeof file?.url === 'string' && file.url.trim()) {
-		return file.url.trim();
+	if (!attachment && typeof file?.preview_url === 'string' && file.preview_url.trim()) {
+		return file.preview_url.trim();
+	}
+
+	if (!attachment && typeof file?.content_url === 'string' && file.content_url.trim()) {
+		return file.content_url.trim();
 	}
 
 	if (typeof file?.id === 'string' && file.id.trim()) {
 		return `/api/v1/files/${encodeURIComponent(file.id.trim())}/content${
 			attachment ? '?attachment=true' : ''
 		}`;
+	}
+
+	if (attachment && typeof file?.url === 'string' && file.url.trim()) {
+		return file.url.trim();
 	}
 
 	if (!attachment && typeof file?.url === 'string' && file.url.trim()) {

@@ -151,6 +151,7 @@ from open_webui.utils.mcp import (
     get_mcp_servers_data,
 )
 from open_webui.utils.builtin_tools import get_builtin_tools
+from open_webui.utils.server_files import emit_server_files
 from open_webui.utils.user_tools import (
     MAX_TOOL_CALL_ROUNDS_DEFAULT,
     get_user_mcp_server_connections,
@@ -787,9 +788,17 @@ def _merge_message_files(existing: Any, incoming: Any) -> list[dict]:
 def _is_code_interpreter_generated_file(file_item: Any) -> bool:
     if not isinstance(file_item, dict):
         return False
-    return (
+    source = str(file_item.get("source") or "").strip()
+    if source == "code_interpreter":
+        return True
+
+    return bool(
         file_item.get("generated") is True
-        or str(file_item.get("source") or "").strip() == "code_interpreter"
+        and not source
+        and (
+            str(file_item.get("path") or "").strip()
+            or str(file_item.get("relative_path") or "").strip()
+        )
     )
 
 
@@ -1234,10 +1243,20 @@ def _has_visible_message_files(message_files: Any) -> bool:
         generated = (
             file_item.get("generated") is True
             or str(file_item.get("source") or "").strip() == "code_interpreter"
+            or file_item.get("server_generated") is True
         )
-        visible_keys = ("url", "content_url", "id", "name", "filename", "path")
+        visible_keys = (
+            "url",
+            "content_url",
+            "download_url",
+            "preview_url",
+            "id",
+            "name",
+            "filename",
+            "path",
+        )
 
-        if (file_type == "image" or generated) and any(
+        if (file_type in {"image", "file"} or generated) and any(
             str(file_item.get(key) or "").strip() for key in visible_keys
         ):
             return True
@@ -3929,13 +3948,14 @@ async def chat_completion_tools_handler(
                     # Never block tool execution due to citation extraction.
                     pass
 
-                tool_result_files = []
+                tool_result_files = _normalize_message_files(tool_result)
                 if isinstance(tool_result, list):
+                    kept_items = []
                     for item in tool_result:
-                        # check if string
                         if isinstance(item, str) and item.startswith("data:"):
-                            tool_result_files.append(item)
-                            tool_result.remove(item)
+                            continue
+                        kept_items.append(item)
+                    tool_result = kept_items
 
                 if isinstance(tool_result, list):
                     tool_result = {"results": tool_result}
@@ -6008,12 +6028,7 @@ async def process_chat_response(
                 response_message = response["choices"][0].setdefault("message", {})
 
                 if message_files:
-                    await event_emitter(
-                        {
-                            "type": "files",
-                            "data": {"files": message_files},
-                        }
-                    )
+                    await emit_server_files(event_emitter, message_files)
 
                     response_message["files"] = message_files
 
@@ -6905,12 +6920,7 @@ async def process_chat_response(
                         if not delta_files:
                             return
 
-                        await event_emitter(
-                            {
-                                "type": "files",
-                                "data": {"files": delta_files},
-                            }
-                        )
+                        await emit_server_files(event_emitter, delta_files)
 
                     allow_base64_image_url_conversion = bool(
                         getattr(
@@ -9362,11 +9372,8 @@ async def process_chat_response(
                                 existing_message.get("files"), round_message_files
                             )
                             if merged_message_files:
-                                await event_emitter(
-                                    {
-                                        "type": "files",
-                                        "data": {"files": merged_message_files},
-                                    }
+                                await emit_server_files(
+                                    event_emitter, merged_message_files
                                 )
                                 upsert_response_message(
                                     {"files": merged_message_files},
