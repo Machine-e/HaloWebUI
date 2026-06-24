@@ -11,6 +11,7 @@ from open_webui.env import SRC_LOG_LEVELS
 from open_webui.utils.image_generation_options import (
     sanitize_chat_payload_image_generation_options,
 )
+from open_webui.utils.response import normalize_usage
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import BigInteger, Boolean, Column, Integer, String, Text, JSON, Index
@@ -1484,8 +1485,11 @@ class ChatMessageTable:
             usage = message.get("usage", {}) or {}
             if not isinstance(usage, dict):
                 usage = {}
-            prompt_tokens = usage.get("prompt_tokens")
-            completion_tokens = usage.get("completion_tokens")
+            usage = normalize_usage(usage)
+            prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens")
+            completion_tokens = usage.get("completion_tokens") or usage.get(
+                "output_tokens"
+            )
 
             # Collect non-core fields into meta
             meta_keys = {

@@ -116,6 +116,7 @@ from open_webui.utils.model_identity import (
     resolve_model_from_lookup,
 )
 from open_webui.utils.payload import merge_additive_payload_fields
+from open_webui.utils.response import merge_usage
 from open_webui.utils.skill_runtime import (
     build_skill_system_prompt,
     build_skill_tool_context,
@@ -6969,11 +6970,8 @@ async def process_chat_response(
 
             def _merge_usage(incoming: dict) -> None:
                 """Merge *incoming* usage dict into accumulated_usage (in-place)."""
-                for k, v in incoming.items():
-                    if isinstance(v, (int, float)):
-                        accumulated_usage[k] = accumulated_usage.get(k, 0) + v
-                    else:
-                        accumulated_usage[k] = v
+                nonlocal accumulated_usage
+                accumulated_usage = merge_usage(accumulated_usage, incoming)
 
             # We might want to disable this by default
             DETECT_REASONING = True
