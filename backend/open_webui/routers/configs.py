@@ -1,6 +1,8 @@
 import asyncio
+import logging
 from copy import deepcopy
 from datetime import datetime, timezone
+import aiohttp
 from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -10,6 +12,7 @@ from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.config import get_config, save_config
 from open_webui.config import BannerModel
 from open_webui.constants import ERROR_MESSAGES
+from open_webui.env import AIOHTTP_CLIENT_SESSION_SSL, AIOHTTP_CLIENT_TIMEOUT
 
 from open_webui.utils.tools import get_tool_server_data, get_tool_servers_data
 from open_webui.utils.mcp import (
@@ -48,6 +51,7 @@ from open_webui.utils.shared_tool_servers import (
 
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 
 def _invalidate_model_cache_for_config_change(request: Request) -> None:
@@ -523,6 +527,107 @@ async def unshare_tool_server_connection(
         "enabled": updated.enabled,
         "access_control": updated.access_control,
     }
+
+
+############################
+# Terminal Server Proxy
+############################
+
+
+class TerminalServerLifecycleForm(BaseModel):
+    url: str
+    key: str | None = ""
+    auth_type: str | None = "bearer"
+    policy_id: str
+    lifecycle_data: dict
+
+
+class TerminalServerRefreshForm(BaseModel):
+    url: str
+    key: str | None = ""
+    auth_type: str | None = "bearer"
+    user_id: str | None = None
+    policy_id: str | None = None
+    only_idle: bool = True
+    reset: bool = False
+
+
+def _terminal_server_headers(auth_type: str | None, key: str | None) -> dict:
+    headers = {"Content-Type": "application/json"}
+    if auth_type == "bearer" and key:
+        headers["Authorization"] = f"Bearer {key}"
+    return headers
+
+
+@router.post("/terminal_servers/lifecycle")
+async def put_terminal_server_lifecycle(
+    request: Request, form_data: TerminalServerLifecycleForm, user=Depends(get_admin_user)
+):
+    base_url = (form_data.url or "").rstrip("/")
+    if not base_url:
+        raise HTTPException(status_code=400, detail="Terminal server URL is required")
+
+    try:
+        async with aiohttp.ClientSession(
+            trust_env=True,
+            timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT),
+        ) as session:
+            lifecycle_url = f"{base_url}/api/v1/policies/{form_data.policy_id}/lifecycle"
+            async with session.put(
+                lifecycle_url,
+                headers=_terminal_server_headers(form_data.auth_type, form_data.key),
+                json=form_data.lifecycle_data,
+                ssl=AIOHTTP_CLIENT_SESSION_SSL,
+            ) as resp:
+                if resp.ok:
+                    return await resp.json()
+                detail = await resp.text()
+                raise HTTPException(status_code=resp.status, detail=detail)
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.debug(f"Failed to save lifecycle to terminal server: {e}")
+        raise HTTPException(status_code=400, detail="Failed to save lifecycle to terminal server")
+
+
+@router.post("/terminal_servers/refresh")
+async def refresh_terminal_server_terminals(
+    request: Request, form_data: TerminalServerRefreshForm, user=Depends(get_admin_user)
+):
+    base_url = (form_data.url or "").rstrip("/")
+    if not base_url:
+        raise HTTPException(status_code=400, detail="Terminal server URL is required")
+
+    body = {
+        "only_idle": form_data.only_idle,
+        "reset": form_data.reset,
+    }
+    if form_data.user_id:
+        body["user_id"] = form_data.user_id
+    if form_data.policy_id:
+        body["policy_id"] = form_data.policy_id
+
+    try:
+        async with aiohttp.ClientSession(
+            trust_env=True,
+            timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT),
+        ) as session:
+            refresh_url = f"{base_url}/api/v1/terminals/refresh"
+            async with session.post(
+                refresh_url,
+                headers=_terminal_server_headers(form_data.auth_type, form_data.key),
+                json=body,
+                ssl=AIOHTTP_CLIENT_SESSION_SSL,
+            ) as resp:
+                if resp.ok:
+                    return await resp.json()
+                detail = await resp.text()
+                raise HTTPException(status_code=resp.status, detail=detail)
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.debug(f"Failed to refresh terminals: {e}")
+        raise HTTPException(status_code=400, detail="Failed to refresh terminals")
 
 
 ############################

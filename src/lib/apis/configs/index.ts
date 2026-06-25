@@ -336,6 +336,85 @@ export const unshareToolServerConnection = async (token: string, index: number) 
 	return res;
 };
 
+export const putOrchestratorLifecycle = async (
+	token: string,
+	url: string,
+	key: string,
+	policyId: string,
+	lifecycleData: object,
+	authType: string = 'bearer'
+): Promise<object | null> => {
+	let error: unknown = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/terminal_servers/lifecycle`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify({
+			url: url.replace(/\/$/, ''),
+			key,
+			auth_type: authType,
+			policy_id: policyId,
+			lifecycle_data: lifecycleData
+		})
+	})
+		.then(parseJsonResponse)
+		.catch((err) => {
+			console.log(err);
+			error = getErrorDetail(err) ?? err;
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const refreshOrchestratorTerminals = async (
+	token: string,
+	url: string,
+	key: string,
+	body: {
+		user_id?: string;
+		policy_id?: string;
+		only_idle?: boolean;
+		reset?: boolean;
+	},
+	authType: string = 'bearer'
+): Promise<object | null> => {
+	let error: unknown = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/terminal_servers/refresh`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify({
+			url: url.replace(/\/$/, ''),
+			key,
+			auth_type: authType,
+			...body
+		})
+	})
+		.then(parseJsonResponse)
+		.catch((err) => {
+			console.log(err);
+			error = getErrorDetail(err) ?? err;
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
 export const getNativeToolsConfig = async (token: string) => {
 	let error = null;
 
