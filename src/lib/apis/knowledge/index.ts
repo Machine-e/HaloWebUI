@@ -105,7 +105,8 @@ export const searchKnowledgeBases = async (
 	token: string = '',
 	query: string | null = null,
 	viewOption: string | null = null,
-	page: number | null = null
+	page: number | null = null,
+	source: 'local' | 'external' | null = null
 ) => {
 	let error = null;
 
@@ -113,6 +114,7 @@ export const searchKnowledgeBases = async (
 	if (query) searchParams.append('query', query);
 	if (viewOption) searchParams.append('view_option', viewOption);
 	if (page) searchParams.append('page', page.toString());
+	if (source) searchParams.append('source', source);
 
 	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/search?${searchParams.toString()}`, {
 		method: 'GET',
@@ -121,6 +123,196 @@ export const searchKnowledgeBases = async (
 			'Content-Type': 'application/json',
 			authorization: `Bearer ${token}`
 		}
+	})
+		.then(parseJsonResponse)
+		.catch((err) => {
+			error = err.detail;
+			console.log(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const getExternalKnowledgeConnections = async (token: string) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/connections`, {
+		method: 'GET',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			authorization: `Bearer ${token}`
+		}
+	})
+		.then(parseJsonResponse)
+		.catch((err) => {
+			error = err.detail;
+			console.log(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const createExternalKnowledgeConnection = async (token: string, connection: object) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/connections`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify(connection)
+	})
+		.then(parseJsonResponse)
+		.catch((err) => {
+			error = err.detail;
+			console.log(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const updateExternalKnowledgeConnection = async (
+	token: string,
+	connectionId: string,
+	connection: object
+) => {
+	let error = null;
+
+	const res = await fetch(
+		`${WEBUI_API_BASE_URL}/knowledge/external/connections/${connectionId}`,
+		{
+			method: 'POST',
+			headers: {
+				Accept: 'application/json',
+				'Content-Type': 'application/json',
+				authorization: `Bearer ${token}`
+			},
+			body: JSON.stringify(connection)
+		}
+	)
+		.then(parseJsonResponse)
+		.catch((err) => {
+			error = err.detail;
+			console.log(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const deleteExternalKnowledgeConnection = async (token: string, connectionId: string) => {
+	let error = null;
+
+	const res = await fetch(
+		`${WEBUI_API_BASE_URL}/knowledge/external/connections/${connectionId}`,
+		{
+			method: 'DELETE',
+			headers: {
+				Accept: 'application/json',
+				'Content-Type': 'application/json',
+				authorization: `Bearer ${token}`
+			}
+		}
+	)
+		.then(parseJsonResponse)
+		.catch((err) => {
+			error = err.detail;
+			console.log(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const testExternalKnowledgeSource = async (token: string, payload: object) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/test`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify(payload)
+	})
+		.then(parseJsonResponse)
+		.catch((err) => {
+			error = err.detail;
+			console.log(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const createExternalKnowledge = async (token: string, payload: object) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/create`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify(payload)
+	})
+		.then(parseJsonResponse)
+		.catch((err) => {
+			error = err.detail;
+			console.log(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const testExternalKnowledgeById = async (token: string, id: string, payload: object) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/${id}/test`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify(payload)
 	})
 		.then(parseJsonResponse)
 		.catch((err) => {

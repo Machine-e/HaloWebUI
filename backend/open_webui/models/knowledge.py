@@ -12,7 +12,7 @@ from open_webui.models.users import Users, UserResponse
 
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import BigInteger, Column, String, Text, JSON, func
+from sqlalchemy import BigInteger, Column, String, Text, JSON, func, or_
 
 from open_webui.utils.access_control import has_access
 
@@ -98,6 +98,7 @@ class KnowledgeForm(BaseModel):
     name: str
     description: str
     data: Optional[dict] = None
+    meta: Optional[dict] = None
     access_control: Optional[dict] = None
 
 
@@ -129,11 +130,21 @@ class KnowledgeTable:
                 return None
 
     def get_knowledge_bases(
-        self, skip: int = 0, limit: int = 0
+        self, skip: int = 0, limit: int = 0, filter: Optional[dict] = None
     ) -> list[KnowledgeUserModel]:
         with get_db() as db:
             knowledge_bases = []
             query = db.query(Knowledge).order_by(Knowledge.updated_at.desc())
+            source = (filter or {}).get("source")
+            if source == "external":
+                query = query.filter(Knowledge.meta["source"].as_string() == "external")
+            elif source == "local":
+                query = query.filter(
+                    or_(
+                        Knowledge.meta.is_(None),
+                        Knowledge.meta["source"].as_string() != "external",
+                    )
+                )
             if skip > 0:
                 query = query.offset(skip)
             if limit > 0:
@@ -200,6 +211,23 @@ class KnowledgeTable:
                 db.query(Knowledge).filter_by(id=id).update(
                     {
                         "data": data,
+                        "updated_at": int(time.time()),
+                    }
+                )
+                db.commit()
+                return self.get_knowledge_by_id(id=id)
+        except Exception as e:
+            log.exception(e)
+            return None
+
+    def update_knowledge_meta_by_id(
+        self, id: str, meta: dict
+    ) -> Optional[KnowledgeModel]:
+        try:
+            with get_db() as db:
+                db.query(Knowledge).filter_by(id=id).update(
+                    {
+                        "meta": meta,
                         "updated_at": int(time.time()),
                     }
                 )

@@ -2,15 +2,23 @@ from typing import List, Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 import logging
+import time
+import uuid
 
 from open_webui.models.knowledge import (
     Knowledges,
     KnowledgeForm,
+    KnowledgeModel,
     KnowledgeResponse,
     KnowledgeUserResponse,
 )
+from open_webui.models.config import Config
 from open_webui.models.files import Files, FileModel
 from open_webui.retrieval.vector.connector import VECTOR_DB_CLIENT
+from open_webui.retrieval.external import (
+    retrieve_external_knowledge,
+    retrieve_external_knowledge_for_connection,
+)
 from open_webui.routers.retrieval import (
     process_file,
     ProcessFileForm,
@@ -57,6 +65,17 @@ class KnowledgeSearchResponse(BaseModel):
 class KnowledgeFileSearchResponse(BaseModel):
     items: list[dict]
     total: int
+
+
+def is_external_knowledge(knowledge) -> bool:
+    return (knowledge.meta or {}).get("source") == "external"
+
+
+def external_knowledge_error():
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="External knowledge bases are read-only.",
+    )
 
 ############################
 # getKnowledgeBases
@@ -163,15 +182,27 @@ async def get_knowledge_list(user=Depends(get_verified_user)):
 async def search_knowledge_bases(
     query: Optional[str] = None,
     view_option: Optional[str] = None,
+    source: Optional[str] = None,
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=30, ge=1, le=100),
     user=Depends(get_verified_user),
 ):
     knowledge_bases = (
-        Knowledges.get_knowledge_bases()
+        Knowledges.get_knowledge_bases(
+            filter={"source": source} if source in {"local", "external"} else None
+        )
         if user.role == "admin"
         else Knowledges.get_knowledge_bases_by_user_id(user.id, "read")
     )
+    if user.role != "admin" and source in {"local", "external"}:
+        if source == "external":
+            knowledge_bases = [
+                item for item in knowledge_bases if (item.meta or {}).get("source") == "external"
+            ]
+        else:
+            knowledge_bases = [
+                item for item in knowledge_bases if (item.meta or {}).get("source") != "external"
+            ]
 
     filtered = knowledge_bases
     if view_option == "created":
@@ -254,6 +285,329 @@ async def search_knowledge_files(
 
 
 ############################
+# External Knowledge Sources
+############################
+
+
+class ExternalKnowledgeSourceForm(BaseModel):
+    type: str = "collection"
+    name: str
+    config: Optional[dict] = None
+
+
+class ExternalKnowledgeConnectionForm(BaseModel):
+    name: str
+    provider: str
+    endpoint: str
+    auth_config: Optional[dict] = None
+    config: Optional[dict] = None
+    capabilities: Optional[dict] = None
+    enabled: bool = True
+
+
+class ExternalKnowledgeCreateForm(BaseModel):
+    name: str
+    description: str = ""
+    connection_id: str
+    source: ExternalKnowledgeSourceForm
+    access_control: Optional[dict] = None
+    access_grants: Optional[list[dict]] = None
+
+
+class ExternalKnowledgeSourceTestForm(BaseModel):
+    connection_id: Optional[str] = None
+    connection: ExternalKnowledgeConnectionForm
+    source: ExternalKnowledgeSourceForm
+    query: str
+    count: int = 5
+
+
+class ExternalKnowledgeRetrieveTestForm(BaseModel):
+    query: str
+    source: Optional[ExternalKnowledgeSourceForm] = None
+    count: int = 5
+
+
+class ExternalKnowledgeConnectionListResponse(BaseModel):
+    items: list[dict]
+    total: int
+
+
+EXTERNAL_KNOWLEDGE_CONNECTIONS_CONFIG_KEY = "external_knowledge.connections"
+EXTERNAL_KNOWLEDGE_PROVIDERS = {"qdrant", "milvus", "pgvector"}
+
+
+def _validate_external_connection_form(form_data: ExternalKnowledgeConnectionForm) -> tuple[str, dict]:
+    provider = form_data.provider.lower().strip()
+    if provider not in EXTERNAL_KNOWLEDGE_PROVIDERS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported external knowledge provider.",
+        )
+    if not form_data.name.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Knowledge source name is required.")
+    if not form_data.endpoint.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Knowledge source endpoint is required.")
+
+    config = form_data.config or {}
+    allowed_config_keys = {"timeout"}
+    if provider == "milvus":
+        allowed_config_keys.add("db_name")
+    return provider, {key: value for key, value in config.items() if key in allowed_config_keys}
+
+
+def _external_auth_config(provider: str, incoming: Optional[dict], existing: Optional[dict] = None) -> dict:
+    if provider == "pgvector":
+        return {}
+    return existing if incoming is None else incoming or {}
+
+
+def _normalize_external_source(source: ExternalKnowledgeSourceForm, provider: str) -> ExternalKnowledgeSourceForm:
+    source.type = (source.type or "collection").strip()
+    source.name = source.name.strip()
+
+    if source.type != "collection":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only collection sources are supported.")
+    if not source.name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Collection name is required.")
+
+    config = source.config or {}
+    allowed_keys = {"content_field", "metadata_field", "document_id_field"}
+    if provider in {"qdrant", "milvus"}:
+        allowed_keys.add("vector_field")
+    if provider == "pgvector":
+        allowed_keys.update({"table_name", "collection_field", "vector_field"})
+
+    normalized_config = {
+        key: value.strip() if isinstance(value, str) else value
+        for key, value in config.items()
+        if key in allowed_keys and value is not None and (not isinstance(value, str) or value.strip())
+    }
+
+    if not normalized_config.get("content_field"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Content field is required.")
+    if provider in {"milvus", "pgvector"} and not normalized_config.get("vector_field"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vector field is required.")
+
+    source.config = normalized_config
+    return source
+
+
+def _sanitize_external_connection(connection: dict) -> dict:
+    sanitized = {**connection}
+    sanitized.pop("auth_config", None)
+    sanitized["auth_configured"] = bool(connection.get("auth_config"))
+    return sanitized
+
+
+async def _get_external_connections() -> list[dict]:
+    return await Config.get(EXTERNAL_KNOWLEDGE_CONNECTIONS_CONFIG_KEY, []) or []
+
+
+async def _set_external_connections(connections: list[dict]) -> None:
+    await Config.upsert({EXTERNAL_KNOWLEDGE_CONNECTIONS_CONFIG_KEY: connections})
+
+
+def _external_connection_dict(form_data: ExternalKnowledgeConnectionForm, user_id: str, id: Optional[str] = None) -> dict:
+    provider, config = _validate_external_connection_form(form_data)
+    now = int(time.time())
+    return {
+        "id": id or str(uuid.uuid4()),
+        "name": form_data.name.strip(),
+        "provider": provider,
+        "endpoint": form_data.endpoint.strip(),
+        "auth_config": _external_auth_config(provider, form_data.auth_config),
+        "config": config,
+        "capabilities": form_data.capabilities or {"retrieve": True},
+        "health": None,
+        "enabled": form_data.enabled,
+        "created_by": user_id,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+def _external_connection_update_dict(form_data: ExternalKnowledgeConnectionForm, existing: dict) -> dict:
+    provider, config = _validate_external_connection_form(form_data)
+    return {
+        **existing,
+        "name": form_data.name.strip(),
+        "provider": provider,
+        "endpoint": form_data.endpoint.strip(),
+        "auth_config": _external_auth_config(provider, form_data.auth_config, existing.get("auth_config")) or {},
+        "config": config,
+        "capabilities": form_data.capabilities or {"retrieve": True},
+        "enabled": form_data.enabled,
+        "updated_at": int(time.time()),
+    }
+
+
+@router.get("/external/connections", response_model=ExternalKnowledgeConnectionListResponse)
+async def list_external_knowledge_connections(user=Depends(get_verified_user)):
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.UNAUTHORIZED)
+    connections = await _get_external_connections()
+    return {
+        "items": [_sanitize_external_connection(connection) for connection in connections],
+        "total": len(connections),
+    }
+
+
+@router.post("/external/connections")
+async def create_external_knowledge_connection(
+    form_data: ExternalKnowledgeConnectionForm, user=Depends(get_verified_user)
+):
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.UNAUTHORIZED)
+    connections = await _get_external_connections()
+    connection = _external_connection_dict(form_data, user.id)
+    connections.append(connection)
+    await _set_external_connections(connections)
+    return _sanitize_external_connection(connection)
+
+
+@router.post("/external/connections/{connection_id}")
+async def update_external_knowledge_connection(
+    connection_id: str, form_data: ExternalKnowledgeConnectionForm, user=Depends(get_verified_user)
+):
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.UNAUTHORIZED)
+    connections = await _get_external_connections()
+    index = next((idx for idx, connection in enumerate(connections) if connection.get("id") == connection_id), None)
+    if index is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
+    connections[index] = _external_connection_update_dict(form_data, connections[index])
+    await _set_external_connections(connections)
+    return _sanitize_external_connection(connections[index])
+
+
+@router.delete("/external/connections/{connection_id}")
+async def delete_external_knowledge_connection(connection_id: str, user=Depends(get_verified_user)):
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.UNAUTHORIZED)
+    connections = await _get_external_connections()
+    next_connections = [connection for connection in connections if connection.get("id") != connection_id]
+    if len(next_connections) == len(connections):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
+    await _set_external_connections(next_connections)
+    return True
+
+
+@router.post("/external/test")
+async def test_external_knowledge_source(
+    request: Request, form_data: ExternalKnowledgeSourceTestForm, user=Depends(get_verified_user)
+):
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.UNAUTHORIZED)
+    provider, config = _validate_external_connection_form(form_data.connection)
+    source = _normalize_external_source(form_data.source, provider)
+    connection = _external_connection_dict(
+        ExternalKnowledgeConnectionForm(
+            **{
+                **form_data.connection.model_dump(),
+                "provider": provider,
+                "config": config,
+            }
+        ),
+        user.id,
+        id=form_data.connection_id or "test",
+    )
+    knowledge = KnowledgeModel(
+        id="external-test",
+        user_id=user.id,
+        name=form_data.connection.name,
+        description="",
+        data={},
+        meta={
+            "source": "external",
+            "external": {
+                "connection_id": connection["id"],
+                "source": source.model_dump(),
+            },
+        },
+        access_control={},
+        created_at=int(time.time()),
+        updated_at=int(time.time()),
+    )
+    try:
+        return await retrieve_external_knowledge_for_connection(
+            request,
+            knowledge,
+            connection,
+            [form_data.query],
+            max(1, min(form_data.count, 20)),
+            user=user,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/external/create", response_model=Optional[KnowledgeResponse])
+async def create_external_knowledge(
+    request: Request, form_data: ExternalKnowledgeCreateForm, user=Depends(get_verified_user)
+):
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.UNAUTHORIZED)
+
+    connections = await _get_external_connections()
+    connection = next((item for item in connections if item.get("id") == form_data.connection_id), None)
+    if not connection:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="External knowledge connection not found.")
+    provider = (connection.get("provider") or "").lower()
+    source = _normalize_external_source(form_data.source, provider)
+
+    ensure_requested_access_control_allowed(
+        request,
+        user,
+        form_data.access_control,
+        public_permission_key="sharing.public_knowledge",
+    )
+    knowledge = Knowledges.insert_new_knowledge(
+        user.id,
+        KnowledgeForm(
+            name=form_data.name,
+            description=form_data.description,
+            data={"file_ids": []},
+            meta={
+                "source": "external",
+                "external": {
+                    "connection_id": form_data.connection_id,
+                    "source": source.model_dump(),
+                },
+            },
+            access_control=form_data.access_control,
+        ),
+    )
+    if not knowledge:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ERROR_MESSAGES.DEFAULT())
+    return knowledge
+
+
+@router.post("/external/{id}/test")
+async def test_external_knowledge_by_id(
+    request: Request,
+    id: str,
+    form_data: ExternalKnowledgeRetrieveTestForm,
+    user=Depends(get_verified_user),
+):
+    knowledge = Knowledges.get_knowledge_by_id(id=id)
+    if not knowledge or not can_read_resource(user, knowledge):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.NOT_FOUND)
+    if not is_external_knowledge(knowledge):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Knowledge base is not external.")
+    try:
+        return await retrieve_external_knowledge(
+            request,
+            knowledge,
+            [form_data.query],
+            max(1, min(form_data.count, 20)),
+            user=user,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+############################
 # CreateNewKnowledge
 ############################
 
@@ -306,6 +660,8 @@ async def reindex_knowledge_files(request: Request, user=Depends(get_verified_us
     log.info(f"Starting reindexing for {len(knowledge_bases)} knowledge bases")
 
     for knowledge_base in knowledge_bases:
+        if is_external_knowledge(knowledge_base):
+            continue
         try:
             files = Files.get_files_by_ids(knowledge_base.data.get("file_ids", []))
 
@@ -406,7 +762,6 @@ async def update_knowledge_by_id(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
         )
-
     if "access_control" not in getattr(form_data, "model_fields_set", set()):
         form_data.access_control = knowledge.access_control
 
@@ -464,6 +819,8 @@ def add_file_to_knowledge_by_id(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
         )
+    if is_external_knowledge(knowledge):
+        external_knowledge_error()
 
     file = Files.get_file_by_id(form_data.file_id)
     if not file:
@@ -562,6 +919,8 @@ def update_file_from_knowledge_by_id(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
         )
+    if is_external_knowledge(knowledge):
+        external_knowledge_error()
 
     file = Files.get_file_by_id(form_data.file_id)
     if not file:
@@ -640,6 +999,8 @@ def remove_file_from_knowledge_by_id(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
         )
+    if is_external_knowledge(knowledge):
+        external_knowledge_error()
 
     file = Files.get_file_by_id(form_data.file_id)
     if not file:
@@ -754,12 +1115,13 @@ async def delete_knowledge_by_id(id: str, user=Depends(get_verified_user)):
                 )
                 Models.update_model_by_id(model.id, model_form)
 
-    # Clean up vector DB
-    try:
-        VECTOR_DB_CLIENT.delete_collection(collection_name=id)
-    except Exception as e:
-        log.debug(e)
-        pass
+    if not is_external_knowledge(knowledge):
+        # Clean up vector DB
+        try:
+            VECTOR_DB_CLIENT.delete_collection(collection_name=id)
+        except Exception as e:
+            log.debug(e)
+            pass
     result = Knowledges.delete_knowledge_by_id(id=id)
     return result
 
@@ -783,6 +1145,8 @@ async def reset_knowledge_by_id(id: str, user=Depends(get_verified_user)):
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
         )
+    if is_external_knowledge(knowledge):
+        external_knowledge_error()
 
     try:
         VECTOR_DB_CLIENT.delete_collection(collection_name=id)
@@ -822,6 +1186,8 @@ def add_files_to_knowledge_batch(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
         )
+    if is_external_knowledge(knowledge):
+        external_knowledge_error()
 
     # Get files content
     log.info(f"files/batch/add - {len(form_data)} files")
@@ -908,6 +1274,11 @@ async def export_knowledge_by_id(id: str, user=Depends(get_verified_user)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+        )
+    if is_external_knowledge(knowledge):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="External knowledge bases do not contain exportable local files.",
         )
 
     buf = io.BytesIO()

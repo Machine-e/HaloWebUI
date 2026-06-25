@@ -31,6 +31,7 @@ from starlette.responses import Response, StreamingResponse
 
 from open_webui.models.chats import Chats
 from open_webui.models.files import FileForm, Files
+from open_webui.models.knowledge import Knowledges
 from open_webui.models.users import Users
 from open_webui.socket.main import (
     get_event_call,
@@ -5398,6 +5399,13 @@ async def process_chat_payload(request, form_data, user, metadata, model, tasks=
 
         knowledge_files = []
         for item in model_knowledge:
+            knowledge_record = None
+            if item.get("id"):
+                try:
+                    knowledge_record = Knowledges.get_knowledge_by_id(item.get("id"))
+                except Exception:
+                    knowledge_record = None
+
             if item.get("collection_name"):
                 knowledge_files.append(
                     {
@@ -5418,7 +5426,13 @@ async def process_chat_payload(request, form_data, user, metadata, model, tasks=
                     }
                 )
             else:
-                knowledge_files.append({**item, "source": "knowledge"})
+                knowledge_files.append(
+                    {
+                        **item,
+                        **(knowledge_record.model_dump() if knowledge_record else {}),
+                        "source": "knowledge",
+                    }
+                )
 
         files = form_data.get("files", [])
         files.extend(knowledge_files)

@@ -2,6 +2,7 @@ import logging
 import os
 import math
 import time
+import asyncio
 from typing import Optional, Union
 
 import requests
@@ -22,6 +23,8 @@ from open_webui.retrieval.document_processing import (
 
 from open_webui.models.users import UserModel
 from open_webui.models.files import Files
+from open_webui.models.knowledge import KnowledgeModel
+from open_webui.retrieval.external import retrieve_external_knowledge
 
 from open_webui.retrieval.vector.main import GetResult
 
@@ -576,6 +579,26 @@ def get_sources_from_files(
     extracted_collections = []
     relevant_contexts = []
 
+    def run_external_retrieval(knowledge_payload: dict):
+        knowledge = KnowledgeModel(**knowledge_payload)
+
+        async def _run():
+            return await retrieve_external_knowledge(
+                request=request,
+                knowledge=knowledge,
+                queries=queries,
+                count=k,
+            )
+
+        try:
+            return asyncio.run(_run())
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(_run())
+            finally:
+                loop.close()
+
     for file in files:
 
         context = None
@@ -652,6 +675,11 @@ def get_sources_from_files(
                         [nested_file.get("data", {}).get("metadata", {})]
                     ],
                 }
+        elif (file.get("meta") or {}).get("source") == "external":
+            try:
+                context = run_external_retrieval(file)
+            except Exception as e:
+                log.exception(f"Error when querying external knowledge: {e}")
         else:
             collection_names = []
             if file.get("type") == "collection":
