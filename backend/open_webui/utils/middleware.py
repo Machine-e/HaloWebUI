@@ -106,6 +106,7 @@ from open_webui.storage.provider import Storage
 
 from open_webui.utils.access_control import has_permission
 from open_webui.utils.chat import generate_chat_completion
+from open_webui.utils.context_compaction import compact_messages_for_request
 from open_webui.utils.native_web_search import (
     build_native_web_search_support,
     resolve_effective_native_web_search_support,
@@ -6087,6 +6088,33 @@ async def process_chat_payload(request, form_data, user, metadata, model, tasks=
                 },
             }
         )
+
+    try:
+        compacted_messages, context_summary, compacted = await compact_messages_for_request(
+            request,
+            user,
+            form_data.get("messages", []),
+            metadata,
+            model_id,
+            models,
+            system_prompt=form_data.get("messages", [{}])[0].get("content", "")
+            if form_data.get("messages") and form_data["messages"][0].get("role") == "system"
+            else "",
+        )
+        if compacted:
+            summary_message = {
+                "role": "system",
+                "content": (
+                    "The earlier conversation was compacted into this summary. "
+                    "Use it as prior context and continue from the recent messages.\n\n"
+                    f"{context_summary}"
+                ),
+            }
+            form_data["messages"] = [summary_message, *compacted_messages]
+            metadata["context_summary"] = context_summary
+            metadata["context_compacted"] = True
+    except Exception as e:
+        log.exception(e)
 
     return form_data, metadata, events
 

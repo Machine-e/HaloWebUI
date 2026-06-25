@@ -35,12 +35,49 @@ from pydantic import BaseModel, Field
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.access_control import has_permission
 from open_webui.utils.chat_image_refs import normalize_chat_payload_image_refs
+from open_webui.models.config import Config
 from open_webui.tasks import list_task_ids_by_chat_id, list_tasks_by_chat_id
+from open_webui.utils.context_compaction import compact_chat_branch
+from open_webui.utils.misc import get_message_list
+from open_webui.utils.models import get_all_models
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 router = APIRouter()
+
+CHAT_CONFIG_KEYS = {
+    "ENABLE_CONTEXT_COMPACTION": "chat.context_compaction.enable",
+    "CONTEXT_COMPACTION_TOKEN_THRESHOLD": "chat.context_compaction.token_threshold",
+    "CONTEXT_COMPACTION_PROMPT_TEMPLATE": "chat.context_compaction.prompt_template",
+}
+
+
+class ChatConfigForm(BaseModel):
+    ENABLE_CONTEXT_COMPACTION: bool = False
+    CONTEXT_COMPACTION_TOKEN_THRESHOLD: int = 80000
+    CONTEXT_COMPACTION_PROMPT_TEMPLATE: str = ""
+
+
+class CompactChatForm(BaseModel):
+    model: str | None = None
+
+
+async def get_chat_config_values() -> dict:
+    values = await Config.get_many(*CHAT_CONFIG_KEYS.values())
+    return {
+        field: values.get(storage_key)
+        for field, storage_key in CHAT_CONFIG_KEYS.items()
+        if storage_key in values
+    }
+
+
+def chat_config_updates(data: dict) -> dict:
+    return {
+        CHAT_CONFIG_KEYS[field]: value
+        for field, value in data.items()
+        if field in CHAT_CONFIG_KEYS
+    }
 
 
 def _chat_response(chat) -> Optional[ChatResponse]:
@@ -532,6 +569,30 @@ async def import_chats_batch(
 
 
 ############################
+# ChatConfig
+############################
+
+
+@router.get("/config", response_model=ChatConfigForm)
+async def get_chat_config(user=Depends(get_admin_user)):
+    return await get_chat_config_values()
+
+
+@router.post("/config", response_model=ChatConfigForm)
+async def set_chat_config(form_data: ChatConfigForm, user=Depends(get_admin_user)):
+    threshold = max(1, int(form_data.CONTEXT_COMPACTION_TOKEN_THRESHOLD))
+    await Config.upsert(
+        chat_config_updates(
+            {
+                **form_data.model_dump(),
+                "CONTEXT_COMPACTION_TOKEN_THRESHOLD": threshold,
+            }
+        )
+    )
+    return await get_chat_config_values()
+
+
+############################
 # GetChats
 ############################
 
@@ -787,6 +848,49 @@ async def get_user_chat_list_by_tag_name(
         Tags.delete_tag_by_name_and_user_id(form_data.name, user.id)
 
     return chats
+
+
+############################
+# CompactChat
+############################
+
+
+@router.post("/{id}/compact")
+async def compact_chat_by_id(
+    request: Request,
+    id: str,
+    form_data: CompactChatForm | None = None,
+    user=Depends(get_verified_user),
+):
+    chat = Chats.get_chat_by_id_and_user_id(id, user.id)
+    if not chat:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.NOT_FOUND)
+
+    if list_task_ids_by_chat_id(id, blocks_completion_only=True):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Wait for the current response to finish before compacting.",
+        )
+
+    models = getattr(request.state, "MODELS", None) or getattr(request.app.state, "MODELS", None)
+    if not models:
+        models = await get_all_models(request, user=user)
+
+    history = (chat.chat or {}).get("history") or {}
+    messages_map = history.get("messages") or {}
+    message_list = get_message_list(messages_map, history.get("currentId")) or []
+    model_id = (form_data.model if form_data else None) or next(
+        (message.get("model") for message in reversed(message_list) if message.get("model")),
+        None,
+    )
+
+    if not model_id:
+        chat_models = (chat.chat or {}).get("models") or []
+        model_id = chat_models[0] if chat_models else None
+    if not model_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No model found for context compaction.")
+
+    return await compact_chat_branch(request, user, chat, model_id, models)
 
 
 ############################

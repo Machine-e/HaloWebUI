@@ -639,6 +639,7 @@
 
 	let chat = null;
 	let tags = [];
+	let contextCompactionToastId: string | number | null = null;
 
 	let history = {
 		messages: {},
@@ -656,6 +657,43 @@
 	let newChatSelectionSyncReady = false;
 	let lastRequestedChatIdProp = '';
 	let activeChatLoadToken = 0;
+
+	const dismissContextCompactionToast = () => {
+		if (contextCompactionToastId !== null) {
+			toast.dismiss(contextCompactionToastId);
+			contextCompactionToastId = null;
+		}
+	};
+
+	const handleContextCompactionStatus = (status) => {
+		if (status?.action !== 'context_compaction') {
+			return;
+		}
+
+		if (status?.done) {
+			if (contextCompactionToastId !== null) {
+				if (status?.error) {
+					toast.error($i18n.t('Context compaction failed'), {
+						id: contextCompactionToastId,
+						duration: 3000
+					});
+				} else {
+					toast.success($i18n.t('Context compacted'), {
+						id: contextCompactionToastId,
+						duration: 1800
+					});
+				}
+				contextCompactionToastId = null;
+			}
+			return;
+		}
+
+		if (contextCompactionToastId === null) {
+			contextCompactionToastId = toast.loading($i18n.t('Compacting context'), {
+				duration: Infinity
+			});
+		}
+	};
 
 	// J-3-01: O(1) model lookup map — rebuilt reactively when $models changes
 	let modelsMap: Map<string, Model> = new Map();
@@ -2982,6 +3020,7 @@
 				let shouldCommitMessage = true;
 
 				if (type === 'task-cancelled') {
+					dismissContextCompactionToast();
 					await markResponseMessagesStopped(message.id);
 					shouldCommitMessage = false;
 				} else if (
@@ -3006,6 +3045,8 @@
 					} else {
 						message.statusHistory = [data];
 					}
+				} else if (type === 'context_compaction') {
+					handleContextCompactionStatus(data);
 				} else if (type === 'discussion') {
 					applyDiscussionEvent(message, data);
 					if (shouldAutoScrollOnStreaming()) {
@@ -3325,6 +3366,7 @@
 		window.removeEventListener('pointercancel', clearMessageOutlineScrollbarDragPrime, true);
 		chatEventSocket?.off('chat-events', chatEventHandler);
 		chatEventSocket = null;
+		dismissContextCompactionToast();
 		if (taskWatchdogTimer) {
 			clearInterval(taskWatchdogTimer);
 			taskWatchdogTimer = null;

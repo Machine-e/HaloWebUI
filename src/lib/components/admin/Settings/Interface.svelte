@@ -3,6 +3,7 @@
 	import { quintOut } from 'svelte/easing';
 
 	import { getBackendConfig, getTaskConfig, updateTaskConfig } from '$lib/apis';
+	import { getChatConfig, updateChatConfig } from '$lib/apis/chats';
 	import { config, models } from '$lib/stores';
 	import { createEventDispatcher, onDestroy, onMount, getContext, tick } from 'svelte';
 
@@ -10,6 +11,7 @@
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Textarea from '$lib/components/common/Textarea.svelte';
+	import Switch from '$lib/components/common/Switch.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
 	import { getModelChatDisplayName } from '$lib/utils/model-display';
@@ -58,6 +60,11 @@
 		TOOLS_FUNCTION_CALLING_PROMPT_TEMPLATE: '',
 		CODE_INTERPRETER_PROMPT_TEMPLATE: ''
 	};
+	let chatConfig = {
+		ENABLE_CONTEXT_COMPACTION: false,
+		CONTEXT_COMPACTION_TOKEN_THRESHOLD: 80000,
+		CONTEXT_COMPACTION_PROMPT_TEMPLATE: ''
+	};
 	const editableTaskConfigFields = [
 		'TASK_MODEL_EXTERNAL',
 		'TITLE_GENERATION_PROMPT_TEMPLATE',
@@ -80,7 +87,8 @@
 	const BASELINE_SYNC_WINDOW_MS = 400;
 
 	const buildSnapshot = () => ({
-		taskConfig: cloneSettingsSnapshot(getEditableTaskConfig())
+		taskConfig: cloneSettingsSnapshot(getEditableTaskConfig()),
+		chatConfig: cloneSettingsSnapshot(chatConfig)
 	});
 
 	let snapshot: ReturnType<typeof buildSnapshot> | null = null;
@@ -139,7 +147,10 @@
 	const updateInterfaceHandler = async () => {
 		saving = true;
 		try {
-			taskConfig = await updateTaskConfig(localStorage.token, getEditableTaskConfig());
+			[taskConfig, chatConfig] = await Promise.all([
+				updateTaskConfig(localStorage.token, getEditableTaskConfig()),
+				updateChatConfig(localStorage.token, chatConfig)
+			]);
 			await config.set(await getBackendConfig());
 			await tick();
 			startBaselineSync();
@@ -152,10 +163,14 @@
 	const resetTasksChanges = () => {
 		if (!initialSnapshot) return;
 		taskConfig = { ...taskConfig, ...cloneSettingsSnapshot(initialSnapshot.taskConfig) };
+		chatConfig = { ...chatConfig, ...cloneSettingsSnapshot(initialSnapshot.chatConfig) };
 	};
 
 	onMount(async () => {
-		taskConfig = await getTaskConfig(localStorage.token);
+		[taskConfig, chatConfig] = await Promise.all([
+			getTaskConfig(localStorage.token),
+			getChatConfig(localStorage.token)
+		]);
 		await tick();
 		startBaselineSync();
 		initialSnapshot = cloneSettingsSnapshot(buildSnapshot());
@@ -259,6 +274,48 @@
 									className="w-full sm:w-72 sm:shrink-0"
 								/>
 							</div>
+						</div>
+
+						<!-- Context Compaction -->
+						<div class="glass-item p-4">
+							<div class="mb-3 flex items-center justify-between gap-3">
+								<div>
+									<div class="text-sm font-medium">{$i18n.t('Context Compaction')}</div>
+									<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+										{$i18n.t('Summarize older messages when a chat grows beyond the token threshold.')}
+									</div>
+								</div>
+								<Switch bind:state={chatConfig.ENABLE_CONTEXT_COMPACTION} />
+							</div>
+
+							{#if chatConfig.ENABLE_CONTEXT_COMPACTION}
+								<div class="space-y-3">
+									<div>
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+											{$i18n.t('Token Threshold')}
+										</div>
+										<input
+											type="number"
+											min="1"
+											step="1"
+											class="w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm outline-hidden transition-colors focus:border-gray-200 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-100"
+											bind:value={chatConfig.CONTEXT_COMPACTION_TOKEN_THRESHOLD}
+										/>
+									</div>
+
+									<div>
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+											{$i18n.t('Context Compaction Prompt')}
+										</div>
+										<Textarea
+											bind:value={chatConfig.CONTEXT_COMPACTION_PROMPT_TEMPLATE}
+											placeholder={$i18n.t(
+												'Leave empty to use the default prompt, or enter a custom prompt'
+											)}
+										/>
+									</div>
+								</div>
+							{/if}
 						</div>
 
 						<!-- Title Generation -->
