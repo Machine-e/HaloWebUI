@@ -9,17 +9,14 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateColumn
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
 from open_webui.migration_runner import run_alembic_migrations  # noqa: E402
 
-
 _SKILL_MIGRATION = (
-    _BACKEND_DIR
-    / "open_webui/migrations/versions/b1c2d3e4f5a6_add_skill_table.py"
+    _BACKEND_DIR / "open_webui/migrations/versions/b1c2d3e4f5a6_add_skill_table.py"
 )
 
 
@@ -86,7 +83,10 @@ def test_skill_migration_uses_boolean_true_defaults_for_is_active():
             continue
         if not node.args:
             continue
-        if not isinstance(node.args[0], ast.Constant) or node.args[0].value != "is_active":
+        if (
+            not isinstance(node.args[0], ast.Constant)
+            or node.args[0].value != "is_active"
+        ):
             continue
 
         server_default = next(

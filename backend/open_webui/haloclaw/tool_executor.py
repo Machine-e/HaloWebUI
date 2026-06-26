@@ -50,8 +50,7 @@ async def execute_tool_loop(
 
     # Inject tool specs into form_data (OpenAI format)
     form_data["tools"] = [
-        {"type": "function", "function": t["spec"]}
-        for t in tools_dict.values()
+        {"type": "function", "function": t["spec"]} for t in tools_dict.values()
     ]
     form_data["stream"] = False
 
@@ -110,11 +109,13 @@ async def execute_tool_loop(
                 _collect_images(result_str, images)
 
             # Append tool result to messages
-            form_data["messages"].append({
-                "role": "tool",
-                "tool_call_id": tc_id,
-                "content": result_str,
-            })
+            form_data["messages"].append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc_id,
+                    "content": result_str,
+                }
+            )
 
     # Exhausted max rounds
     clean_text, inline_imgs = _extract_inline_images(last_text or "")
@@ -157,7 +158,9 @@ def _collect_images(result_str: str, images: list[str]) -> None:
                     url = item.get("url") or item.get("image_url") or ""
                     if url:
                         images.append(url)
-                elif isinstance(item, str) and (item.startswith("http") or item.startswith("data:")):
+                elif isinstance(item, str) and (
+                    item.startswith("http") or item.startswith("data:")
+                ):
                     images.append(item)
         elif isinstance(data, dict):
             url = data.get("url") or data.get("image_url") or ""
@@ -168,9 +171,7 @@ def _collect_images(result_str: str, images: list[str]) -> None:
 
 
 # Regex: match markdown image tags with data-URI src
-_INLINE_IMAGE_RE = re.compile(
-    r'!\[[^\]]*\]\((data:image/[^;]+;base64,[^)]+)\)'
-)
+_INLINE_IMAGE_RE = re.compile(r"!\[[^\]]*\]\((data:image/[^;]+;base64,[^)]+)\)")
 
 
 def _extract_inline_images(text: str) -> tuple[Optional[str], list[str]]:

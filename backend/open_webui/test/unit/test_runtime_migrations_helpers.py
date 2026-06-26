@@ -190,9 +190,7 @@ def test_detect_database_accepts_halo_intermediate_revision():
 
     with engine.begin() as conn:
         conn.execute(
-            sa.text(
-                "INSERT INTO alembic_version (version_num) VALUES (:version_num)"
-            ),
+            sa.text("INSERT INTO alembic_version (version_num) VALUES (:version_num)"),
             {"version_num": "9b5e0d6f4a71"},
         )
         detection = _detect_database(conn, engine.url)
@@ -226,9 +224,7 @@ def test_detect_database_rejects_unknown_alembic_revision_even_if_fingerprint_ma
 
     with engine.begin() as conn:
         conn.execute(
-            sa.text(
-                "INSERT INTO alembic_version (version_num) VALUES (:version_num)"
-            ),
+            sa.text("INSERT INTO alembic_version (version_num) VALUES (:version_num)"),
             {"version_num": "unknown_0_9_revision"},
         )
         detection = _detect_database(conn, engine.url)
@@ -253,17 +249,29 @@ def test_migrate_openwebui_095_family_normalizes_halo_runtime_schema():
     with engine.begin() as conn:
         _migrate_090_095_family(conn, "sqlite")
 
-        user = conn.execute(sa.text('SELECT * FROM "user" WHERE id = :id'), {"id": "u1"}).mappings().one()
+        user = (
+            conn.execute(sa.text('SELECT * FROM "user" WHERE id = :id'), {"id": "u1"})
+            .mappings()
+            .one()
+        )
         assert user["api_key"] == "sk-old"
         assert user["oauth_sub"] == "oidc@sub-1"
 
-        chat = conn.execute(sa.text('SELECT * FROM "chat" WHERE id = :id'), {"id": "c1"}).mappings().one()
+        chat = (
+            conn.execute(sa.text('SELECT * FROM "chat" WHERE id = :id'), {"id": "c1"})
+            .mappings()
+            .one()
+        )
         assert "assistant_id" in chat.keys()
 
-        message = conn.execute(
-            sa.text('SELECT * FROM "chat_message" WHERE id = :id'),
-            {"id": "m1"},
-        ).mappings().one()
+        message = (
+            conn.execute(
+                sa.text('SELECT * FROM "chat_message" WHERE id = :id'),
+                {"id": "m1"},
+            )
+            .mappings()
+            .one()
+        )
         assert message["content"] == "hello\nworld"
         assert message["model"] == "gpt-4.1"
         assert message["prompt_tokens"] == 12
@@ -276,7 +284,9 @@ def test_migrate_openwebui_095_family_normalizes_halo_runtime_schema():
             {"text": "world"},
         ]
 
-        note = conn.execute(sa.text('SELECT content FROM "note" WHERE id = :id'), {"id": "n1"}).scalar_one()
+        note = conn.execute(
+            sa.text('SELECT content FROM "note" WHERE id = :id'), {"id": "n1"}
+        ).scalar_one()
         assert note == "note body"
 
         knowledge = conn.execute(
@@ -677,8 +687,14 @@ def _create_minimal_openwebui_095_engine():
     metadata.create_all(engine)
 
     with engine.begin() as conn:
-        conn.execute(sa.text("INSERT INTO alembic_version (version_num) VALUES ('a0b1c2d3e4f5')"))
-        conn.execute(sa.text("INSERT INTO auth (id, email, password) VALUES ('u1', 'u@example.com', 'hash')"))
+        conn.execute(
+            sa.text("INSERT INTO alembic_version (version_num) VALUES ('a0b1c2d3e4f5')")
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO auth (id, email, password) VALUES ('u1', 'u@example.com', 'hash')"
+            )
+        )
         conn.execute(
             sa.text(
                 'INSERT INTO "user" '
@@ -703,30 +719,42 @@ def _create_minimal_openwebui_095_engine():
         )
         conn.execute(
             sa.text(
-                'INSERT INTO api_key (id, user_id, key, created_at, updated_at) '
+                "INSERT INTO api_key (id, user_id, key, created_at, updated_at) "
                 "VALUES ('ak1', 'u1', 'sk-old', 2, 3)"
             )
         )
-        conn.execute(sa.text('INSERT INTO "group" (id, user_id, name, description, created_at, updated_at) VALUES ("g1", "u1", "group", "", 1, 1)'))
-        conn.execute(sa.text('INSERT INTO group_member (id, group_id, user_id, created_at, updated_at) VALUES ("gm1", "g1", "u1", 1, 1)'))
         conn.execute(
             sa.text(
-                'INSERT INTO prompt (id, command, user_id, name, content, data, meta, tags, is_active, version_id, created_at, updated_at) '
+                'INSERT INTO "group" (id, user_id, name, description, created_at, updated_at) VALUES ("g1", "u1", "group", "", 1, 1)'
+            )
+        )
+        conn.execute(
+            sa.text(
+                'INSERT INTO group_member (id, group_id, user_id, created_at, updated_at) VALUES ("gm1", "g1", "u1", 1, 1)'
+            )
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO prompt (id, command, user_id, name, content, data, meta, tags, is_active, version_id, created_at, updated_at) "
                 'VALUES ("p1", "/hello", "u1", "Hello", "content", "{}", "{}", "[]", 1, NULL, 1, 1)'
             )
         )
-        conn.execute(sa.text('INSERT INTO prompt_history (id, prompt_id, created_at) VALUES ("ph1", "p1", 1)'))
         conn.execute(
             sa.text(
-                'INSERT INTO chat (id, user_id, title, chat, created_at, updated_at, archived, pinned, meta, tasks, summary, last_read_at) '
+                'INSERT INTO prompt_history (id, prompt_id, created_at) VALUES ("ph1", "p1", 1)'
+            )
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO chat (id, user_id, title, chat, created_at, updated_at, archived, pinned, meta, tasks, summary, last_read_at) "
                 'VALUES ("c1", "u1", "Chat", "{}", 1, 2, 0, 0, "{}", "[]", "summary", 2)'
             )
         )
         conn.execute(
             sa.text(
-                'INSERT INTO chat_message '
-                '(id, chat_id, user_id, role, parent_id, content, output, model_id, files, sources, embeds, done, status_history, error, usage, created_at, updated_at) '
-                'VALUES (:id, :chat_id, :user_id, :role, :parent_id, :content, :output, :model_id, :files, :sources, :embeds, :done, :status_history, :error, :usage, :created_at, :updated_at)'
+                "INSERT INTO chat_message "
+                "(id, chat_id, user_id, role, parent_id, content, output, model_id, files, sources, embeds, done, status_history, error, usage, created_at, updated_at) "
+                "VALUES (:id, :chat_id, :user_id, :role, :parent_id, :content, :output, :model_id, :files, :sources, :embeds, :done, :status_history, :error, :usage, :created_at, :updated_at)"
             ),
             {
                 "id": "m1",
@@ -750,13 +778,30 @@ def _create_minimal_openwebui_095_engine():
         )
         conn.execute(
             sa.text(
-                'INSERT INTO access_grant (id, resource_type, resource_id, principal_type, principal_id, permission, created_at) '
+                "INSERT INTO access_grant (id, resource_type, resource_id, principal_type, principal_id, permission, created_at) "
                 'VALUES ("ag1", "prompt", "p1", "user", "u1", "read", 1)'
             )
         )
-        conn.execute(sa.text('INSERT INTO skill (id, user_id, name, description, content, meta, is_active, created_at, updated_at) VALUES ("s1", "u1", "Skill", "", "code", "{}", 1, 1, 1)'))
-        conn.execute(sa.text('INSERT INTO note (id, user_id, title, data, meta, created_at, updated_at) VALUES ("n1", "u1", "Note", :data, "{}", 1, 1)'), {"data": '{"content":{"md":"note body"}}'})
-        conn.execute(sa.text('INSERT INTO knowledge (id, user_id, name, description, meta, created_at, updated_at) VALUES ("k1", "u1", "KB", "", "{}", 1, 1)'))
-        conn.execute(sa.text('INSERT INTO knowledge_file (id, knowledge_id, file_id, user_id, created_at, updated_at) VALUES ("kf1", "k1", "f1", "u1", 1, 1)'))
+        conn.execute(
+            sa.text(
+                'INSERT INTO skill (id, user_id, name, description, content, meta, is_active, created_at, updated_at) VALUES ("s1", "u1", "Skill", "", "code", "{}", 1, 1, 1)'
+            )
+        )
+        conn.execute(
+            sa.text(
+                'INSERT INTO note (id, user_id, title, data, meta, created_at, updated_at) VALUES ("n1", "u1", "Note", :data, "{}", 1, 1)'
+            ),
+            {"data": '{"content":{"md":"note body"}}'},
+        )
+        conn.execute(
+            sa.text(
+                'INSERT INTO knowledge (id, user_id, name, description, meta, created_at, updated_at) VALUES ("k1", "u1", "KB", "", "{}", 1, 1)'
+            )
+        )
+        conn.execute(
+            sa.text(
+                'INSERT INTO knowledge_file (id, knowledge_id, file_id, user_id, created_at, updated_at) VALUES ("kf1", "k1", "f1", "u1", 1, 1)'
+            )
+        )
 
     return engine

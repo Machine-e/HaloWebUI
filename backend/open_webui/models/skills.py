@@ -6,7 +6,6 @@ from open_webui.internal.db import Base, get_db
 from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import BigInteger, Boolean, Column, String, Text, JSON
 
-
 ####################
 # Skill DB Schema
 ####################

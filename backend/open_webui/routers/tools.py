@@ -140,9 +140,7 @@ async def get_tools(request: Request, user=Depends(get_verified_user)):
         server_version = server_info.get("version")
         verified_at = server.get("verified_at")
         transport_label = "HTTP" if transport_type == "http" else "stdio"
-        status_label = (
-            f"已验证 {verified_at}" if verified_at else "未验证"
-        )
+        status_label = f"已验证 {verified_at}" if verified_at else "未验证"
         server_name, server_description = get_mcp_server_display_metadata(
             server,
             index=server["idx"],
@@ -170,7 +168,12 @@ async def get_tools(request: Request, user=Depends(get_verified_user)):
         )
 
     if shared_tool_servers:
-        owner_ids = list({shared_tool_server.owner_user_id for shared_tool_server in shared_tool_servers})
+        owner_ids = list(
+            {
+                shared_tool_server.owner_user_id
+                for shared_tool_server in shared_tool_servers
+            }
+        )
         owners_map = Users.get_users_map_by_ids(owner_ids) if owner_ids else {}
         now = int(time.time())
 
@@ -213,10 +216,20 @@ async def get_tools(request: Request, user=Depends(get_verified_user)):
                 cached_meta_list = get_mcp_servers_cached_meta([connection_payload])
                 server = cached_meta_list[0] if cached_meta_list else {}
                 display_metadata = shared_tool_server.display_metadata or {}
-                transport_type = str(server.get("transport_type") or display_metadata.get("transport_type") or "http").lower()
-                server_info = server.get("server_info", {}) or display_metadata.get("server_info") or {}
+                transport_type = str(
+                    server.get("transport_type")
+                    or display_metadata.get("transport_type")
+                    or "http"
+                ).lower()
+                server_info = (
+                    server.get("server_info", {})
+                    or display_metadata.get("server_info")
+                    or {}
+                )
                 server_version = server_info.get("version")
-                verified_at = server.get("verified_at") or display_metadata.get("verified_at")
+                verified_at = server.get("verified_at") or display_metadata.get(
+                    "verified_at"
+                )
                 transport_label = "HTTP" if transport_type == "http" else "stdio"
                 status_label = f"已验证 {verified_at}" if verified_at else "未验证"
                 server_name, server_description = get_mcp_server_display_metadata(

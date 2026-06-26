@@ -3,7 +3,6 @@ import sys
 
 import pytest
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -42,7 +41,10 @@ def test_mineru_loader_accepts_string_upload_urls(monkeypatch, tmp_path):
     file_path.write_bytes(b"dummy pptx")
 
     loader = MinerULoader(
-        _DummyFile("slides.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+        _DummyFile(
+            "slides.pptx",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ),
         str(file_path),
         {
             "api_key": "secret",

@@ -80,8 +80,6 @@ def upgrade():
 def downgrade():
     op.drop_index("ix_haloclaw_msg_log_chat", table_name="haloclaw_message_log")
     op.drop_table("haloclaw_message_log")
-    op.drop_index(
-        "ix_haloclaw_ext_user_lookup", table_name="haloclaw_external_user"
-    )
+    op.drop_index("ix_haloclaw_ext_user_lookup", table_name="haloclaw_external_user")
     op.drop_table("haloclaw_external_user")
     op.drop_table("haloclaw_gateway")

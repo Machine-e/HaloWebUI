@@ -10,7 +10,6 @@ from open_webui.utils.error_handling import (
     read_requests_error_payload,
 )
 
-
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["RAG"])
 
@@ -28,7 +27,10 @@ def normalize_external_reranking_url(url: str) -> str:
 
     if not path:
         path = "/v1/rerank"
-    elif path.rsplit("/", 1)[-1].startswith("v") and path.rsplit("/", 1)[-1][1:].isdigit():
+    elif (
+        path.rsplit("/", 1)[-1].startswith("v")
+        and path.rsplit("/", 1)[-1][1:].isdigit()
+    ):
         path = f"{path}/rerank"
     else:
         path = parsed.path or ""

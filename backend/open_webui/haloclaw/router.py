@@ -154,9 +154,7 @@ async def get_gateway_by_id(id: str, user=Depends(get_admin_user)):
 
 
 @router.post("/gateways/{id}", response_model=GatewayResponse)
-async def update_gateway(
-    id: str, form_data: GatewayForm, user=Depends(get_admin_user)
-):
+async def update_gateway(id: str, form_data: GatewayForm, user=Depends(get_admin_user)):
     current_gateway = Gateways.get_by_id(id)
     if not current_gateway:
         raise HTTPException(
@@ -225,9 +223,7 @@ async def delete_gateway(id: str, user=Depends(get_admin_user)):
 # ---------------------------------------------------------------------------
 
 
-@router.get(
-    "/gateways/{gateway_id}/users", response_model=list[ExternalUserModel]
-)
+@router.get("/gateways/{gateway_id}/users", response_model=list[ExternalUserModel])
 async def get_external_users(gateway_id: str, user=Depends(get_admin_user)):
     return ExternalUsers.get_by_gateway(gateway_id)
 
@@ -288,9 +284,7 @@ async def update_external_user_model_override(
 # ---------------------------------------------------------------------------
 
 
-@router.get(
-    "/gateways/{gateway_id}/logs", response_model=list[MessageLogModel]
-)
+@router.get("/gateways/{gateway_id}/logs", response_model=list[MessageLogModel])
 async def get_message_logs(
     gateway_id: str, limit: int = 100, user=Depends(get_admin_user)
 ):
@@ -331,7 +325,9 @@ async def wechat_work_webhook_verify(
     """
     gateway = Gateways.get_by_id(gateway_id)
     if not gateway or gateway.platform != "wechat_work":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Gateway not found"
+        )
 
     config = gateway.config or {}
     token = config.get("token", "")
@@ -343,10 +339,15 @@ async def wechat_work_webhook_verify(
             detail="Gateway missing token or aes_key",
         )
 
-    from open_webui.haloclaw.crypto import wechat_work_check_signature, wechat_work_decrypt
+    from open_webui.haloclaw.crypto import (
+        wechat_work_check_signature,
+        wechat_work_decrypt,
+    )
 
     if not wechat_work_check_signature(token, timestamp, nonce, echostr, msg_signature):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature"
+        )
 
     try:
         decrypted, _ = wechat_work_decrypt(echostr, aes_key)
@@ -395,9 +396,14 @@ async def wechat_work_webhook_callback(
         return PlainTextResponse("success")
 
     # Verify signature
-    from open_webui.haloclaw.crypto import wechat_work_check_signature, wechat_work_decrypt
+    from open_webui.haloclaw.crypto import (
+        wechat_work_check_signature,
+        wechat_work_decrypt,
+    )
 
-    if not wechat_work_check_signature(token, timestamp, nonce, encrypt_data, msg_signature):
+    if not wechat_work_check_signature(
+        token, timestamp, nonce, encrypt_data, msg_signature
+    ):
         log.warning(f"HaloClaw WeChatWork [{gateway_id}]: callback signature invalid")
         return PlainTextResponse("success")
 
@@ -416,7 +422,9 @@ async def wechat_work_webhook_callback(
     if adapter and isinstance(adapter, WeChatWorkAdapter):
         asyncio.create_task(adapter.process_incoming(msg_xml))
     else:
-        log.warning(f"HaloClaw WeChatWork [{gateway_id}]: adapter not running, message dropped")
+        log.warning(
+            f"HaloClaw WeChatWork [{gateway_id}]: adapter not running, message dropped"
+        )
 
     return PlainTextResponse("success")
 
@@ -432,7 +440,9 @@ async def feishu_webhook_callback(gateway_id: str, request: Request):
     """
     gateway = Gateways.get_by_id(gateway_id)
     if not gateway or gateway.platform != "feishu":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Gateway not found"
+        )
 
     config = gateway.config or {}
     body = await request.json()
@@ -441,7 +451,9 @@ async def feishu_webhook_callback(gateway_id: str, request: Request):
     if "encrypt" in body:
         encrypt_key = config.get("encrypt_key", "")
         if not encrypt_key:
-            log.error(f"HaloClaw Feishu [{gateway_id}]: encrypted event but no encrypt_key")
+            log.error(
+                f"HaloClaw Feishu [{gateway_id}]: encrypted event but no encrypt_key"
+            )
             return JSONResponse(content={})
 
         from open_webui.haloclaw.crypto import feishu_decrypt
@@ -457,7 +469,9 @@ async def feishu_webhook_callback(gateway_id: str, request: Request):
     if body.get("type") == "url_verification":
         verification_token = config.get("verification_token", "")
         if body.get("token") != verification_token:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid token")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Invalid token"
+            )
         return JSONResponse(content={"challenge": body.get("challenge", "")})
 
     # Step 3: Verify event token (v2.0 schema)
@@ -475,6 +489,8 @@ async def feishu_webhook_callback(gateway_id: str, request: Request):
     if adapter and isinstance(adapter, FeishuAdapter):
         asyncio.create_task(adapter.process_incoming(body))
     else:
-        log.warning(f"HaloClaw Feishu [{gateway_id}]: adapter not running, event dropped")
+        log.warning(
+            f"HaloClaw Feishu [{gateway_id}]: adapter not running, event dropped"
+        )
 
     return JSONResponse(content={})

@@ -59,7 +59,6 @@ from open_webui.utils.filter import (
 
 from open_webui.env import SRC_LOG_LEVELS, GLOBAL_LOG_LEVEL, BYPASS_MODEL_ACCESS_CONTROL
 
-
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MAIN"])
@@ -217,7 +216,9 @@ async def generate_chat_completion(
     try:
         model_info = Models.get_model_by_id(model.get("id"))
         if model_info and model_info.user_id and model_info.user_id != user.id:
-            from open_webui.models.users import Users  # local import to avoid heavy coupling
+            from open_webui.models.users import (
+                Users,
+            )  # local import to avoid heavy coupling
             from open_webui.utils.user_connections import maybe_migrate_user_connections
 
             owner = Users.get_user_by_id(model_info.user_id)
@@ -267,14 +268,20 @@ async def generate_chat_completion(
                 )
             else:
                 return convert_response_ollama_to_openai(response)
-        if model.get("gemini") is not None or model.get("owned_by") in ("google", "gemini"):
+        if model.get("gemini") is not None or model.get("owned_by") in (
+            "google",
+            "gemini",
+        ):
             return await generate_gemini_chat_completion(
                 request=request,
                 form_data=form_data,
                 user=user,
                 bypass_filter=bypass_filter,
             )
-        if model.get("anthropic") is not None or model.get("owned_by") in ("anthropic", "claude"):
+        if model.get("anthropic") is not None or model.get("owned_by") in (
+            "anthropic",
+            "claude",
+        ):
             return await generate_anthropic_chat_completion(
                 request=request,
                 form_data=form_data,

@@ -35,8 +35,7 @@ def post_webhook(name: str, url: str, message: str, event_data: dict) -> bool:
             else:
                 user_dict = {}
             facts = [
-                {"name": name, "value": value}
-                for name, value in user_dict.items()
+                {"name": name, "value": value} for name, value in user_dict.items()
             ]
             payload = {
                 "@type": "MessageCard",

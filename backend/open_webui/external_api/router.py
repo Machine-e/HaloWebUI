@@ -109,7 +109,9 @@ def _coerce_usage(data: object) -> tuple[Optional[int], Optional[int]]:
     except Exception:
         prompt_tokens = None
     try:
-        completion_tokens = int(completion_tokens) if completion_tokens is not None else None
+        completion_tokens = (
+            int(completion_tokens) if completion_tokens is not None else None
+        )
     except Exception:
         completion_tokens = None
     return prompt_tokens, completion_tokens
@@ -124,7 +126,9 @@ def _tools_requested(payload: dict) -> bool:
 
 async def _authenticate_gateway_request(request: Request, protocol: str):
     if not _is_enabled():
-        raise HTTPException(status_code=404, detail="External client gateway is disabled")
+        raise HTTPException(
+            status_code=404, detail="External client gateway is disabled"
+        )
     if not _protocol_enabled(protocol):
         raise HTTPException(status_code=404, detail=f"{protocol} gateway is disabled")
 
@@ -132,19 +136,29 @@ async def _authenticate_gateway_request(request: Request, protocol: str):
     if not raw_key:
         raise HTTPException(status_code=401, detail="Missing bearer token")
     if raw_key.startswith("sk-"):
-        raise HTTPException(status_code=403, detail="Personal API keys are not allowed on the external gateway")
+        raise HTTPException(
+            status_code=403,
+            detail="Personal API keys are not allowed on the external gateway",
+        )
 
     client = ExternalApiClients.get_by_api_key(raw_key)
     if not client or not client.enabled:
         raise HTTPException(status_code=401, detail="Invalid external client key")
     if protocol not in set(client.allowed_protocols or []):
-        raise HTTPException(status_code=403, detail=f"{protocol} protocol is not allowed for this client")
+        raise HTTPException(
+            status_code=403,
+            detail=f"{protocol} protocol is not allowed for this client",
+        )
 
     owner_user = Users.get_user_by_id(client.owner_user_id)
     if not owner_user:
         raise HTTPException(status_code=403, detail="Gateway owner user not found")
 
-    rpm_limit = client.rpm_limit if client.rpm_limit is not None else int(EXTERNAL_CLIENT_GATEWAY_DEFAULT_RPM.value)
+    rpm_limit = (
+        client.rpm_limit
+        if client.rpm_limit is not None
+        else int(EXTERNAL_CLIENT_GATEWAY_DEFAULT_RPM.value)
+    )
     if rpm_limit > 0:
         minute_bucket = int(time.time() // 60)
         bucket_key = (client.id, minute_bucket)
@@ -180,12 +194,20 @@ def _ensure_model_allowed(client, request_models: dict, requested_model: str) ->
             model_entry.get("base_model_id"),
             model_entry.get("model"),
             get_model_selection_id(model_entry),
-            ((model_entry.get("info") or {}).get("base_model_id") if isinstance(model_entry.get("info"), dict) else None),
+            (
+                (model_entry.get("info") or {}).get("base_model_id")
+                if isinstance(model_entry.get("info"), dict)
+                else None
+            ),
         )
         if value
     }
-    candidate_ids.update({str(value) for value in get_model_aliases(model_entry) if value})
-    model_ref = model_entry.get("info") if isinstance(model_entry.get("info"), dict) else {}
+    candidate_ids.update(
+        {str(value) for value in get_model_aliases(model_entry) if value}
+    )
+    model_ref = (
+        model_entry.get("info") if isinstance(model_entry.get("info"), dict) else {}
+    )
     if isinstance(model_ref, dict):
         for key in ("model_ref", "base_model_id", "id"):
             value = model_ref.get(key)
@@ -193,7 +215,9 @@ def _ensure_model_allowed(client, request_models: dict, requested_model: str) ->
                 candidate_ids.add(str(value))
 
     if not (candidate_ids & allowed):
-        raise HTTPException(status_code=403, detail="Model is not allowed for this external client")
+        raise HTTPException(
+            status_code=403, detail="Model is not allowed for this external client"
+        )
     return model_entry
 
 
@@ -235,7 +259,9 @@ def _get_gateway_model_display_name(model: dict) -> str:
     return f"{base_name} | {connection_name}"
 
 
-def _find_gateway_model_by_display_id(request_models: dict, requested_model: str) -> Optional[dict]:
+def _find_gateway_model_by_display_id(
+    request_models: dict, requested_model: str
+) -> Optional[dict]:
     if not requested_model:
         return None
     matches = [
@@ -266,7 +292,9 @@ def _serialize_gateway_model(model: dict) -> dict:
     return serialized
 
 
-def _append_visible_gateway_model(visible: list[dict], seen: set[str], model: dict) -> None:
+def _append_visible_gateway_model(
+    visible: list[dict], seen: set[str], model: dict
+) -> None:
     serialized = _serialize_gateway_model(model)
     identity = str(
         serialized.get("gateway_selection_id")
@@ -285,7 +313,9 @@ def _get_gateway_internal_model_id(model: dict) -> str:
     return str(get_model_selection_id(model) or model.get("id") or "").strip()
 
 
-def _build_gateway_metadata(client, owner_user, protocol: str, endpoint: str, payload: dict, model: dict) -> dict:
+def _build_gateway_metadata(
+    client, owner_user, protocol: str, endpoint: str, payload: dict, model: dict
+) -> dict:
     return {
         "user_id": owner_user.id,
         "chat_id": payload.get("chat_id"),
@@ -319,7 +349,9 @@ def _strip_disallowed_tools(payload: dict, allow_tools: bool) -> dict:
     return next_payload
 
 
-def _build_audit_payload(data: object, status_code: int, error: Optional[str] = None) -> tuple[Optional[int], Optional[int], bool]:
+def _build_audit_payload(
+    data: object, status_code: int, error: Optional[str] = None
+) -> tuple[Optional[int], Optional[int], bool]:
     prompt_tokens, completion_tokens = _coerce_usage(data)
     tools_used = False
     if isinstance(data, dict):
@@ -346,7 +378,9 @@ def _audit_log(
     data: object = None,
     error: Optional[str] = None,
 ):
-    prompt_tokens, completion_tokens, tools_used = _build_audit_payload(data, status_code, error)
+    prompt_tokens, completion_tokens, tools_used = _build_audit_payload(
+        data, status_code, error
+    )
     ExternalApiAuditLogs.create(
         client_id=client.id,
         owner_user_id=owner_user.id,
@@ -401,9 +435,13 @@ async def list_external_api_clients(user=Depends(get_admin_user)):
 
 
 @router.post("/clients", response_model=ExternalApiClientCreateResponse)
-async def create_external_api_client(form_data: ExternalApiClientCreateForm, user=Depends(get_admin_user)):
+async def create_external_api_client(
+    form_data: ExternalApiClientCreateForm, user=Depends(get_admin_user)
+):
     client, raw_key = ExternalApiClients.create(form_data)
-    return ExternalApiClientCreateResponse(client=_client_to_response(client), api_key=raw_key)
+    return ExternalApiClientCreateResponse(
+        client=_client_to_response(client), api_key=raw_key
+    )
 
 
 @router.post("/clients/{client_id}", response_model=ExternalApiClientResponse)
@@ -451,7 +489,9 @@ async def gateway_openai_models(request: Request):
                 str(model.get("base_model_id") or ""),
                 str(get_model_selection_id(model) or ""),
             }
-            candidate_ids.update({str(value) for value in get_model_aliases(model) if value})
+            candidate_ids.update(
+                {str(value) for value in get_model_aliases(model) if value}
+            )
             if candidate_ids & allowed:
                 visible.append(_serialize_gateway_model(model))
         response = {"data": visible}
@@ -492,7 +532,9 @@ async def gateway_openai_chat_completions(request: Request, form_data: dict):
     model_entry = _ensure_model_allowed(client, request_models, requested_model)
     internal_model_id = _get_gateway_internal_model_id(model_entry) or requested_model
     if _tools_requested(form_data) and not client.allow_tools:
-        raise HTTPException(status_code=403, detail="Tool calling is disabled for this external client")
+        raise HTTPException(
+            status_code=403, detail="Tool calling is disabled for this external client"
+        )
 
     form_data = _strip_disallowed_tools(form_data, client.allow_tools)
     form_data["model"] = internal_model_id
@@ -523,7 +565,11 @@ async def gateway_openai_chat_completions(request: Request, form_data: dict):
                 model=requested_model,
                 status_code=200,
                 latency_ms=latency_ms,
-                data={"choices": [{"message": {"tool_calls": form_data.get("tools") or []}}]},
+                data={
+                    "choices": [
+                        {"message": {"tool_calls": form_data.get("tools") or []}}
+                    ]
+                },
             )
             return response
         _audit_log(
@@ -562,7 +608,9 @@ async def gateway_openai_responses(request: Request, form_data: dict):
     model_entry = _ensure_model_allowed(client, request_models, requested_model)
     internal_model_id = _get_gateway_internal_model_id(model_entry) or requested_model
     if _tools_requested(form_data) and not client.allow_tools:
-        raise HTTPException(status_code=403, detail="Tool calling is disabled for this external client")
+        raise HTTPException(
+            status_code=403, detail="Tool calling is disabled for this external client"
+        )
 
     connection_user = owner_user
     base_urls, keys, cfgs = openai_router._get_openai_user_config(connection_user)
@@ -593,7 +641,9 @@ async def gateway_openai_responses(request: Request, form_data: dict):
         payload.pop("custom_params", None),
         forbidden_keys=openai_router._CUSTOM_PARAM_FORBIDDEN_KEYS,
     )
-    headers = openai_router._build_upstream_headers(url, key or "", api_config, user=owner_user)
+    headers = openai_router._build_upstream_headers(
+        url, key or "", api_config, user=owner_user
+    )
     request_url = f"{(url or '').rstrip('/')}/responses"
     payload_json = json.dumps(payload, ensure_ascii=False, default=str)
 
@@ -612,6 +662,7 @@ async def gateway_openai_responses(request: Request, form_data: dict):
                 ssl=AIOHTTP_CLIENT_SESSION_SSL,
             ) as upstream:
                 if payload.get("stream"):
+
                     async def passthrough():
                         async for chunk in upstream.content.iter_any():
                             if chunk:
@@ -619,7 +670,9 @@ async def gateway_openai_responses(request: Request, form_data: dict):
 
                     response = StreamingResponse(
                         passthrough(),
-                        media_type=upstream.headers.get("Content-Type", "text/event-stream"),
+                        media_type=upstream.headers.get(
+                            "Content-Type", "text/event-stream"
+                        ),
                         status_code=upstream.status,
                     )
                     _audit_log(
@@ -631,7 +684,11 @@ async def gateway_openai_responses(request: Request, form_data: dict):
                         model=requested_model,
                         status_code=upstream.status,
                         latency_ms=int((time.time() - start) * 1000),
-                        data={"choices": [{"message": {"tool_calls": payload.get("tools") or []}}]},
+                        data={
+                            "choices": [
+                                {"message": {"tool_calls": payload.get("tools") or []}}
+                            ]
+                        },
                     )
                     return response
 
@@ -687,7 +744,9 @@ async def gateway_anthropic_models(request: Request):
                 str(model.get("base_model_id") or ""),
                 str(get_model_selection_id(model) or ""),
             }
-            candidate_ids.update({str(value) for value in get_model_aliases(model) if value})
+            candidate_ids.update(
+                {str(value) for value in get_model_aliases(model) if value}
+            )
             owned_by = str(model.get("owned_by") or "").lower()
             if not (owned_by.startswith("anthropic") or owned_by == "claude"):
                 continue
@@ -733,7 +792,9 @@ async def gateway_anthropic_messages(request: Request, form_data: dict):
 
     anthropic_tools = form_data.get("tools")
     if isinstance(anthropic_tools, list) and anthropic_tools and not client.allow_tools:
-        raise HTTPException(status_code=403, detail="Tool calling is disabled for this external client")
+        raise HTTPException(
+            status_code=403, detail="Tool calling is disabled for this external client"
+        )
 
     payload = {
         "model": internal_model_id,
@@ -772,11 +833,14 @@ async def gateway_anthropic_messages(request: Request, form_data: dict):
                     elif block.get("type") == "tool_use":
                         tool_calls.append(
                             {
-                                "id": block.get("id") or f"toolu_{int(time.time() * 1000)}",
+                                "id": block.get("id")
+                                or f"toolu_{int(time.time() * 1000)}",
                                 "type": "function",
                                 "function": {
                                     "name": block.get("name") or "",
-                                    "arguments": json.dumps(block.get("input") or {}, ensure_ascii=False),
+                                    "arguments": json.dumps(
+                                        block.get("input") or {}, ensure_ascii=False
+                                    ),
                                 },
                             }
                         )
@@ -788,7 +852,11 @@ async def gateway_anthropic_messages(request: Request, form_data: dict):
                 openai_messages.append({"role": "assistant", "content": content})
         else:
             content_blocks = content if isinstance(content, list) else []
-            tool_result_blocks = [b for b in content_blocks if isinstance(b, dict) and b.get("type") == "tool_result"]
+            tool_result_blocks = [
+                b
+                for b in content_blocks
+                if isinstance(b, dict) and b.get("type") == "tool_result"
+            ]
             if tool_result_blocks:
                 for block in tool_result_blocks:
                     openai_messages.append(
@@ -807,7 +875,9 @@ async def gateway_anthropic_messages(request: Request, form_data: dict):
     if "system" in payload:
         system = payload["system"]
         if isinstance(system, str):
-            openai_payload["messages"] = [{"role": "system", "content": system}] + openai_payload["messages"]
+            openai_payload["messages"] = [
+                {"role": "system", "content": system}
+            ] + openai_payload["messages"]
         elif isinstance(system, list):
             system_text = "".join(
                 block.get("text") or ""
@@ -815,7 +885,9 @@ async def gateway_anthropic_messages(request: Request, form_data: dict):
                 if isinstance(block, dict) and block.get("type") == "text"
             )
             if system_text:
-                openai_payload["messages"] = [{"role": "system", "content": system_text}] + openai_payload["messages"]
+                openai_payload["messages"] = [
+                    {"role": "system", "content": system_text}
+                ] + openai_payload["messages"]
     if payload.get("tools"):
         converted_tools = []
         for tool in payload["tools"]:
@@ -827,7 +899,8 @@ async def gateway_anthropic_messages(request: Request, form_data: dict):
                     "function": {
                         "name": tool.get("name") or "",
                         "description": tool.get("description") or "",
-                        "parameters": tool.get("input_schema") or {"type": "object", "properties": {}},
+                        "parameters": tool.get("input_schema")
+                        or {"type": "object", "properties": {}},
                     },
                 }
             )
@@ -865,13 +938,21 @@ async def gateway_anthropic_messages(request: Request, form_data: dict):
                 model=requested_model,
                 status_code=200,
                 latency_ms=latency_ms,
-                data={"choices": [{"message": {"tool_calls": openai_payload.get("tools") or []}}]},
+                data={
+                    "choices": [
+                        {"message": {"tool_calls": openai_payload.get("tools") or []}}
+                    ]
+                },
             )
             return response
 
         if isinstance(response, dict):
             choices = response.get("choices") or []
-            message = choices[0].get("message") if choices and isinstance(choices[0], dict) else {}
+            message = (
+                choices[0].get("message")
+                if choices and isinstance(choices[0], dict)
+                else {}
+            )
             content_blocks = []
             if message.get("content"):
                 content_blocks.append({"type": "text", "text": message.get("content")})
@@ -879,7 +960,11 @@ async def gateway_anthropic_messages(request: Request, form_data: dict):
                 fn = tc.get("function") or {}
                 arguments = fn.get("arguments") or "{}"
                 try:
-                    parsed_arguments = json.loads(arguments) if isinstance(arguments, str) else (arguments or {})
+                    parsed_arguments = (
+                        json.loads(arguments)
+                        if isinstance(arguments, str)
+                        else (arguments or {})
+                    )
                 except Exception:
                     parsed_arguments = {"_raw": arguments}
                 content_blocks.append(

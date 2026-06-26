@@ -348,7 +348,9 @@ async def ldap_auth(request: Request, response: Response, form_data: LdapForm):
                         # Remove user from groups no longer in LDAP
                         for grp in current_groups:
                             if grp.name not in ldap_groups:
-                                user_ids = [uid for uid in grp.user_ids if uid != user.id]
+                                user_ids = [
+                                    uid for uid in grp.user_ids if uid != user.id
+                                ]
                                 Groups.update_group_by_id(
                                     id=grp.id,
                                     form_data=GroupUpdateForm(
@@ -362,9 +364,8 @@ async def ldap_auth(request: Request, response: Response, form_data: LdapForm):
 
                         # Add user to matching groups
                         for grp in all_groups:
-                            if (
-                                grp.name in ldap_groups
-                                and not any(g.name == grp.name for g in current_groups)
+                            if grp.name in ldap_groups and not any(
+                                g.name == grp.name for g in current_groups
                             ):
                                 user_ids = grp.user_ids + [user.id]
                                 Groups.update_group_by_id(
@@ -554,7 +555,9 @@ async def signup(request: Request, response: Response, form_data: SignupForm):
 
         try:
             role = (
-                "admin" if user_count == 0 else request.app.state.config.DEFAULT_USER_ROLE
+                "admin"
+                if user_count == 0
+                else request.app.state.config.DEFAULT_USER_ROLE
             )
 
             if user_count == 0:
@@ -800,9 +803,9 @@ def _get_oauth_provider_name_for_admin() -> str:
 
 
 def _get_oauth_admin_config(request: Request) -> dict:
-    redirect_uri = _strip_string(OPENID_REDIRECT_URI.value) or _build_oauth_redirect_uri(
-        request.app.state.config.WEBUI_URL
-    )
+    redirect_uri = _strip_string(
+        OPENID_REDIRECT_URI.value
+    ) or _build_oauth_redirect_uri(request.app.state.config.WEBUI_URL)
     return {
         "ENABLE_OAUTH_LOGIN": _is_oauth_login_enabled(),
         "OAUTH_PROVIDER_NAME": _get_oauth_provider_name_for_admin(),
@@ -1196,9 +1199,7 @@ async def oauth_token_exchange(form_data: TokenExchangeForm, request: Request):
 
         token = create_token(
             data={"id": user.id},
-            expires_delta=parse_duration(
-                request.app.state.config.JWT_EXPIRES_IN
-            ),
+            expires_delta=parse_duration(request.app.state.config.JWT_EXPIRES_IN),
         )
 
         return {

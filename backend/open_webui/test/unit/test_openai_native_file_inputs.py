@@ -3,7 +3,6 @@ import pathlib
 import sys
 from types import SimpleNamespace
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -91,14 +90,22 @@ def test_connection_supports_native_file_inputs_honors_explicit_flag_and_guards(
     assert (
         _connection_supports_native_file_inputs(
             "https://api.openai.com/v1/chat/completions",
-            {"use_responses_api": False, "native_file_inputs_enabled": True, "force_mode": True},
+            {
+                "use_responses_api": False,
+                "native_file_inputs_enabled": True,
+                "force_mode": True,
+            },
         )
         is False
     )
     assert (
         _connection_supports_native_file_inputs(
             "https://my-azure.openai.azure.com/openai/deployments/foo",
-            {"use_responses_api": False, "native_file_inputs_enabled": True, "azure": True},
+            {
+                "use_responses_api": False,
+                "native_file_inputs_enabled": True,
+                "azure": True,
+            },
         )
         is False
     )
@@ -112,7 +119,9 @@ def test_connection_supports_native_file_inputs_honors_explicit_flag_and_guards(
 
 
 def test_default_responses_reasoning_summary_defaults_to_auto_and_honors_overrides():
-    assert _get_default_responses_reasoning_summary({"use_responses_api": True}) == "auto"
+    assert (
+        _get_default_responses_reasoning_summary({"use_responses_api": True}) == "auto"
+    )
     assert (
         _get_default_responses_reasoning_summary(
             {"use_responses_api": True, "responses_reasoning_summary": False}
@@ -150,7 +159,9 @@ def test_looks_like_reasoning_summary_incompatible_matches_schema_errors():
     )
 
 
-def test_prepare_openai_native_file_inputs_uploads_pdf_via_storage_provider(monkeypatch):
+def test_prepare_openai_native_file_inputs_uploads_pdf_via_storage_provider(
+    monkeypatch,
+):
     file_id = "file_local_1"
     file_item = {"type": "file", "id": file_id, "processing_mode": "native_file"}
     file_obj = SimpleNamespace(
@@ -181,10 +192,18 @@ def test_prepare_openai_native_file_inputs_uploads_pdf_via_storage_provider(monk
             {"use_responses_api": True},
         ),
     )
-    monkeypatch.setattr(middleware, "_should_use_responses_api", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(middleware, "_get_openai_file_cache_key", lambda *_args, **_kwargs: "conn-1")
-    monkeypatch.setattr(middleware, "_get_cached_openai_file_id", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(middleware, "_set_cached_openai_file_id", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        middleware, "_should_use_responses_api", lambda *_args, **_kwargs: True
+    )
+    monkeypatch.setattr(
+        middleware, "_get_openai_file_cache_key", lambda *_args, **_kwargs: "conn-1"
+    )
+    monkeypatch.setattr(
+        middleware, "_get_cached_openai_file_id", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        middleware, "_set_cached_openai_file_id", lambda *_args, **_kwargs: None
+    )
     monkeypatch.setattr(
         middleware.Storage,
         "get_file",
@@ -195,7 +214,9 @@ def test_prepare_openai_native_file_inputs_uploads_pdf_via_storage_provider(monk
         upload_call.update(kwargs)
         return "remote-file-1"
 
-    monkeypatch.setattr(middleware, "_upload_file_to_openai", fake_upload_file_to_openai)
+    monkeypatch.setattr(
+        middleware, "_upload_file_to_openai", fake_upload_file_to_openai
+    )
 
     request = SimpleNamespace(state=SimpleNamespace(connection_user=None))
     user = SimpleNamespace(id="user-1")
@@ -264,10 +285,18 @@ def test_prepare_openai_native_file_inputs_reuses_chat_file_on_followup(monkeypa
             {"use_responses_api": True},
         ),
     )
-    monkeypatch.setattr(middleware, "_should_use_responses_api", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(middleware, "_get_openai_file_cache_key", lambda *_args, **_kwargs: "conn-1")
-    monkeypatch.setattr(middleware, "_get_cached_openai_file_id", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(middleware, "_set_cached_openai_file_id", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        middleware, "_should_use_responses_api", lambda *_args, **_kwargs: True
+    )
+    monkeypatch.setattr(
+        middleware, "_get_openai_file_cache_key", lambda *_args, **_kwargs: "conn-1"
+    )
+    monkeypatch.setattr(
+        middleware, "_get_cached_openai_file_id", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        middleware, "_set_cached_openai_file_id", lambda *_args, **_kwargs: None
+    )
     monkeypatch.setattr(
         middleware.Storage,
         "get_file",
@@ -277,7 +306,9 @@ def test_prepare_openai_native_file_inputs_reuses_chat_file_on_followup(monkeypa
     async def fake_upload_file_to_openai(**_kwargs):
         return "remote-file-followup"
 
-    monkeypatch.setattr(middleware, "_upload_file_to_openai", fake_upload_file_to_openai)
+    monkeypatch.setattr(
+        middleware, "_upload_file_to_openai", fake_upload_file_to_openai
+    )
 
     request = SimpleNamespace(state=SimpleNamespace(connection_user=None))
     user = SimpleNamespace(id="user-1")
@@ -314,7 +345,9 @@ def test_prepare_openai_native_file_inputs_reuses_chat_file_on_followup(monkeypa
     }
 
 
-def test_prepare_openai_native_file_inputs_ignores_historical_file_when_current_files_empty(monkeypatch):
+def test_prepare_openai_native_file_inputs_ignores_historical_file_when_current_files_empty(
+    monkeypatch,
+):
     file_id = "file_removed"
     file_item = {"type": "file", "id": file_id, "processing_mode": "native_file"}
 
@@ -390,10 +423,18 @@ def test_prepare_openai_native_file_inputs_survives_truncated_history(monkeypatc
             {"use_responses_api": True},
         ),
     )
-    monkeypatch.setattr(middleware, "_should_use_responses_api", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(middleware, "_get_openai_file_cache_key", lambda *_args, **_kwargs: "conn-1")
-    monkeypatch.setattr(middleware, "_get_cached_openai_file_id", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(middleware, "_set_cached_openai_file_id", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        middleware, "_should_use_responses_api", lambda *_args, **_kwargs: True
+    )
+    monkeypatch.setattr(
+        middleware, "_get_openai_file_cache_key", lambda *_args, **_kwargs: "conn-1"
+    )
+    monkeypatch.setattr(
+        middleware, "_get_cached_openai_file_id", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        middleware, "_set_cached_openai_file_id", lambda *_args, **_kwargs: None
+    )
     monkeypatch.setattr(
         middleware.Storage,
         "get_file",
@@ -403,7 +444,9 @@ def test_prepare_openai_native_file_inputs_survives_truncated_history(monkeypatc
     async def fake_upload_file_to_openai(**_kwargs):
         return "remote-file-truncated"
 
-    monkeypatch.setattr(middleware, "_upload_file_to_openai", fake_upload_file_to_openai)
+    monkeypatch.setattr(
+        middleware, "_upload_file_to_openai", fake_upload_file_to_openai
+    )
 
     request = SimpleNamespace(state=SimpleNamespace(connection_user=None))
     user = SimpleNamespace(id="user-1")
@@ -447,7 +490,9 @@ def test_get_native_file_input_capability_classifies_connection_policy():
     assert capability["status"] == NATIVE_FILE_INPUT_STATUS_PROTOCOL_NOT_ATTEMPTED
 
 
-def test_prepare_openai_native_file_inputs_can_force_responses_for_enabled_third_party(monkeypatch):
+def test_prepare_openai_native_file_inputs_can_force_responses_for_enabled_third_party(
+    monkeypatch,
+):
     file_id = "file_local_2"
     file_item = {"type": "file", "id": file_id, "processing_mode": "native_file"}
     file_obj = SimpleNamespace(
@@ -489,9 +534,15 @@ def test_prepare_openai_native_file_inputs_can_force_responses_for_enabled_third
             },
         ),
     )
-    monkeypatch.setattr(middleware, "_get_openai_file_cache_key", lambda *_args, **_kwargs: "conn-2")
-    monkeypatch.setattr(middleware, "_get_cached_openai_file_id", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(middleware, "_set_cached_openai_file_id", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        middleware, "_get_openai_file_cache_key", lambda *_args, **_kwargs: "conn-2"
+    )
+    monkeypatch.setattr(
+        middleware, "_get_cached_openai_file_id", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        middleware, "_set_cached_openai_file_id", lambda *_args, **_kwargs: None
+    )
     monkeypatch.setattr(
         middleware.Storage,
         "get_file",
@@ -501,7 +552,9 @@ def test_prepare_openai_native_file_inputs_can_force_responses_for_enabled_third
     async def fake_upload_file_to_openai(**_kwargs):
         return "remote-file-2"
 
-    monkeypatch.setattr(middleware, "_upload_file_to_openai", fake_upload_file_to_openai)
+    monkeypatch.setattr(
+        middleware, "_upload_file_to_openai", fake_upload_file_to_openai
+    )
 
     request = SimpleNamespace(state=SimpleNamespace(connection_user=None))
     user = SimpleNamespace(id="user-1")
@@ -531,7 +584,9 @@ def test_prepare_openai_native_file_inputs_can_force_responses_for_enabled_third
     assert metadata["native_file_inputs_force_responses_api"] is True
 
 
-def test_prepare_openai_native_file_inputs_records_upload_failure_diagnostic(monkeypatch):
+def test_prepare_openai_native_file_inputs_records_upload_failure_diagnostic(
+    monkeypatch,
+):
     file_id = "file_local_3"
     file_item = {"type": "file", "id": file_id, "processing_mode": "native_file"}
     file_obj = SimpleNamespace(
@@ -573,9 +628,15 @@ def test_prepare_openai_native_file_inputs_records_upload_failure_diagnostic(mon
             },
         ),
     )
-    monkeypatch.setattr(middleware, "_get_openai_file_cache_key", lambda *_args, **_kwargs: "conn-3")
-    monkeypatch.setattr(middleware, "_get_cached_openai_file_id", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(middleware, "_set_cached_openai_file_id", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        middleware, "_get_openai_file_cache_key", lambda *_args, **_kwargs: "conn-3"
+    )
+    monkeypatch.setattr(
+        middleware, "_get_cached_openai_file_id", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        middleware, "_set_cached_openai_file_id", lambda *_args, **_kwargs: None
+    )
     monkeypatch.setattr(
         middleware.Storage,
         "get_file",
@@ -585,7 +646,9 @@ def test_prepare_openai_native_file_inputs_records_upload_failure_diagnostic(mon
     async def failing_upload_file_to_openai(**_kwargs):
         raise RuntimeError("HTTP 415 unsupported file")
 
-    monkeypatch.setattr(middleware, "_upload_file_to_openai", failing_upload_file_to_openai)
+    monkeypatch.setattr(
+        middleware, "_upload_file_to_openai", failing_upload_file_to_openai
+    )
 
     request = SimpleNamespace(state=SimpleNamespace(connection_user=None))
     user = SimpleNamespace(id="user-1")
@@ -771,21 +834,31 @@ def test_explicit_files_empty_is_not_replaced_by_message_history(monkeypatch):
     monkeypatch.setattr(middleware, "_ensure_requested_chat_file_modes", noop_ensure)
     monkeypatch.setattr(middleware, "get_event_emitter", lambda _metadata: None)
     monkeypatch.setattr(middleware, "get_event_call", lambda _metadata: None)
-    monkeypatch.setattr(middleware, "get_task_model_id", lambda *_args, **_kwargs: "task-model")
+    monkeypatch.setattr(
+        middleware, "get_task_model_id", lambda *_args, **_kwargs: "task-model"
+    )
     monkeypatch.setattr(middleware, "get_sorted_filters", lambda _model: [])
     monkeypatch.setattr(
         middleware,
         "process_filter_functions",
         lambda **kwargs: asyncio.sleep(0, (kwargs["form_data"], {})),
     )
-    monkeypatch.setattr(middleware, "get_selected_skill_context", lambda *_args, **_kwargs: {
-        "resolved_ids": [],
-        "requested_ids": [],
-        "prompt_skills": [],
-        "runnable_skills": [],
-    })
-    monkeypatch.setattr(middleware, "build_skill_system_prompt", lambda *_args, **_kwargs: "")
-    monkeypatch.setattr(middleware, "build_skill_tool_context", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        middleware,
+        "get_selected_skill_context",
+        lambda *_args, **_kwargs: {
+            "resolved_ids": [],
+            "requested_ids": [],
+            "prompt_skills": [],
+            "runnable_skills": [],
+        },
+    )
+    monkeypatch.setattr(
+        middleware, "build_skill_system_prompt", lambda *_args, **_kwargs: ""
+    )
+    monkeypatch.setattr(
+        middleware, "build_skill_tool_context", lambda *_args, **_kwargs: []
+    )
 
     request = SimpleNamespace(
         state=SimpleNamespace(direct=False, MODELS={}),

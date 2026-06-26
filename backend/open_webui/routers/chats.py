@@ -101,7 +101,9 @@ def _sync_imported_chat_tags(chat, user_id: str) -> None:
             Tags.insert_new_tag(tag_name, user_id)
 
 
-async def _normalize_chat_payload_images(chat_payload: dict, user) -> tuple[dict, set[str]]:
+async def _normalize_chat_payload_images(
+    chat_payload: dict, user
+) -> tuple[dict, set[str]]:
     return await run_in_threadpool(
         lambda: normalize_chat_payload_image_refs(
             chat_payload,
@@ -183,16 +185,18 @@ def _build_branch_history(
             message_id_map[chain_ids[index - 1]] if index > 0 else None
         )
         cloned_message["childrenIds"] = (
-            [message_id_map[chain_ids[index + 1]]]
-            if index + 1 < len(chain_ids)
-            else []
+            [message_id_map[chain_ids[index + 1]]] if index + 1 < len(chain_ids) else []
         )
         branched_messages[cloned_message_id] = cloned_message
 
-    return {
-        "messages": branched_messages,
-        "currentId": message_id_map[branch_point_message_id],
-    }, chain_ids, message_id_map
+    return (
+        {
+            "messages": branched_messages,
+            "currentId": message_id_map[branch_point_message_id],
+        },
+        chain_ids,
+        message_id_map,
+    )
 
 
 def _append_branch_file(files: list[dict], seen: set[str], file_item: object) -> None:
@@ -296,6 +300,7 @@ def _build_branch_chat_payload(
     payload.pop("messages", None)
 
     return payload
+
 
 ############################
 # GetChatList
@@ -438,8 +443,8 @@ async def import_chats_batch(
             import_forms = []
             normalized_entries: list[tuple[dict, set[str]]] = []
             for item in form_data.items:
-                normalized_chat, changed_message_ids = await _normalize_chat_payload_images(
-                    item.chat, user
+                normalized_chat, changed_message_ids = (
+                    await _normalize_chat_payload_images(item.chat, user)
                 )
                 import_forms.append(
                     ChatImportForm(
@@ -902,7 +907,11 @@ async def update_chat_composer_state_by_id(
     if chat:
         updated = Chats.update_chat_composer_state_by_id(
             id,
-            form_data.composer_state if isinstance(form_data.composer_state, dict) else {},
+            (
+                form_data.composer_state
+                if isinstance(form_data.composer_state, dict)
+                else {}
+            ),
         )
         return _chat_response(updated)
 

@@ -341,7 +341,9 @@ class OAuthManager:
                         profile_updates["email"] = email
                 if profile_updates:
                     Users.update_user_by_id(user.id, profile_updates)
-                    log.info(f"OAuth profile sync for user {user.id}: {list(profile_updates.keys())}")
+                    log.info(
+                        f"OAuth profile sync for user {user.id}: {list(profile_updates.keys())}"
+                    )
 
             if not user:
                 user_count = Users.get_num_users()
@@ -356,7 +358,8 @@ class OAuthManager:
                     picture_claim = auth_manager_config.OAUTH_PICTURE_CLAIM
                     if picture_claim:
                         picture_url = user_data.get(
-                            picture_claim, OAUTH_PROVIDERS[provider].get("picture_url", "")
+                            picture_claim,
+                            OAUTH_PROVIDERS[provider].get("picture_url", ""),
                         )
                         if picture_url:
                             # Download the profile image into a base64 string
@@ -427,7 +430,8 @@ class OAuthManager:
                         )
                 else:
                     raise HTTPException(
-                        status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.ACCESS_PROHIBITED
+                        status.HTTP_403_FORBIDDEN,
+                        detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
                     )
 
         jwt_token = create_token(

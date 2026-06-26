@@ -73,7 +73,10 @@ async def _get_available_models(app, gateway: GatewayModel) -> list[dict]:
     """Load models using the same approach as the dispatcher (FakeRequest + get_all_models)."""
     from open_webui.haloclaw.dispatcher import _FakeRequest
     from open_webui.utils.models import get_all_models
-    from open_webui.utils.model_identity import get_model_aliases, get_model_selection_id
+    from open_webui.utils.model_identity import (
+        get_model_aliases,
+        get_model_selection_id,
+    )
     from open_webui.models.users import Users
 
     gateway_owner = Users.get_user_by_id(gateway.user_id)
@@ -100,13 +103,15 @@ async def _get_available_models(app, gateway: GatewayModel) -> list[dict]:
                 continue
             seen.add(model_id)
             name = model.get("name", model_id)
-            result.append({
-                "id": model_id,
-                "name": name,
-                "aliases": get_model_aliases(model),
-                "connection_name": model.get("connection_name"),
-                "owned_by": model.get("owned_by"),
-            })
+            result.append(
+                {
+                    "id": model_id,
+                    "name": name,
+                    "aliases": get_model_aliases(model),
+                    "connection_name": model.get("connection_name"),
+                    "owned_by": model.get("owned_by"),
+                }
+            )
         result.sort(key=lambda m: m["name"])
         return result
     except Exception as e:
@@ -114,7 +119,9 @@ async def _get_available_models(app, gateway: GatewayModel) -> list[dict]:
         return []
 
 
-def _resolve_effective_model(gateway: GatewayModel, ext_user: ExternalUserModel) -> tuple[str, str]:
+def _resolve_effective_model(
+    gateway: GatewayModel, ext_user: ExternalUserModel
+) -> tuple[str, str]:
     if ext_user.model_override:
         return ext_user.model_override, "Telegram 覆盖"
     if gateway.default_model_id:
@@ -157,13 +164,15 @@ async def handle_start(update, context, gateway: GatewayModel) -> None:
         f"发送任意消息开始对话，或使用下方菜单调整设置。"
     )
 
-    keyboard = InlineKeyboardMarkup([
+    keyboard = InlineKeyboardMarkup(
         [
-            InlineKeyboardButton("切换模型", callback_data="cmd:model"),
-            InlineKeyboardButton("设置", callback_data="cmd:settings"),
-        ],
-        [InlineKeyboardButton("帮助", callback_data="cmd:help")],
-    ])
+            [
+                InlineKeyboardButton("切换模型", callback_data="cmd:model"),
+                InlineKeyboardButton("设置", callback_data="cmd:settings"),
+            ],
+            [InlineKeyboardButton("帮助", callback_data="cmd:help")],
+        ]
+    )
 
     await update.message.reply_text(text, reply_markup=keyboard)
 
@@ -194,8 +203,14 @@ async def handle_think(update, context, gateway: GatewayModel) -> None:
     buttons = []
     for key, label in EFFORT_LABELS.items():
         marker = " ✓" if (key == current or (key == "off" and current == "off")) else ""
-        cb_key = key if key == "off" else {"low": "low", "medium": "med", "high": "high"}.get(key, key)
-        buttons.append(InlineKeyboardButton(f"{label}{marker}", callback_data=f"tk:{cb_key}"))
+        cb_key = (
+            key
+            if key == "off"
+            else {"low": "low", "medium": "med", "high": "high"}.get(key, key)
+        )
+        buttons.append(
+            InlineKeyboardButton(f"{label}{marker}", callback_data=f"tk:{cb_key}")
+        )
 
     keyboard = InlineKeyboardMarkup([buttons])
     await update.message.reply_text(text, reply_markup=keyboard)
@@ -222,13 +237,13 @@ async def handle_tools(update, context, gateway: GatewayModel) -> None:
     text = f"🔧 工具开关\n当前状态: {status}"
 
     if enabled:
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("关闭工具", callback_data="tl:0")]
-        ])
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("关闭工具", callback_data="tl:0")]]
+        )
     else:
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("开启工具", callback_data="tl:1")]
-        ])
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("开启工具", callback_data="tl:1")]]
+        )
 
     await update.message.reply_text(text, reply_markup=keyboard)
 
@@ -246,12 +261,14 @@ async def handle_clear(update, context, gateway: GatewayModel) -> None:
     """Show clear history confirmation."""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-    keyboard = InlineKeyboardMarkup([
+    keyboard = InlineKeyboardMarkup(
         [
-            InlineKeyboardButton("确认清除", callback_data="clr:y"),
-            InlineKeyboardButton("取消", callback_data="clr:n"),
+            [
+                InlineKeyboardButton("确认清除", callback_data="clr:y"),
+                InlineKeyboardButton("取消", callback_data="clr:n"),
+            ]
         ]
-    ])
+    )
 
     await update.message.reply_text(
         "⚠️ 确定要清除所有对话历史吗？此操作不可撤销。",
@@ -310,7 +327,9 @@ async def handle_callback(update, context, gateway_id: str, app) -> None:
         await _handle_cmd_callback(query, gateway, ext_user, app, data)
 
 
-async def _handle_model_group_callback(query, gateway, ext_user, app, data: str) -> None:
+async def _handle_model_group_callback(
+    query, gateway, ext_user, app, data: str
+) -> None:
     """Handle two-level model selection callbacks.
 
     Callback data format:
@@ -368,7 +387,9 @@ async def _handle_model_group_callback(query, gateway, ext_user, app, data: str)
 
     if len(tokens) == 1:
         # Enter group → show models page 0
-        keyboard, text = _build_group_models_keyboard(group, gidx, ext_user, gateway, page=0)
+        keyboard, text = _build_group_models_keyboard(
+            group, gidx, ext_user, gateway, page=0
+        )
         await _safe_edit(query.message, text, keyboard)
 
     elif len(tokens) >= 3 and tokens[1] == "p":
@@ -377,7 +398,9 @@ async def _handle_model_group_callback(query, gateway, ext_user, app, data: str)
             page = int(tokens[2])
         except ValueError:
             return
-        keyboard, text = _build_group_models_keyboard(group, gidx, ext_user, gateway, page=page)
+        keyboard, text = _build_group_models_keyboard(
+            group, gidx, ext_user, gateway, page=page
+        )
         await _safe_edit(query.message, text, keyboard)
 
     elif len(tokens) >= 3 and tokens[1] == "s":
@@ -490,13 +513,13 @@ async def _build_group_keyboard(gateway, ext_user, app, page: int):
 
     rows = []
     if ext_user.model_override:
-        rows.append([
-            InlineKeyboardButton("↺ 跟随默认模型", callback_data="mg:default")
-        ])
+        rows.append(
+            [InlineKeyboardButton("↺ 跟随默认模型", callback_data="mg:default")]
+        )
     else:
-        rows.append([
-            InlineKeyboardButton("✓ 当前跟随默认模型", callback_data="mg:default")
-        ])
+        rows.append(
+            [InlineKeyboardButton("✓ 当前跟随默认模型", callback_data="mg:default")]
+        )
 
     for i in range(0, len(page_groups), 2):
         row = []
@@ -512,10 +535,16 @@ async def _build_group_keyboard(gateway, ext_user, app, page: int):
     if total_pages > 1:
         nav = []
         if page > 0:
-            nav.append(InlineKeyboardButton("◀ 上一页", callback_data=f"mg:gl:p:{page - 1}"))
-        nav.append(InlineKeyboardButton(f"{page + 1}/{total_pages}", callback_data="mg:gl:p:0"))
+            nav.append(
+                InlineKeyboardButton("◀ 上一页", callback_data=f"mg:gl:p:{page - 1}")
+            )
+        nav.append(
+            InlineKeyboardButton(f"{page + 1}/{total_pages}", callback_data="mg:gl:p:0")
+        )
         if page < total_pages - 1:
-            nav.append(InlineKeyboardButton("下一页 ▶", callback_data=f"mg:gl:p:{page + 1}"))
+            nav.append(
+                InlineKeyboardButton("下一页 ▶", callback_data=f"mg:gl:p:{page + 1}")
+            )
         rows.append(nav)
 
     keyboard = InlineKeyboardMarkup(rows)
@@ -546,13 +575,13 @@ def _build_group_models_keyboard(group: dict, gidx: int, ext_user, gateway, page
 
     rows = []
     if ext_user.model_override:
-        rows.append([
-            InlineKeyboardButton("↺ 跟随默认模型", callback_data="mg:default")
-        ])
+        rows.append(
+            [InlineKeyboardButton("↺ 跟随默认模型", callback_data="mg:default")]
+        )
     else:
-        rows.append([
-            InlineKeyboardButton("✓ 当前跟随默认模型", callback_data="mg:default")
-        ])
+        rows.append(
+            [InlineKeyboardButton("✓ 当前跟随默认模型", callback_data="mg:default")]
+        )
 
     for i in range(0, len(page_models), 2):
         row = []
@@ -569,10 +598,18 @@ def _build_group_models_keyboard(group: dict, gidx: int, ext_user, gateway, page
     if total_pages > 1:
         nav = []
         if page > 0:
-            nav.append(InlineKeyboardButton("◀", callback_data=f"mg:{gidx}:p:{page - 1}"))
-        nav.append(InlineKeyboardButton(f"{page + 1}/{total_pages}", callback_data=f"mg:{gidx}:p:{page}"))
+            nav.append(
+                InlineKeyboardButton("◀", callback_data=f"mg:{gidx}:p:{page - 1}")
+            )
+        nav.append(
+            InlineKeyboardButton(
+                f"{page + 1}/{total_pages}", callback_data=f"mg:{gidx}:p:{page}"
+            )
+        )
         if page < total_pages - 1:
-            nav.append(InlineKeyboardButton("▶", callback_data=f"mg:{gidx}:p:{page + 1}"))
+            nav.append(
+                InlineKeyboardButton("▶", callback_data=f"mg:{gidx}:p:{page + 1}")
+            )
         rows.append(nav)
 
     # Back button
@@ -638,4 +675,4 @@ def _truncate_model_name(name: str, max_len: int = 40) -> str:
     """Truncate long model names for display."""
     if len(name) <= max_len:
         return name
-    return name[:max_len - 1] + "…"
+    return name[: max_len - 1] + "…"

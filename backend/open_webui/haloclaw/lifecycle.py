@@ -17,7 +17,9 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 _adapters: dict[str, BaseAdapter] = {}
 
 
-def _create_adapter(gateway_id: str, platform: str, config: dict) -> Optional[BaseAdapter]:
+def _create_adapter(
+    gateway_id: str, platform: str, config: dict
+) -> Optional[BaseAdapter]:
     """Factory: create an adapter instance for the given platform."""
     if platform == "telegram":
         from open_webui.haloclaw.adapters.telegram import TelegramAdapter

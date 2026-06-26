@@ -7,7 +7,6 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import BigInteger, Boolean, Column, String, Text
 from sqlalchemy import JSON, Index, func
 
-
 ####################
 # Notes DB Schema
 ####################
@@ -55,9 +54,7 @@ class NoteForm(BaseModel):
 
 
 class NotesTable:
-    def insert_new_note(
-        self, user_id: str, form_data: NoteForm
-    ) -> Optional[NoteModel]:
+    def insert_new_note(self, user_id: str, form_data: NoteForm) -> Optional[NoteModel]:
         with get_db() as db:
             now = int(time.time())
             note = NoteModel(
@@ -87,9 +84,7 @@ class NotesTable:
 
     def get_notes(self) -> list[NoteModel]:
         with get_db() as db:
-            notes = (
-                db.query(Note).order_by(Note.updated_at.desc()).all()
-            )
+            notes = db.query(Note).order_by(Note.updated_at.desc()).all()
             return [NoteModel.model_validate(n) for n in notes]
 
     def get_notes_preview(self, preview_length: int = 200) -> list[NoteModel]:
@@ -97,21 +92,29 @@ class NotesTable:
         with get_db() as db:
             rows = (
                 db.query(
-                    Note.id, Note.user_id, Note.title,
+                    Note.id,
+                    Note.user_id,
+                    Note.title,
                     func.substr(Note.content, 1, preview_length).label("content"),
-                    Note.meta, Note.access_control,
-                    Note.updated_at, Note.created_at,
+                    Note.meta,
+                    Note.access_control,
+                    Note.updated_at,
+                    Note.created_at,
                 )
                 .order_by(Note.updated_at.desc())
                 .all()
             )
             return [
                 NoteModel(
-                    id=r.id, user_id=r.user_id, title=r.title,
+                    id=r.id,
+                    user_id=r.user_id,
+                    title=r.title,
                     content=r.content or "",
-                    data=None, meta=r.meta,
+                    data=None,
+                    meta=r.meta,
                     access_control=r.access_control,
-                    updated_at=r.updated_at, created_at=r.created_at,
+                    updated_at=r.updated_at,
+                    created_at=r.created_at,
                 )
                 for r in rows
             ]
@@ -126,9 +129,7 @@ class NotesTable:
             )
             return [NoteModel.model_validate(note) for note in notes]
 
-    def update_note_by_id(
-        self, id: str, form_data: NoteForm
-    ) -> Optional[NoteModel]:
+    def update_note_by_id(self, id: str, form_data: NoteForm) -> Optional[NoteModel]:
         with get_db() as db:
             note = db.get(Note, id)
             if not note:

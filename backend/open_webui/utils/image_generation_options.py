@@ -3,7 +3,6 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-
 CHAT_IMAGE_GENERATION_OPTION_KEYS = (
     "model",
     "model_ref",
@@ -62,7 +61,9 @@ def sanitize_chat_image_generation_options_in_mapping(
             continue
 
         original = mapping.get(key)
-        cleaned = sanitize_chat_image_generation_options(original, allow_size=allow_size)
+        cleaned = sanitize_chat_image_generation_options(
+            original, allow_size=allow_size
+        )
         if cleaned:
             if original != cleaned:
                 mapping[key] = cleaned

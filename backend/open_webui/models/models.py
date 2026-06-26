@@ -17,7 +17,6 @@ from sqlalchemy import BigInteger, Column, Text, JSON, Boolean
 
 from open_webui.utils.access_control import has_access
 
-
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
@@ -269,7 +268,9 @@ class ModelsTable:
         except Exception:
             return False
 
-    def bulk_upsert_base_models(self, user_id: str, items: list[dict], patch: dict) -> dict:
+    def bulk_upsert_base_models(
+        self, user_id: str, items: list[dict], patch: dict
+    ) -> dict:
         """
         Bulk upsert/update base model overrides (base_model_id == None).
 
@@ -284,8 +285,12 @@ class ModelsTable:
         if not items:
             return {"updated": 0, "created": 0, "skipped": 0}
 
-        patch_is_active = patch.get("is_active", None) if isinstance(patch, dict) else None
-        patch_access_control = patch.get("access_control", None) if isinstance(patch, dict) else None
+        patch_is_active = (
+            patch.get("is_active", None) if isinstance(patch, dict) else None
+        )
+        patch_access_control = (
+            patch.get("access_control", None) if isinstance(patch, dict) else None
+        )
         patch_meta = patch.get("meta", None) if isinstance(patch, dict) else None
 
         now = int(time.time())
@@ -300,11 +305,7 @@ class ModelsTable:
 
         try:
             with get_db() as db:
-                existing_rows = (
-                    db.query(Model)
-                    .filter(Model.id.in_(ids))
-                    .all()
-                )
+                existing_rows = db.query(Model).filter(Model.id.in_(ids)).all()
                 existing_by_id = {row.id: row for row in existing_rows}
 
                 for item in items:
@@ -317,11 +318,17 @@ class ModelsTable:
 
                     # Create missing override row
                     if row is None:
-                        name = (item.get("name") or model_id) if isinstance(item, dict) else model_id
+                        name = (
+                            (item.get("name") or model_id)
+                            if isinstance(item, dict)
+                            else model_id
+                        )
                         new_meta = patch_meta if isinstance(patch_meta, dict) else {}
                         new_params = {}
                         new_access_control = (
-                            patch.get("access_control") if "access_control" in patch else None
+                            patch.get("access_control")
+                            if "access_control" in patch
+                            else None
                         )
                         new_is_active = (
                             patch.get("is_active") if "is_active" in patch else True
@@ -377,7 +384,12 @@ class ModelsTable:
             return {"updated": updated, "created": created, "skipped": skipped}
         except Exception as e:
             log.exception(f"Failed bulk upsert base models: {e}")
-            return {"updated": updated, "created": created, "skipped": skipped, "error": str(e)}
+            return {
+                "updated": updated,
+                "created": created,
+                "skipped": skipped,
+                "error": str(e),
+            }
 
 
 Models = ModelsTable()

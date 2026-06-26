@@ -4,13 +4,14 @@ from types import SimpleNamespace
 
 import pytest
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
 from open_webui.retrieval.loaders.main import Loader, PptxLoader  # noqa: E402
-from open_webui.utils.file_upload_diagnostics import FileUploadDiagnosticError  # noqa: E402
+from open_webui.utils.file_upload_diagnostics import (
+    FileUploadDiagnosticError,
+)  # noqa: E402
 
 
 def test_pptx_loader_extracts_slide_text(monkeypatch):

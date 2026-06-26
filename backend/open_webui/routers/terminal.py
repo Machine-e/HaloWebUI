@@ -21,7 +21,16 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    UploadFile,
+    File,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.responses import Response
 from pydantic import BaseModel
 
@@ -112,9 +121,17 @@ def _check_enabled():
 def _stat_to_permissions(st_mode: int) -> str:
     """Convert stat mode to rwx string."""
     parts = []
-    for who in (stat.S_IRUSR, stat.S_IWUSR, stat.S_IXUSR,
-                stat.S_IRGRP, stat.S_IWGRP, stat.S_IXGRP,
-                stat.S_IROTH, stat.S_IWOTH, stat.S_IXOTH):
+    for who in (
+        stat.S_IRUSR,
+        stat.S_IWUSR,
+        stat.S_IXUSR,
+        stat.S_IRGRP,
+        stat.S_IWGRP,
+        stat.S_IXGRP,
+        stat.S_IROTH,
+        stat.S_IWOTH,
+        stat.S_IXOTH,
+    ):
         parts.append(bool(st_mode & who))
     rwx = ""
     for i, ch in enumerate("rwxrwxrwx"):
@@ -158,17 +175,21 @@ async def list_directory(
 
     entries = []
     try:
-        for item in sorted(target.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+        for item in sorted(
+            target.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())
+        ):
             try:
                 st = item.stat()
-                entries.append(FileEntry(
-                    name=item.name,
-                    path=_relative_path(item),
-                    is_dir=item.is_dir(),
-                    size=st.st_size if not item.is_dir() else 0,
-                    modified=st.st_mtime,
-                    permissions=_stat_to_permissions(st.st_mode),
-                ))
+                entries.append(
+                    FileEntry(
+                        name=item.name,
+                        path=_relative_path(item),
+                        is_dir=item.is_dir(),
+                        size=st.st_size if not item.is_dir() else 0,
+                        modified=st.st_mtime,
+                        permissions=_stat_to_permissions(st.st_mode),
+                    )
+                )
             except (PermissionError, OSError):
                 continue
     except PermissionError:
@@ -488,7 +509,7 @@ mimetypes.init()
 _EXTRA_MIMETYPES: dict[str, str] = {
     ".mp4": "video/mp4",
     ".webm": "video/webm",
-    ".ogg": "application/ogg",   # could be audio or video
+    ".ogg": "application/ogg",  # could be audio or video
     ".ogv": "video/ogg",
     ".mov": "video/quicktime",
     ".avi": "video/x-msvideo",
@@ -577,6 +598,7 @@ def _list_listening_ports() -> list[dict]:
     # Try psutil first (cross-platform, already in requirements)
     try:
         import psutil
+
         connections = psutil.net_connections(kind="tcp")
         seen: set[int] = set()
         for conn in connections:
@@ -593,12 +615,14 @@ def _list_listening_ports() -> list[dict]:
                     process_name = psutil.Process(pid).name()
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     process_name = ""
-            ports.append({
-                "port": port,
-                "pid": pid,
-                "process_name": process_name,
-                "address": f"{conn.laddr.ip}:{conn.laddr.port}",
-            })
+            ports.append(
+                {
+                    "port": port,
+                    "pid": pid,
+                    "process_name": process_name,
+                    "address": f"{conn.laddr.ip}:{conn.laddr.port}",
+                }
+            )
         ports.sort(key=lambda p: p["port"])
         return ports
     except Exception:
@@ -608,7 +632,9 @@ def _list_listening_ports() -> list[dict]:
     try:
         result = subprocess.run(
             ["ss", "-tlnp"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if result.returncode != 0:
             return ports
@@ -628,19 +654,21 @@ def _list_listening_ports() -> list[dict]:
             pid = 0
             process_name = ""
             rest = " ".join(parts[5:]) if len(parts) > 5 else ""
-            pid_match = re.search(r'pid=(\d+)', rest)
+            pid_match = re.search(r"pid=(\d+)", rest)
             name_match = re.search(r'\("([^"]+)"', rest)
             if pid_match:
                 pid = int(pid_match.group(1))
             if name_match:
                 process_name = name_match.group(1)
 
-            ports.append({
-                "port": port,
-                "pid": pid,
-                "process_name": process_name,
-                "address": addr,
-            })
+            ports.append(
+                {
+                    "port": port,
+                    "pid": pid,
+                    "process_name": process_name,
+                    "address": addr,
+                }
+            )
         ports.sort(key=lambda p: p["port"])
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
@@ -662,9 +690,7 @@ async def list_ports(
 ############################
 
 
-_SQLITE_ALLOWED_STMTS = re.compile(
-    r"^\s*(SELECT|PRAGMA|EXPLAIN)\b", re.IGNORECASE
-)
+_SQLITE_ALLOWED_STMTS = re.compile(r"^\s*(SELECT|PRAGMA|EXPLAIN)\b", re.IGNORECASE)
 
 
 def _open_sqlite_ro(safe_path: Path) -> sqlite3.Connection:

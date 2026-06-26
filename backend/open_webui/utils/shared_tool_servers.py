@@ -15,7 +15,6 @@ from open_webui.models.users import UserModel
 from open_webui.utils.access_control import has_access, has_permission
 from open_webui.utils.mcp import get_mcp_server_display_metadata
 
-
 MCP_SHARED_TOOL_PREFIX = "mcp_shared:"
 OPENAPI_SHARED_TOOL_PREFIX = "server_shared:"
 SHARED_TOOL_KINDS = {"mcp", "openapi"}
@@ -94,12 +93,17 @@ def get_shared_tool_servers_by_ids(ids: list[str]) -> dict[str, SharedToolServer
 
 
 def can_read_shared_tool_server(
-    request: Request, user: Optional[UserModel], shared_tool_server: SharedToolServerModel
+    request: Request,
+    user: Optional[UserModel],
+    shared_tool_server: SharedToolServerModel,
 ) -> bool:
     if not user or not shared_tool_server.enabled:
         return False
 
-    if getattr(user, "role", None) == "admin" and user.id == shared_tool_server.owner_user_id:
+    if (
+        getattr(user, "role", None) == "admin"
+        and user.id == shared_tool_server.owner_user_id
+    ):
         return True
 
     if not can_use_direct_tool_servers(request, user):
@@ -141,7 +145,10 @@ def validate_requested_shared_tool_ids_access(
     if not shared_ids:
         return
 
-    if not can_use_direct_tool_servers(request, user) and getattr(user, "role", None) != "admin":
+    if (
+        not can_use_direct_tool_servers(request, user)
+        and getattr(user, "role", None) != "admin"
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
@@ -158,7 +165,9 @@ def validate_requested_shared_tool_ids_access(
     denied_ids = [
         shared_id
         for shared_id in shared_ids
-        if not can_read_shared_tool_server(request, user, shared_tool_servers_map[shared_id])
+        if not can_read_shared_tool_server(
+            request, user, shared_tool_servers_map[shared_id]
+        )
     ]
     if denied_ids:
         raise HTTPException(
@@ -218,7 +227,9 @@ def build_shared_openapi_display_metadata(
         except Exception:
             hostname = url
 
-    title = str(metadata.get("title") or "").strip() or hostname or url or "OpenAPI Server"
+    title = (
+        str(metadata.get("title") or "").strip() or hostname or url or "OpenAPI Server"
+    )
     description = str(metadata.get("description") or "").strip()
 
     return {

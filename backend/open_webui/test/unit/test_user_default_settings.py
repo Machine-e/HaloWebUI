@@ -120,7 +120,9 @@ def test_new_user_default_settings_disables_when_template_is_empty():
             "enabled": True,
             "roles": ["user"],
             "ui": {"connections": {"openai": {"OPENAI_API_KEYS": ["secret"]}}},
-            "tools": {"native_tools": {"mcp_server_connections": [{"url": "https://secret"}]}},
+            "tools": {
+                "native_tools": {"mcp_server_connections": [{"url": "https://secret"}]}
+            },
         }
     )
 

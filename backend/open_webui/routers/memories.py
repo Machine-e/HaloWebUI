@@ -8,7 +8,6 @@ from open_webui.retrieval.vector.connector import VECTOR_DB_CLIENT
 from open_webui.utils.auth import get_verified_user
 from open_webui.env import SRC_LOG_LEVELS
 
-
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
@@ -94,7 +93,9 @@ async def query_memory(
     try:
         results = VECTOR_DB_CLIENT.search(
             collection_name=f"user-memory-{user.id}",
-            vectors=[request.app.state.EMBEDDING_FUNCTION(form_data.content, user=user)],
+            vectors=[
+                request.app.state.EMBEDDING_FUNCTION(form_data.content, user=user)
+            ],
             limit=form_data.k,
         )
     except Exception as e:

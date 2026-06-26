@@ -1,6 +1,5 @@
 from open_webui.config import PersistentConfig
 
-
 ENABLE_EXTERNAL_CLIENT_GATEWAY = PersistentConfig(
     "ENABLE_EXTERNAL_CLIENT_GATEWAY",
     "external_api.enable",
@@ -24,4 +23,3 @@ EXTERNAL_CLIENT_GATEWAY_DEFAULT_RPM = PersistentConfig(
     "external_api.default_rpm_limit",
     60,
 )
-

@@ -146,7 +146,9 @@ class ExternalApiAuditLogModel(BaseModel):
 
 
 class ExternalApiClientsTable:
-    def create(self, form_data: ExternalApiClientCreateForm) -> tuple[ExternalApiClientModel, str]:
+    def create(
+        self, form_data: ExternalApiClientCreateForm
+    ) -> tuple[ExternalApiClientModel, str]:
         raw_key = create_external_api_key()
         now = _now_ms()
         client = ExternalApiClientModel(
@@ -156,8 +158,16 @@ class ExternalApiClientsTable:
             api_key_hash=hash_external_api_key(raw_key),
             key_prefix=raw_key[:12],
             enabled=form_data.enabled,
-            allowed_protocols=sorted({str(item).lower() for item in form_data.allowed_protocols if str(item).strip()}),
-            allowed_model_ids=sorted({str(item) for item in form_data.allowed_model_ids if str(item).strip()}),
+            allowed_protocols=sorted(
+                {
+                    str(item).lower()
+                    for item in form_data.allowed_protocols
+                    if str(item).strip()
+                }
+            ),
+            allowed_model_ids=sorted(
+                {str(item) for item in form_data.allowed_model_ids if str(item).strip()}
+            ),
             allow_tools=form_data.allow_tools,
             rpm_limit=form_data.rpm_limit,
             note=form_data.note,
@@ -172,7 +182,11 @@ class ExternalApiClientsTable:
 
     def list(self) -> list[ExternalApiClientModel]:
         with get_db() as db:
-            rows = db.query(ExternalApiClient).order_by(ExternalApiClient.created_at.desc()).all()
+            rows = (
+                db.query(ExternalApiClient)
+                .order_by(ExternalApiClient.created_at.desc())
+                .all()
+            )
             return [ExternalApiClientModel.model_validate(row) for row in rows]
 
     def get_by_id(self, client_id: str) -> Optional[ExternalApiClientModel]:
@@ -188,7 +202,9 @@ class ExternalApiClientsTable:
             row = db.query(ExternalApiClient).filter_by(api_key_hash=digest).first()
             return ExternalApiClientModel.model_validate(row) if row else None
 
-    def update(self, client_id: str, form_data: ExternalApiClientUpdateForm) -> Optional[ExternalApiClientModel]:
+    def update(
+        self, client_id: str, form_data: ExternalApiClientUpdateForm
+    ) -> Optional[ExternalApiClientModel]:
         with get_db() as db:
             row = db.query(ExternalApiClient).filter_by(id=client_id).first()
             if not row:
@@ -196,8 +212,16 @@ class ExternalApiClientsTable:
             row.name = form_data.name.strip()
             row.owner_user_id = form_data.owner_user_id
             row.enabled = form_data.enabled
-            row.allowed_protocols = sorted({str(item).lower() for item in form_data.allowed_protocols if str(item).strip()})
-            row.allowed_model_ids = sorted({str(item) for item in form_data.allowed_model_ids if str(item).strip()})
+            row.allowed_protocols = sorted(
+                {
+                    str(item).lower()
+                    for item in form_data.allowed_protocols
+                    if str(item).strip()
+                }
+            )
+            row.allowed_model_ids = sorted(
+                {str(item) for item in form_data.allowed_model_ids if str(item).strip()}
+            )
             row.allow_tools = form_data.allow_tools
             row.rpm_limit = form_data.rpm_limit
             row.note = form_data.note
@@ -273,7 +297,9 @@ class ExternalApiAuditLogsTable:
             )
             return [ExternalApiAuditLogModel.model_validate(row) for row in rows]
 
-    def list_by_client(self, client_id: str, limit: int = 100) -> list[ExternalApiAuditLogModel]:
+    def list_by_client(
+        self, client_id: str, limit: int = 100
+    ) -> list[ExternalApiAuditLogModel]:
         with get_db() as db:
             rows = (
                 db.query(ExternalApiAuditLog)

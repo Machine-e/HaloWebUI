@@ -3,7 +3,6 @@ import pathlib
 import sys
 from types import SimpleNamespace
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -74,7 +73,9 @@ def test_public_admin_shared_model_is_injected_without_user_connections(monkeypa
         return []
 
     monkeypatch.setattr(models_utils, "get_all_base_models", fake_get_all_base_models)
-    monkeypatch.setattr(models_utils.Functions, "get_global_action_functions", lambda: [])
+    monkeypatch.setattr(
+        models_utils.Functions, "get_global_action_functions", lambda: []
+    )
     monkeypatch.setattr(
         models_utils.Functions,
         "get_functions_by_type",
@@ -131,7 +132,9 @@ def test_private_admin_shared_model_stays_hidden_without_explicit_access(monkeyp
         return []
 
     monkeypatch.setattr(models_utils, "get_all_base_models", fake_get_all_base_models)
-    monkeypatch.setattr(models_utils.Functions, "get_global_action_functions", lambda: [])
+    monkeypatch.setattr(
+        models_utils.Functions, "get_global_action_functions", lambda: []
+    )
     monkeypatch.setattr(
         models_utils.Functions,
         "get_functions_by_type",
@@ -170,7 +173,9 @@ def test_orphan_base_override_is_not_injected_into_models(monkeypatch):
         return []
 
     monkeypatch.setattr(models_utils, "get_all_base_models", fake_get_all_base_models)
-    monkeypatch.setattr(models_utils.Functions, "get_global_action_functions", lambda: [])
+    monkeypatch.setattr(
+        models_utils.Functions, "get_global_action_functions", lambda: []
+    )
     monkeypatch.setattr(
         models_utils.Functions,
         "get_functions_by_type",
@@ -208,7 +213,9 @@ def test_orphan_preset_model_is_not_injected_into_models(monkeypatch):
         return []
 
     monkeypatch.setattr(models_utils, "get_all_base_models", fake_get_all_base_models)
-    monkeypatch.setattr(models_utils.Functions, "get_global_action_functions", lambda: [])
+    monkeypatch.setattr(
+        models_utils.Functions, "get_global_action_functions", lambda: []
+    )
     monkeypatch.setattr(
         models_utils.Functions,
         "get_functions_by_type",
@@ -260,13 +267,15 @@ def test_broken_action_module_does_not_break_models_list(monkeypatch):
         ]
 
     monkeypatch.setattr(models_utils, "get_all_base_models", fake_get_all_base_models)
-    monkeypatch.setattr(models_utils.Functions, "get_global_action_functions", lambda: [])
+    monkeypatch.setattr(
+        models_utils.Functions, "get_global_action_functions", lambda: []
+    )
     monkeypatch.setattr(
         models_utils.Functions,
         "get_functions_by_type",
-        lambda function_type, active_only=True: [action_function]
-        if function_type == "action" and active_only
-        else [],
+        lambda function_type, active_only=True: (
+            [action_function] if function_type == "action" and active_only else []
+        ),
     )
     monkeypatch.setattr(
         models_utils.Functions,
@@ -320,13 +329,15 @@ def test_missing_action_reference_does_not_break_models_list(monkeypatch):
         ]
 
     monkeypatch.setattr(models_utils, "get_all_base_models", fake_get_all_base_models)
-    monkeypatch.setattr(models_utils.Functions, "get_global_action_functions", lambda: [])
+    monkeypatch.setattr(
+        models_utils.Functions, "get_global_action_functions", lambda: []
+    )
     monkeypatch.setattr(
         models_utils.Functions,
         "get_functions_by_type",
-        lambda function_type, active_only=True: [enabled_action]
-        if function_type == "action" and active_only
-        else [],
+        lambda function_type, active_only=True: (
+            [enabled_action] if function_type == "action" and active_only else []
+        ),
     )
     monkeypatch.setattr(
         models_utils.Functions,

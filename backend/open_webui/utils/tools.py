@@ -38,7 +38,10 @@ from open_webui.models.users import UserModel
 from open_webui.constants import ERROR_MESSAGES
 from open_webui.utils.access_control import can_read_resource
 from open_webui.utils.plugin import load_tool_module_by_id
-from open_webui.env import AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA, MCP_TOOL_CALL_TIMEOUT
+from open_webui.env import (
+    AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA,
+    MCP_TOOL_CALL_TIMEOUT,
+)
 from open_webui.utils.mcp import execute_mcp_tool
 from open_webui.utils.shared_tool_servers import (
     MCP_SHARED_TOOL_PREFIX,
@@ -322,13 +325,15 @@ def _make_mcp_tool_runtime(
                         mcp_server_connection,
                         name=original_tool_name,
                         arguments=kwargs,
-                        session_token=getattr(
-                            getattr(request, "state", None),
-                            "token",
-                            None,
-                        ).credentials
-                        if getattr(getattr(request, "state", None), "token", None)
-                        else None,
+                        session_token=(
+                            getattr(
+                                getattr(request, "state", None),
+                                "token",
+                                None,
+                            ).credentials
+                            if getattr(getattr(request, "state", None), "token", None)
+                            else None
+                        ),
                         user_id=getattr(user, "id", None),
                         on_notification=notif_cb,
                     )
@@ -408,8 +413,14 @@ def get_tools(
                     continue
 
                 tool_server_connections = (
-                    getattr(getattr(request, "state", None), "TOOL_SERVER_CONNECTIONS", None)
-                    or getattr(getattr(request.app.state, "config", None), "TOOL_SERVER_CONNECTIONS", None)
+                    getattr(
+                        getattr(request, "state", None), "TOOL_SERVER_CONNECTIONS", None
+                    )
+                    or getattr(
+                        getattr(request.app.state, "config", None),
+                        "TOOL_SERVER_CONNECTIONS",
+                        None,
+                    )
                     or []
                 )
                 if server_idx < 0 or server_idx >= len(tool_server_connections):
@@ -447,8 +458,8 @@ def get_tools(
                 )
             elif tool_id.startswith(OPENAPI_SHARED_TOOL_PREFIX):
                 shared_id = tool_id[len(OPENAPI_SHARED_TOOL_PREFIX) :].strip()
-                tool_server_connection, tool_server_data = _get_shared_tool_server_runtime_entry(
-                    request, shared_id
+                tool_server_connection, tool_server_data = (
+                    _get_shared_tool_server_runtime_entry(request, shared_id)
                 )
                 if tool_server_connection is None or tool_server_data is None:
                     log.warning(
@@ -474,8 +485,14 @@ def get_tools(
                     continue
 
                 mcp_connections = (
-                    getattr(getattr(request, "state", None), "MCP_SERVER_CONNECTIONS", None)
-                    or getattr(getattr(request.app.state, "config", None), "MCP_SERVER_CONNECTIONS", None)
+                    getattr(
+                        getattr(request, "state", None), "MCP_SERVER_CONNECTIONS", None
+                    )
+                    or getattr(
+                        getattr(request.app.state, "config", None),
+                        "MCP_SERVER_CONNECTIONS",
+                        None,
+                    )
                     or []
                 )
                 if server_idx < 0 or server_idx >= len(mcp_connections):

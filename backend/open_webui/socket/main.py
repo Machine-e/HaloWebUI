@@ -33,7 +33,6 @@ from open_webui.env import (
     SRC_LOG_LEVELS,
 )
 
-
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["SOCKET"])
@@ -312,7 +311,11 @@ async def note_join(sid, data):
         {
             "note_id": note_id,
             "data": {"type": "presence:join"},
-            "user": {"id": user["id"], "name": user["name"], "profile_image_url": user.get("profile_image_url", "")},
+            "user": {
+                "id": user["id"],
+                "name": user["name"],
+                "profile_image_url": user.get("profile_image_url", ""),
+            },
         },
         room=room,
         skip_sid=sid,
@@ -326,7 +329,13 @@ async def note_join(sid, data):
         p_user = SESSION_POOL.get(p_sid)
         if p_user and p_user["id"] not in seen and p_sid != sid:
             seen.add(p_user["id"])
-            editors.append({"id": p_user["id"], "name": p_user["name"], "profile_image_url": p_user.get("profile_image_url", "")})
+            editors.append(
+                {
+                    "id": p_user["id"],
+                    "name": p_user["name"],
+                    "profile_image_url": p_user.get("profile_image_url", ""),
+                }
+            )
 
     await sio.emit(
         "note-events",
@@ -356,7 +365,11 @@ async def note_leave(sid, data):
         {
             "note_id": note_id,
             "data": {"type": "presence:leave"},
-            "user": {"id": user["id"], "name": user["name"], "profile_image_url": user.get("profile_image_url", "")},
+            "user": {
+                "id": user["id"],
+                "name": user["name"],
+                "profile_image_url": user.get("profile_image_url", ""),
+            },
         },
         room=room,
     )
@@ -382,7 +395,11 @@ async def note_typing(sid, data):
         {
             "note_id": note_id,
             "data": {"type": "typing"},
-            "user": {"id": user["id"], "name": user["name"], "profile_image_url": user.get("profile_image_url", "")},
+            "user": {
+                "id": user["id"],
+                "name": user["name"],
+                "profile_image_url": user.get("profile_image_url", ""),
+            },
         },
         room=room,
         skip_sid=sid,
@@ -501,10 +518,13 @@ def get_event_emitter(request_info, update_db=True):
                 "files",
                 "chat:message:files",
             }:
-                message = Chats.get_message_by_id_and_message_id(
-                    request_info["chat_id"],
-                    request_info["message_id"],
-                ) or {}
+                message = (
+                    Chats.get_message_by_id_and_message_id(
+                        request_info["chat_id"],
+                        request_info["message_id"],
+                    )
+                    or {}
+                )
 
                 merged_files = _merge_message_files(
                     message.get("files"),

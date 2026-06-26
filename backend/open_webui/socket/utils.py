@@ -4,7 +4,9 @@ from open_webui.utils.redis import get_redis_connection
 
 
 class RedisLock:
-    def __init__(self, redis_url, lock_name, timeout_secs, redis_sentinels=[], cluster_mode=False):
+    def __init__(
+        self, redis_url, lock_name, timeout_secs, redis_sentinels=[], cluster_mode=False
+    ):
         self.lock_name = lock_name
         self.lock_id = str(uuid.uuid4())
         self.timeout_secs = timeout_secs

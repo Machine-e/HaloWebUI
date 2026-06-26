@@ -20,9 +20,7 @@ class Memory(Base):
     updated_at = Column(BigInteger)
     created_at = Column(BigInteger)
 
-    __table_args__ = (
-        Index("ix_memory_user_id", "user_id"),
-    )
+    __table_args__ = (Index("ix_memory_user_id", "user_id"),)
 
 
 class MemoryModel(BaseModel):

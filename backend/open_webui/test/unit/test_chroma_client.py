@@ -3,7 +3,6 @@ import sys
 
 import pytest
 
-
 pytest.importorskip("chromadb")
 
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]

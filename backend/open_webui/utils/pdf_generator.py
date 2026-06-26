@@ -97,17 +97,25 @@ class PDFGenerator:
         pdf.set_text_color(17, 24, 39)
         pdf.ln(2)
 
-        messages = self.form_data.messages if isinstance(self.form_data.messages, list) else []
+        messages = (
+            self.form_data.messages if isinstance(self.form_data.messages, list) else []
+        )
         for index, message in enumerate(messages):
             self._render_message(pdf, message, is_first=index == 0)
 
-    def _render_message(self, pdf: FPDF, message: dict[str, Any], *, is_first: bool) -> None:
+    def _render_message(
+        self, pdf: FPDF, message: dict[str, Any], *, is_first: bool
+    ) -> None:
         if not is_first:
             pdf.ln(self.MESSAGE_GAP)
 
         role = self._normalize_role(message.get("role"))
         model = self._format_model_label(message)
-        timestamp = self.format_timestamp(message.get("timestamp")) if message.get("timestamp") else ""
+        timestamp = (
+            self.format_timestamp(message.get("timestamp"))
+            if message.get("timestamp")
+            else ""
+        )
         stats_line = self._build_stats_line(message)
         instruction = self._safe_text(message.get("instruction"))
         content = self._stringify_content(message.get("content"))
@@ -170,7 +178,9 @@ class PDFGenerator:
     def _render_markdown_content(self, pdf: FPDF, content: str) -> None:
         self._render_markdown_fragment(pdf, content, list_level=0)
 
-    def _render_markdown_fragment(self, pdf: FPDF, content: str, *, list_level: int) -> None:
+    def _render_markdown_fragment(
+        self, pdf: FPDF, content: str, *, list_level: int
+    ) -> None:
         content = self._normalize_markdown_for_pdf(content)
         html = markdown.markdown(
             content,
@@ -209,7 +219,11 @@ class PDFGenerator:
                 normalized_lines.append(" " * ordered_child_indent + stripped)
                 continue
 
-            if stripped and ordered_base_indent is not None and indent <= ordered_base_indent:
+            if (
+                stripped
+                and ordered_base_indent is not None
+                and indent <= ordered_base_indent
+            ):
                 ordered_base_indent = None
                 ordered_child_indent = None
 
@@ -217,7 +231,9 @@ class PDFGenerator:
 
         return "\n".join(normalized_lines)
 
-    def _render_children(self, pdf: FPDF, children: list[Any], *, list_level: int) -> None:
+    def _render_children(
+        self, pdf: FPDF, children: list[Any], *, list_level: int
+    ) -> None:
         for child in children:
             if isinstance(child, NavigableString):
                 text = self._normalize_text(str(child))
@@ -293,11 +309,17 @@ class PDFGenerator:
         pdf.ln(1)
 
     def _render_paragraph_tag(self, pdf: FPDF, tag: Tag) -> None:
-        images = [child for child in tag.children if isinstance(child, Tag) and child.name == "img"]
+        images = [
+            child
+            for child in tag.children
+            if isinstance(child, Tag) and child.name == "img"
+        ]
         inline_children = [
             child
             for child in tag.children
-            if not (isinstance(child, Tag) and child.name and child.name.lower() == "img")
+            if not (
+                isinstance(child, Tag) and child.name and child.name.lower() == "img"
+            )
         ]
 
         if self._has_visible_inline_content(inline_children):
@@ -310,23 +332,30 @@ class PDFGenerator:
             self._finish_inline_block(pdf, self.LINE_HEIGHT, extra_gap=1)
 
         for image in images:
-            self._render_image_from_url(pdf, image.get("src"), alt_text=image.get("alt"))
+            self._render_image_from_url(
+                pdf, image.get("src"), alt_text=image.get("alt")
+            )
 
     def _render_list(self, pdf: FPDF, tag: Tag, *, level: int) -> None:
-        items = [child for child in tag.children if isinstance(child, Tag) and child.name == "li"]
+        items = [
+            child
+            for child in tag.children
+            if isinstance(child, Tag) and child.name == "li"
+        ]
         if not items:
             return
 
         ordered = tag.name.lower() == "ol"
         start = self._safe_int(tag.get("start"), fallback=1) if ordered else 1
         markers = [
-            f"{start + index}." if ordered else "•"
-            for index in range(len(items))
+            f"{start + index}." if ordered else "•" for index in range(len(items))
         ]
         marker_width = max(pdf.get_string_width(marker) for marker in markers) + 3
 
         for marker, item in zip(markers, items):
-            self._render_list_item(pdf, item, marker, level=level, marker_width=marker_width)
+            self._render_list_item(
+                pdf, item, marker, level=level, marker_width=marker_width
+            )
 
     def _render_list_item(
         self,
@@ -341,7 +370,9 @@ class PDFGenerator:
         child_blocks = [
             child
             for child in item.children
-            if isinstance(child, Tag) and child.name.lower() in {"ul", "ol", "pre", "blockquote", "table", "details"}
+            if isinstance(child, Tag)
+            and child.name.lower()
+            in {"ul", "ol", "pre", "blockquote", "table", "details"}
         ]
 
         left_indent = self.LIST_INDENT * level
@@ -360,7 +391,9 @@ class PDFGenerator:
             pdf.set_font(self.font_family, "", 11)
             pdf.set_text_color(17, 24, 39)
             pdf.set_xy(start_x, y)
-            pdf.multi_cell(marker_width, line_height, marker, align="R", new_x="RIGHT", new_y="TOP")
+            pdf.multi_cell(
+                marker_width, line_height, marker, align="R", new_x="RIGHT", new_y="TOP"
+            )
             if pdf.page_no() != start_page:
                 y = pdf.get_y()
             pdf.set_left_margin(start_x + marker_width)
@@ -392,7 +425,9 @@ class PDFGenerator:
         pdf.ln(1)
         x = pdf.l_margin + self.LIST_INDENT * list_level
         y = pdf.get_y()
-        with self._temporary_indent(pdf, self.BLOCK_INDENT + self.LIST_INDENT * list_level):
+        with self._temporary_indent(
+            pdf, self.BLOCK_INDENT + self.LIST_INDENT * list_level
+        ):
             pdf.set_text_color(55, 65, 81)
             self._render_children(pdf, list(tag.children), list_level=list_level)
             end_y = pdf.get_y()
@@ -431,7 +466,9 @@ class PDFGenerator:
             pdf.ln(1)
             self._render_markdown_fragment(pdf, body_source, list_level=list_level)
 
-    def _render_code_executions(self, pdf: FPDF, executions: list[dict[str, Any]]) -> None:
+    def _render_code_executions(
+        self, pdf: FPDF, executions: list[dict[str, Any]]
+    ) -> None:
         pdf.set_font(self.font_family, "B", 12)
         pdf.set_text_color(17, 24, 39)
         self._write_full_width_block(pdf, 7, "代码执行")
@@ -441,7 +478,11 @@ class PDFGenerator:
             title = self._safe_text(execution.get("name")) or "执行记录"
             language = self._safe_text(execution.get("language"))
             code = self._safe_text(execution.get("code"))
-            result = execution.get("result") if isinstance(execution.get("result"), dict) else {}
+            result = (
+                execution.get("result")
+                if isinstance(execution.get("result"), dict)
+                else {}
+            )
             output = self._safe_text(result.get("output"))
             error = self._safe_text(result.get("error"))
             files = result.get("files") if isinstance(result.get("files"), list) else []
@@ -468,7 +509,9 @@ class PDFGenerator:
 
             pdf.ln(2)
 
-    def _render_code_block(self, pdf: FPDF, code: str, *, language: Optional[str] = None) -> None:
+    def _render_code_block(
+        self, pdf: FPDF, code: str, *, language: Optional[str] = None
+    ) -> None:
         normalized = self._normalize_code_text(code)
         if not normalized:
             return
@@ -576,7 +619,10 @@ class PDFGenerator:
         elapsed = None
         speed = None
 
-        if isinstance(usage.get("total_duration"), (int, float)) and usage.get("total_duration", 0) > 0:
+        if (
+            isinstance(usage.get("total_duration"), (int, float))
+            and usage.get("total_duration", 0) > 0
+        ):
             elapsed = f"{float(usage['total_duration']) / 1e9:.2f}"
         elif isinstance(message.get("completedAt"), (int, float)) and isinstance(
             message.get("timestamp"), (int, float)
@@ -594,7 +640,9 @@ class PDFGenerator:
 
         if isinstance(total, (int, float)):
             tokens = str(int(total))
-        elif isinstance(input_tokens, (int, float)) and isinstance(output_tokens, (int, float)):
+        elif isinstance(input_tokens, (int, float)) and isinstance(
+            output_tokens, (int, float)
+        ):
             tokens = str(int(input_tokens) + int(output_tokens))
         else:
             tokens = ""
@@ -706,7 +754,10 @@ class PDFGenerator:
 
     def _has_visible_inline_content(self, nodes: list[Any]) -> bool:
         for node in nodes:
-            if isinstance(node, NavigableString) and self._normalize_inline_text(str(node)).strip():
+            if (
+                isinstance(node, NavigableString)
+                and self._normalize_inline_text(str(node)).strip()
+            ):
                 return True
             if isinstance(node, Tag):
                 if node.name and node.name.lower() == "img":
@@ -916,7 +967,11 @@ class PDFGenerator:
     def _extract_details_body_source(self, tag: Tag) -> str:
         parts: list[str] = []
         for child in tag.contents:
-            if isinstance(child, Tag) and child.name and child.name.lower() == "summary":
+            if (
+                isinstance(child, Tag)
+                and child.name
+                and child.name.lower() == "summary"
+            ):
                 continue
             parts.append(str(child))
         return "".join(parts).strip()
@@ -1154,8 +1209,12 @@ class PDFGenerator:
             ["NotoSans-Regular", "NotoSans"],
             extensions=(".ttf", ".otf"),
         )
-        bold = self._find_font_file(font_dir, "NotoSans-Bold", extensions=(".ttf", ".otf"))
-        italic = self._find_font_file(font_dir, "NotoSans-Italic", extensions=(".ttf", ".otf"))
+        bold = self._find_font_file(
+            font_dir, "NotoSans-Bold", extensions=(".ttf", ".otf")
+        )
+        italic = self._find_font_file(
+            font_dir, "NotoSans-Italic", extensions=(".ttf", ".otf")
+        )
         bold_italic = self._find_first_font_file(
             font_dir,
             ["NotoSans-BoldItalic", "NotoSans-Bold-Italic"],
@@ -1186,7 +1245,9 @@ class PDFGenerator:
                 ("Twemoji", "Twemoji.ttf"),
             ]:
                 stem, _ = os.path.splitext(filename)
-                font_path = self._find_font_file(font_dir, stem, extensions=(".ttf", ".otf"))
+                font_path = self._find_font_file(
+                    font_dir, stem, extensions=(".ttf", ".otf")
+                )
                 if not font_path:
                     continue
                 pdf.add_font(family, "", str(font_path))
@@ -1274,7 +1335,9 @@ class PDFGenerator:
     ) -> None:
         regular_font = self._materialize_font_for_fpdf(regular)
         bold_font = self._materialize_font_for_fpdf(bold) if bold else regular_font
-        italic_font = self._materialize_font_for_fpdf(italic) if italic else regular_font
+        italic_font = (
+            self._materialize_font_for_fpdf(italic) if italic else regular_font
+        )
         bold_italic_font = (
             self._materialize_font_for_fpdf(bold_italic) if bold_italic else bold_font
         )

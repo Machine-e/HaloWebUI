@@ -1,7 +1,6 @@
 import pathlib
 import sys
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -29,21 +28,18 @@ def test_extract_error_detail_prefers_nested_error_message():
 
 
 def test_extract_error_detail_prefers_human_detail_over_scalar_error_type():
-    assert (
-        extract_error_detail(
-            {
-                "error": "openai_error",
-                "error_code": "internal_server_error",
-                "error_detail": (
-                    "status_code=503, auth_not_found: no auth available "
-                    "(providers=codex, model=gpt-5.4-mini)"
-                ),
-            }
-        )
-        == (
-            "status_code=503, auth_not_found: no auth available "
-            "(providers=codex, model=gpt-5.4-mini)"
-        )
+    assert extract_error_detail(
+        {
+            "error": "openai_error",
+            "error_code": "internal_server_error",
+            "error_detail": (
+                "status_code=503, auth_not_found: no auth available "
+                "(providers=codex, model=gpt-5.4-mini)"
+            ),
+        }
+    ) == (
+        "status_code=503, auth_not_found: no auth available "
+        "(providers=codex, model=gpt-5.4-mini)"
     )
 
 

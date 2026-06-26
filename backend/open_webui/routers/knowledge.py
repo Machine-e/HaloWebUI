@@ -38,7 +38,6 @@ from open_webui.env import SRC_LOG_LEVELS
 from open_webui.models.models import Models, ModelForm
 from open_webui.retrieval.document_processing import FILE_PROCESSING_MODE_RETRIEVAL
 
-
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
@@ -57,6 +56,7 @@ class KnowledgeSearchResponse(BaseModel):
 class KnowledgeFileSearchResponse(BaseModel):
     items: list[dict]
     total: int
+
 
 ############################
 # getKnowledgeBases
@@ -87,7 +87,9 @@ async def get_knowledge(
         if kb.data:
             all_file_ids.update(kb.data.get("file_ids", []))
 
-    all_files = Files.get_file_metadatas_by_ids(list(all_file_ids)) if all_file_ids else []
+    all_files = (
+        Files.get_file_metadatas_by_ids(list(all_file_ids)) if all_file_ids else []
+    )
     file_map = {f.id: f for f in all_files}
 
     knowledge_with_files = []
@@ -102,9 +104,7 @@ async def get_knowledge(
                 valid_ids = [f.id for f in files]
                 data = knowledge_base.data or {}
                 data["file_ids"] = valid_ids
-                Knowledges.update_knowledge_data_by_id(
-                    id=knowledge_base.id, data=data
-                )
+                Knowledges.update_knowledge_data_by_id(id=knowledge_base.id, data=data)
 
         knowledge_with_files.append(
             KnowledgeUserResponse(
@@ -131,7 +131,9 @@ async def get_knowledge_list(user=Depends(get_verified_user)):
         if kb.data:
             all_file_ids.update(kb.data.get("file_ids", []))
 
-    all_files = Files.get_file_metadatas_by_ids(list(all_file_ids)) if all_file_ids else []
+    all_files = (
+        Files.get_file_metadatas_by_ids(list(all_file_ids)) if all_file_ids else []
+    )
     file_map = {f.id: f for f in all_files}
 
     knowledge_with_files = []
@@ -146,9 +148,7 @@ async def get_knowledge_list(user=Depends(get_verified_user)):
                 valid_ids = [f.id for f in files]
                 data = knowledge_base.data or {}
                 data["file_ids"] = valid_ids
-                Knowledges.update_knowledge_data_by_id(
-                    id=knowledge_base.id, data=data
-                )
+                Knowledges.update_knowledge_data_by_id(id=knowledge_base.id, data=data)
 
         knowledge_with_files.append(
             KnowledgeUserResponse(
@@ -220,11 +220,17 @@ async def search_knowledge_files(
                 "description": knowledge_base.description,
             }
 
-    files = Files.get_file_metadatas_by_ids(list(dict.fromkeys(all_file_ids))) if all_file_ids else []
+    files = (
+        Files.get_file_metadatas_by_ids(list(dict.fromkeys(all_file_ids)))
+        if all_file_ids
+        else []
+    )
     items = []
     for file in files:
         meta = file.meta or {}
-        filename = meta.get("name") or meta.get("filename") or meta.get("title") or file.id
+        filename = (
+            meta.get("name") or meta.get("filename") or meta.get("title") or file.id
+        )
         items.append(
             {
                 "id": file.id,
@@ -245,12 +251,15 @@ async def search_knowledge_files(
             for item in items
             if query_lower in (item.get("filename") or "").lower()
             or query_lower in ((item.get("collection") or {}).get("name") or "").lower()
-            or query_lower in ((item.get("collection") or {}).get("description") or "").lower()
+            or query_lower
+            in ((item.get("collection") or {}).get("description") or "").lower()
         ]
 
     total = len(items)
     offset = (page - 1) * limit
-    return KnowledgeFileSearchResponse(items=items[offset : offset + limit], total=total)
+    return KnowledgeFileSearchResponse(
+        items=items[offset : offset + limit], total=total
+    )
 
 
 ############################
@@ -923,7 +932,10 @@ async def export_knowledge_by_id(id: str, user=Depends(get_verified_user)):
             "created_at": knowledge.created_at,
             "updated_at": knowledge.updated_at,
         }
-        zf.writestr("knowledge.json", json.dumps(meta, ensure_ascii=False, indent=2, default=str))
+        zf.writestr(
+            "knowledge.json",
+            json.dumps(meta, ensure_ascii=False, indent=2, default=str),
+        )
 
         # Write each file
         for file_id in file_ids:

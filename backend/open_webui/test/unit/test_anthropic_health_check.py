@@ -3,7 +3,6 @@ import pathlib
 import sys
 from contextlib import asynccontextmanager
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -53,13 +52,17 @@ def test_anthropic_health_check_strips_prefix_and_merges_extra_body(monkeypatch)
     captured = {}
 
     @asynccontextmanager
-    async def fake_post_preserve_method(session, url, *, json_data, headers, max_redirects=5):
+    async def fake_post_preserve_method(
+        session, url, *, json_data, headers, max_redirects=5
+    ):
         captured["url"] = url
         captured["json_data"] = json_data
         captured["headers"] = headers
         yield _FakeResponse(200, {"id": "msg_123", "content": []})
 
-    monkeypatch.setattr(anthropic_router, "_post_preserve_method", fake_post_preserve_method)
+    monkeypatch.setattr(
+        anthropic_router, "_post_preserve_method", fake_post_preserve_method
+    )
     monkeypatch.setattr(
         anthropic_router.aiohttp,
         "ClientSession",

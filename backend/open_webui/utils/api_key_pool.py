@@ -7,7 +7,6 @@ import random
 import threading
 from typing import Any, Optional
 
-
 API_KEY_POOL_CONFIG_KEY = "api_key_pool"
 API_KEY_POOL_MODES = {"round_robin", "random", "priority"}
 DEFAULT_API_KEY_POOL_MODE = "round_robin"
@@ -82,7 +81,9 @@ def _coerce_bool(value: Any, default: bool = False) -> bool:
     return default
 
 
-def _stable_key_id(*, provider: str, connection_key: str, key: str, label: str, idx: int) -> str:
+def _stable_key_id(
+    *, provider: str, connection_key: str, key: str, label: str, idx: int
+) -> str:
     seed = json.dumps(
         {
             "provider": provider or "",
@@ -384,7 +385,10 @@ def should_retry_api_key(
     if exception is not None:
         name = type(exception).__name__.lower()
         text = str(exception).lower()
-        if any(token in name or token in text for token in ("timeout", "client", "connect", "network")):
+        if any(
+            token in name or token in text
+            for token in ("timeout", "client", "connect", "network")
+        ):
             return True
 
     text = _stringify_error_body(body).lower()

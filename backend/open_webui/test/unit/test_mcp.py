@@ -10,7 +10,6 @@ from types import SimpleNamespace
 
 import pytest
 
-
 # Ensure `open_webui` is importable when running tests from repo root.
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
@@ -73,10 +72,22 @@ def test_mcp_streamable_http_client_json_and_sse():
         if method == "tools/list":
             cursor = (payload.get("params") or {}).get("cursor")
             if not cursor:
-                tools = [{"name": "foo/bar", "description": "t1", "inputSchema": {"type": "object"}}]
+                tools = [
+                    {
+                        "name": "foo/bar",
+                        "description": "t1",
+                        "inputSchema": {"type": "object"},
+                    }
+                ]
                 result = {"tools": tools, "nextCursor": "c2"}
             else:
-                tools = [{"name": "echo", "description": "t2", "inputSchema": {"type": "object"}}]
+                tools = [
+                    {
+                        "name": "echo",
+                        "description": "t2",
+                        "inputSchema": {"type": "object"},
+                    }
+                ]
                 result = {"tools": tools, "nextCursor": None}
 
             return web.json_response(
@@ -111,7 +122,11 @@ def test_mcp_streamable_http_client_json_and_sse():
             return resp
 
         return web.json_response(
-            {"jsonrpc": "2.0", "id": payload.get("id"), "error": {"message": "unknown method"}},
+            {
+                "jsonrpc": "2.0",
+                "id": payload.get("id"),
+                "error": {"message": "unknown method"},
+            },
             status=400,
         )
 
@@ -198,7 +213,9 @@ def test_mcp_streamable_http_tool_call_uses_tool_timeout():
                 }
             )
 
-        return web.json_response({"jsonrpc": "2.0", "id": payload.get("id"), "result": {}})
+        return web.json_response(
+            {"jsonrpc": "2.0", "id": payload.get("id"), "result": {}}
+        )
 
     async def run():
         app = web.Application()
@@ -233,7 +250,9 @@ def test_get_tools_exposes_mcp_tool_and_routes_call(monkeypatch):
 
     called = {}
 
-    async def fake_execute_mcp_tool(connection, *, name, arguments, session_token=None, **_kwargs):
+    async def fake_execute_mcp_tool(
+        connection, *, name, arguments, session_token=None, **_kwargs
+    ):
         called["connection"] = connection
         called["name"] = name
         called["arguments"] = arguments
@@ -246,7 +265,9 @@ def test_get_tools_exposes_mcp_tool_and_routes_call(monkeypatch):
         app=SimpleNamespace(
             state=SimpleNamespace(
                 config=SimpleNamespace(
-                    MCP_SERVER_CONNECTIONS=[{"url": "http://mcp.local", "auth_type": "none"}],
+                    MCP_SERVER_CONNECTIONS=[
+                        {"url": "http://mcp.local", "auth_type": "none"}
+                    ],
                     TOOL_SERVER_CONNECTIONS=[],
                 ),
                 MCP_SERVERS=[
@@ -330,7 +351,9 @@ def test_get_tools_emits_mcp_keepalive_status_for_slow_call(monkeypatch):
         app=SimpleNamespace(
             state=SimpleNamespace(
                 config=SimpleNamespace(
-                    MCP_SERVER_CONNECTIONS=[{"url": "http://mcp.local", "auth_type": "none"}],
+                    MCP_SERVER_CONNECTIONS=[
+                        {"url": "http://mcp.local", "auth_type": "none"}
+                    ],
                     TOOL_SERVER_CONNECTIONS=[],
                 ),
                 MCP_SERVERS=[
@@ -382,7 +405,9 @@ def test_get_tools_emits_mcp_keepalive_status_for_slow_call(monkeypatch):
 def test_tools_route_prefers_custom_mcp_title_and_description(monkeypatch):
     from open_webui.routers import tools as tools_router
 
-    monkeypatch.setattr(tools_router, "get_user_tool_server_connections", lambda _request, _user: [])
+    monkeypatch.setattr(
+        tools_router, "get_user_tool_server_connections", lambda _request, _user: []
+    )
     monkeypatch.setattr(
         tools_router,
         "get_user_mcp_server_connections",
@@ -398,12 +423,16 @@ def test_tools_route_prefers_custom_mcp_title_and_description(monkeypatch):
             }
         ],
     )
-    monkeypatch.setattr(tools_router.Tools, "get_tools_list_by_user_id", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        tools_router.Tools, "get_tools_list_by_user_id", lambda *_args, **_kwargs: []
+    )
 
     async def fake_get_tool_servers_data(*_args, **_kwargs):
         return []
 
-    monkeypatch.setattr(tools_router, "get_tool_servers_data", fake_get_tool_servers_data)
+    monkeypatch.setattr(
+        tools_router, "get_tool_servers_data", fake_get_tool_servers_data
+    )
 
     request = SimpleNamespace(
         state=SimpleNamespace(token=SimpleNamespace(credentials="tok_abc")),
@@ -501,7 +530,9 @@ def test_http_client_protocol_negotiation_retries_on_http_error():
                 headers={"Mcp-Session-Id": "legacy_sess"},
             )
 
-        return web.json_response({"jsonrpc": "2.0", "id": payload.get("id"), "result": {}})
+        return web.json_response(
+            {"jsonrpc": "2.0", "id": payload.get("id"), "result": {}}
+        )
 
     async def run():
         app = web.Application()
@@ -694,13 +725,23 @@ def test_http_client_falls_back_to_legacy_sse_transport():
     ]
 
 
-def test_execute_mcp_tool_uses_short_connection_timeout_and_long_tool_timeout(monkeypatch):
+def test_execute_mcp_tool_uses_short_connection_timeout_and_long_tool_timeout(
+    monkeypatch,
+):
     from open_webui.utils import mcp as mcp_mod
 
     captured = {}
 
     class FakeMCPHttpClient:
-        def __init__(self, url, *, request_headers=None, protocol_version=None, timeout_s=None, tool_timeout_s=None):
+        def __init__(
+            self,
+            url,
+            *,
+            request_headers=None,
+            protocol_version=None,
+            timeout_s=None,
+            tool_timeout_s=None,
+        ):
             captured["init"] = {
                 "url": url,
                 "request_headers": request_headers,
@@ -738,7 +779,9 @@ def test_execute_mcp_tool_uses_short_connection_timeout_and_long_tool_timeout(mo
         )
 
     assert asyncio.run(run()) == {"ok": True}
-    assert captured["init"]["timeout_s"] == mcp_mod.AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA
+    assert (
+        captured["init"]["timeout_s"] == mcp_mod.AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA
+    )
     assert captured["init"]["tool_timeout_s"] == 300
     assert captured["call"]["name"] == "slow"
     assert captured["call"]["arguments"] == {"a": "x"}
@@ -836,7 +879,8 @@ def test_mcp_stdio_client_lifecycle_and_call(tmp_path, monkeypatch):
     monkeypatch.setattr(
         mcp_mod,
         "DEFAULT_STDIO_ALLOWED_COMMANDS",
-        mcp_mod.DEFAULT_STDIO_ALLOWED_COMMANDS | {pathlib.Path(sys.executable).name.lower()},
+        mcp_mod.DEFAULT_STDIO_ALLOWED_COMMANDS
+        | {pathlib.Path(sys.executable).name.lower()},
     )
 
     script_path = _write_stdio_server(
@@ -891,7 +935,11 @@ def test_mcp_stdio_client_lifecycle_and_call(tmp_path, monkeypatch):
 
     async def run():
         client = mcp_mod.MCPStdioClient(
-            {"transport_type": "stdio", "command": sys.executable, "args": [script_path]}
+            {
+                "transport_type": "stdio",
+                "command": sys.executable,
+                "args": [script_path],
+            }
         )
         try:
             await client.start()
@@ -904,7 +952,9 @@ def test_mcp_stdio_client_lifecycle_and_call(tmp_path, monkeypatch):
             async def on_notification(msg):
                 notifications.append(msg)
 
-            result = await client.call_tool("echo", {"hello": "world"}, on_notification=on_notification)
+            result = await client.call_tool(
+                "echo", {"hello": "world"}, on_notification=on_notification
+            )
             assert result["content"][0]["text"] == "ok"
             assert notifications[0]["method"] == "notifications/message"
         finally:
@@ -913,13 +963,16 @@ def test_mcp_stdio_client_lifecycle_and_call(tmp_path, monkeypatch):
     asyncio.run(run())
 
 
-def test_mcp_stdio_timeout_marks_client_tainted_and_manager_rebuilds(tmp_path, monkeypatch):
+def test_mcp_stdio_timeout_marks_client_tainted_and_manager_rebuilds(
+    tmp_path, monkeypatch
+):
     from open_webui.utils import mcp as mcp_mod
 
     monkeypatch.setattr(
         mcp_mod,
         "DEFAULT_STDIO_ALLOWED_COMMANDS",
-        mcp_mod.DEFAULT_STDIO_ALLOWED_COMMANDS | {pathlib.Path(sys.executable).name.lower()},
+        mcp_mod.DEFAULT_STDIO_ALLOWED_COMMANDS
+        | {pathlib.Path(sys.executable).name.lower()},
     )
     monkeypatch.setattr(mcp_mod, "MCP_TOOL_CALL_TIMEOUT", 1)
 
@@ -1220,7 +1273,9 @@ def test_validate_stdio_command_requires_git_for_uvx_git_source(monkeypatch):
     monkeypatch.setattr(
         mcp_mod,
         "_resolve_stdio_command",
-        lambda _connection, command: f"/resolved/{command}" if command == "uvx" else None,
+        lambda _connection, command: (
+            f"/resolved/{command}" if command == "uvx" else None
+        ),
     )
 
     with pytest.raises(ValueError, match="Git 源安装"):
@@ -1246,7 +1301,9 @@ def test_validate_stdio_command_requires_git_for_uvx_git_source_with_path(
     uvx_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     uvx_path.chmod(0o755)
 
-    monkeypatch.setattr(mcp_mod, "_resolve_stdio_command", lambda _connection, command: None)
+    monkeypatch.setattr(
+        mcp_mod, "_resolve_stdio_command", lambda _connection, command: None
+    )
 
     with pytest.raises(ValueError, match="Git 源安装"):
         mcp_mod._validate_stdio_command(
@@ -1268,9 +1325,9 @@ def test_get_mcp_runtime_capabilities_reports_preset_commands(monkeypatch):
     monkeypatch.setattr(
         mcp_mod,
         "_resolve_stdio_command",
-        lambda _connection, command: f"/resolved/{command}"
-        if command in {"uvx", "git"}
-        else None,
+        lambda _connection, command: (
+            f"/resolved/{command}" if command in {"uvx", "git"} else None
+        ),
     )
 
     capabilities = mcp_mod.get_mcp_runtime_capabilities()
@@ -1302,7 +1359,8 @@ def test_mcp_stdio_start_failure_includes_stderr(tmp_path, monkeypatch):
     monkeypatch.setattr(
         mcp_mod,
         "DEFAULT_STDIO_ALLOWED_COMMANDS",
-        mcp_mod.DEFAULT_STDIO_ALLOWED_COMMANDS | {pathlib.Path(sys.executable).name.lower()},
+        mcp_mod.DEFAULT_STDIO_ALLOWED_COMMANDS
+        | {pathlib.Path(sys.executable).name.lower()},
     )
 
     script_path = _write_stdio_server(
@@ -1319,7 +1377,11 @@ def test_mcp_stdio_start_failure_includes_stderr(tmp_path, monkeypatch):
 
     async def run():
         client = mcp_mod.MCPStdioClient(
-            {"transport_type": "stdio", "command": sys.executable, "args": [script_path]}
+            {
+                "transport_type": "stdio",
+                "command": sys.executable,
+                "args": [script_path],
+            }
         )
         with pytest.raises(RuntimeError) as exc_info:
             await client.start()
@@ -1331,13 +1393,16 @@ def test_mcp_stdio_start_failure_includes_stderr(tmp_path, monkeypatch):
     asyncio.run(run())
 
 
-def test_mcp_stdio_start_failure_without_stderr_reports_initialize_exit(tmp_path, monkeypatch):
+def test_mcp_stdio_start_failure_without_stderr_reports_initialize_exit(
+    tmp_path, monkeypatch
+):
     from open_webui.utils import mcp as mcp_mod
 
     monkeypatch.setattr(
         mcp_mod,
         "DEFAULT_STDIO_ALLOWED_COMMANDS",
-        mcp_mod.DEFAULT_STDIO_ALLOWED_COMMANDS | {pathlib.Path(sys.executable).name.lower()},
+        mcp_mod.DEFAULT_STDIO_ALLOWED_COMMANDS
+        | {pathlib.Path(sys.executable).name.lower()},
     )
 
     script_path = _write_stdio_server(
@@ -1350,7 +1415,11 @@ def test_mcp_stdio_start_failure_without_stderr_reports_initialize_exit(tmp_path
 
     async def run():
         client = mcp_mod.MCPStdioClient(
-            {"transport_type": "stdio", "command": sys.executable, "args": [script_path]}
+            {
+                "transport_type": "stdio",
+                "command": sys.executable,
+                "args": [script_path],
+            }
         )
         with pytest.raises(RuntimeError) as exc_info:
             await client.start()
@@ -1367,7 +1436,9 @@ def test_mcp_servers_config_get_includes_runtime_capabilities(monkeypatch):
     monkeypatch.setattr(
         configs_router,
         "get_user_mcp_server_connections",
-        lambda _request, _user: [{"transport_type": "http", "url": "http://example.com"}],
+        lambda _request, _user: [
+            {"transport_type": "http", "url": "http://example.com"}
+        ],
     )
     monkeypatch.setattr(
         configs_router,
@@ -1439,7 +1510,9 @@ def test_mcp_servers_config_post_round_trips_headers(monkeypatch):
         "set_user_mcp_server_connections",
         lambda _user, connections: saved.setdefault("connections", connections),
     )
-    monkeypatch.setattr(configs_router, "get_mcp_runtime_capabilities", lambda: {"commands": {}})
+    monkeypatch.setattr(
+        configs_router, "get_mcp_runtime_capabilities", lambda: {"commands": {}}
+    )
     monkeypatch.setattr(configs_router, "get_mcp_runtime_profile", lambda: "custom")
 
     form_data = configs_router.MCPServersConfigForm(
@@ -1480,14 +1553,19 @@ def test_verify_mcp_server_connection_passes_headers_and_session_token(monkeypat
                 {
                     "name": "echo",
                     "description": "Echo",
-                    "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}},
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {"text": {"type": "string"}},
+                    },
                 }
             ],
         }
 
     monkeypatch.setattr(configs_router, "get_mcp_server_data", fake_get_mcp_server_data)
 
-    request = SimpleNamespace(state=SimpleNamespace(token=SimpleNamespace(credentials="session-token")))
+    request = SimpleNamespace(
+        state=SimpleNamespace(token=SimpleNamespace(credentials="session-token"))
+    )
     form_data = configs_router.MCPServerConnection(
         transport_type="http",
         url="http://example.com",
@@ -1511,7 +1589,10 @@ def test_verify_mcp_server_connection_passes_headers_and_session_token(monkeypat
         {
             "name": "echo",
             "description": "Echo",
-            "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}},
+            "inputSchema": {
+                "type": "object",
+                "properties": {"text": {"type": "string"}},
+            },
         }
     ]
 

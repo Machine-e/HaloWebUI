@@ -537,7 +537,6 @@ from open_webui.tasks import (
 
 from open_webui.utils.redis import get_sentinels_from_env
 
-
 if SAFE_MODE:
     print("SAFE MODE ENABLED")
     Functions.deactivate_all_functions()
@@ -585,8 +584,7 @@ class StaticFilesWithCache(StaticFiles):
         return response
 
 
-print(
-    rf"""
+print(rf"""
 ██╗  ██╗ █████╗ ██╗      ██████╗     ██╗    ██╗███████╗██████╗ ██╗   ██╗██╗
 ██║  ██║██╔══██╗██║     ██╔═══██╗    ██║    ██║██╔════╝██╔══██╗██║   ██║██║
 ███████║███████║██║     ██║   ██║    ██║ █╗ ██║█████╗  ██████╔╝██║   ██║██║
@@ -598,8 +596,7 @@ print(
 v{VERSION} - building the best open-source AI user interface.
 {f"Commit: {WEBUI_BUILD_HASH}" if WEBUI_BUILD_HASH != "dev-build" else ""}
 https://github.com/ztx888/HaloWebUI
-"""
-)
+""")
 
 
 @asynccontextmanager
@@ -625,9 +622,7 @@ async def lifespan(app: FastAPI):
                     WEBUI_ADMIN_NAME,
                     "admin",
                 )
-                log.info(
-                    f"Auto-created admin account: {WEBUI_ADMIN_EMAIL}"
-                )
+                log.info(f"Auto-created admin account: {WEBUI_ADMIN_EMAIL}")
         except Exception as e:
             log.error(f"Failed to auto-create admin account: {e}")
 
@@ -673,6 +668,7 @@ async def log_request_validation_error(request: Request, exc: RequestValidationE
         errors,
     )
     return await request_validation_exception_handler(request, exc)
+
 
 oauth_manager = OAuthManager(app)
 app.state.oauth_manager = oauth_manager
@@ -938,7 +934,9 @@ app.state.config.FILE_IMAGE_COMPRESSION_HEIGHT = FILE_IMAGE_COMPRESSION_HEIGHT
 app.state.config.RAG_FULL_CONTEXT = RAG_FULL_CONTEXT
 app.state.config.BYPASS_EMBEDDING_AND_RETRIEVAL = BYPASS_EMBEDDING_AND_RETRIEVAL
 app.state.config.ENABLE_RAG_HYBRID_SEARCH = ENABLE_RAG_HYBRID_SEARCH
-app.state.config.ENABLE_RAG_HYBRID_SEARCH_ENRICHED_TEXTS = ENABLE_RAG_HYBRID_SEARCH_ENRICHED_TEXTS
+app.state.config.ENABLE_RAG_HYBRID_SEARCH_ENRICHED_TEXTS = (
+    ENABLE_RAG_HYBRID_SEARCH_ENRICHED_TEXTS
+)
 app.state.config.RAG_HYBRID_SEARCH_BM25_WEIGHT = RAG_HYBRID_SEARCH_BM25_WEIGHT
 app.state.config.ENABLE_WEB_LOADER_SSL_VERIFICATION = ENABLE_WEB_LOADER_SSL_VERIFICATION
 
@@ -953,7 +951,9 @@ app.state.config.DATALAB_MARKER_SKIP_CACHE = DATALAB_MARKER_SKIP_CACHE
 app.state.config.DATALAB_MARKER_FORCE_OCR = DATALAB_MARKER_FORCE_OCR
 app.state.config.DATALAB_MARKER_PAGINATE = DATALAB_MARKER_PAGINATE
 app.state.config.DATALAB_MARKER_STRIP_EXISTING_OCR = DATALAB_MARKER_STRIP_EXISTING_OCR
-app.state.config.DATALAB_MARKER_DISABLE_IMAGE_EXTRACTION = DATALAB_MARKER_DISABLE_IMAGE_EXTRACTION
+app.state.config.DATALAB_MARKER_DISABLE_IMAGE_EXTRACTION = (
+    DATALAB_MARKER_DISABLE_IMAGE_EXTRACTION
+)
 app.state.config.DATALAB_MARKER_FORMAT_LINES = DATALAB_MARKER_FORMAT_LINES
 app.state.config.DATALAB_MARKER_USE_LLM = DATALAB_MARKER_USE_LLM
 app.state.config.DATALAB_MARKER_OUTPUT_FORMAT = DATALAB_MARKER_OUTPUT_FORMAT
@@ -978,7 +978,9 @@ app.state.config.MISTRAL_OCR_API_BASE_URL = MISTRAL_OCR_API_BASE_URL
 app.state.config.MISTRAL_OCR_API_KEY = MISTRAL_OCR_API_KEY
 
 app.state.config.TEXT_SPLITTER = RAG_TEXT_SPLITTER
-app.state.config.ENABLE_MARKDOWN_HEADER_TEXT_SPLITTER = ENABLE_MARKDOWN_HEADER_TEXT_SPLITTER
+app.state.config.ENABLE_MARKDOWN_HEADER_TEXT_SPLITTER = (
+    ENABLE_MARKDOWN_HEADER_TEXT_SPLITTER
+)
 app.state.config.TIKTOKEN_ENCODING_NAME = TIKTOKEN_ENCODING_NAME
 
 app.state.config.CHUNK_SIZE = CHUNK_SIZE
@@ -1079,6 +1081,7 @@ app.state.rf = None
 app.state._EMBEDDING_FUNCTION_IMPL = None
 
 app.state.YOUTUBE_LOADER_TRANSLATION = None
+
 
 def _lazy_embedding_function(query, prefix=None, user=None):
     embedding_function = ensure_embedding_runtime(app)
@@ -1490,14 +1493,16 @@ async def get_models(
                 *(model.get("legacy_ids") or []),
             ]
             return min(
-                (model_order_dict[alias] for alias in aliases if alias in model_order_dict),
+                (
+                    model_order_dict[alias]
+                    for alias in aliases
+                    if alias in model_order_dict
+                ),
                 default=float("inf"),
             )
 
         # Sort models by order list priority, with fallback for those not in the list
-        models.sort(
-            key=lambda x: (get_model_order_index(x), x["name"])
-        )
+        models.sort(key=lambda x: (get_model_order_index(x), x["name"]))
 
     # Filter out workspace/shared models that the user does not have access to.
     # Base models coming from a user's own connections may not have a DB row and are allowed.
@@ -1527,7 +1532,9 @@ def _apply_connection_owner_for_model(request: Request, user, model: dict | None
     try:
         model_info = Models.get_model_by_id(model.get("id"))
         if model_info and model_info.user_id and model_info.user_id != user.id:
-            from open_webui.models.users import Users  # local import to avoid heavy coupling
+            from open_webui.models.users import (
+                Users,
+            )  # local import to avoid heavy coupling
             from open_webui.utils.user_connections import maybe_migrate_user_connections
 
             owner = Users.get_user_by_id(model_info.user_id)
@@ -1542,7 +1549,9 @@ def _get_http_error_message(exc: Exception) -> str:
     if isinstance(exc, HTTPException):
         detail = exc.detail
         if isinstance(detail, dict):
-            message = detail.get("message") or detail.get("detail") or detail.get("code")
+            message = (
+                detail.get("message") or detail.get("detail") or detail.get("code")
+            )
             if message:
                 return str(message)
         if detail is not None:
@@ -1600,7 +1609,9 @@ async def chat_completion(
             # Build a user-scoped model map for this request.
             await get_all_models(request, user=user)
             models_map = getattr(request.state, "MODELS", {}) or {}
-            ambiguous_model_aliases = getattr(request.state, "MODELS_AMBIGUOUS", set()) or set()
+            ambiguous_model_aliases = (
+                getattr(request.state, "MODELS_AMBIGUOUS", set()) or set()
+            )
 
             model_id = form_data.get("model", None)
             model = resolve_model_from_lookup(
@@ -1639,7 +1650,10 @@ async def chat_completion(
 
         # If the client explicitly requests "default"/compatibility mode, do not forward a
         # non-standard function_calling value to upstream providers.
-        if isinstance(form_data.get("params", None), dict) and requested_function_calling is not None:
+        if (
+            isinstance(form_data.get("params", None), dict)
+            and requested_function_calling is not None
+        ):
             if str(requested_function_calling).lower() != "native":
                 strip_non_native_function_calling = True
                 form_data["params"].pop("function_calling", None)
@@ -1679,10 +1693,13 @@ async def chat_completion(
             )
         else:
             effective_tool_calling_mode = global_tool_calling_mode
-        function_calling_native = effective_tool_calling_mode == TOOL_CALLING_MODE_NATIVE
+        function_calling_native = (
+            effective_tool_calling_mode == TOOL_CALLING_MODE_NATIVE
+        )
         tool_calling_disabled = effective_tool_calling_mode == TOOL_CALLING_MODE_OFF
         preview_tool_compat = (
-            form_data.pop("preview_tool_compat", False) is True and not tool_calling_disabled
+            form_data.pop("preview_tool_compat", False) is True
+            and not tool_calling_disabled
         )
 
         metadata = {
@@ -1792,8 +1809,15 @@ async def chat_completion(
             )
 
             try:
-                retry_form_data, retry_metadata, retry_events = await process_chat_payload(
-                    request, retry_form_data, user, retry_metadata, model, tasks=tasks
+                retry_form_data, retry_metadata, retry_events = (
+                    await process_chat_payload(
+                        request,
+                        retry_form_data,
+                        user,
+                        retry_metadata,
+                        model,
+                        tasks=tasks,
+                    )
                 )
                 response = await chat_completion_handler(request, retry_form_data, user)
                 return await process_chat_response(
@@ -1839,8 +1863,15 @@ async def chat_completion(
                 )
 
             try:
-                retry_form_data, retry_metadata, retry_events = await process_chat_payload(
-                    request, retry_form_data, user, retry_metadata, model, tasks=tasks
+                retry_form_data, retry_metadata, retry_events = (
+                    await process_chat_payload(
+                        request,
+                        retry_form_data,
+                        user,
+                        retry_metadata,
+                        model,
+                        tasks=tasks,
+                    )
                 )
                 response = await chat_completion_handler(request, retry_form_data, user)
                 return await process_chat_response(
@@ -1859,7 +1890,10 @@ async def chat_completion(
         if original_request_body and should_retry_native_web_search_with_halo(
             metadata, e
         ):
-            retry_metadata = {**metadata, "allow_native_web_search_halo_fallback": False}
+            retry_metadata = {
+                **metadata,
+                "allow_native_web_search_halo_fallback": False,
+            }
             retry_form_data = _rebuild_retry_form_data(
                 original_request_body,
                 retry_metadata,
@@ -1882,8 +1916,15 @@ async def chat_completion(
                 )
 
             try:
-                retry_form_data, retry_metadata, retry_events = await process_chat_payload(
-                    request, retry_form_data, user, retry_metadata, model, tasks=tasks
+                retry_form_data, retry_metadata, retry_events = (
+                    await process_chat_payload(
+                        request,
+                        retry_form_data,
+                        user,
+                        retry_metadata,
+                        model,
+                        tasks=tasks,
+                    )
                 )
                 response = await chat_completion_handler(request, retry_form_data, user)
                 return await process_chat_response(
@@ -1937,7 +1978,9 @@ def _rebuild_retry_form_data(
 
     if halo_web_search_fallback:
         retry_features = retry_form_data.get("features")
-        retry_features = dict(retry_features) if isinstance(retry_features, dict) else {}
+        retry_features = (
+            dict(retry_features) if isinstance(retry_features, dict) else {}
+        )
         retry_features["web_search"] = True
         retry_features["web_search_mode"] = "halo"
         retry_form_data["features"] = retry_features
@@ -2085,9 +2128,7 @@ async def get_app_config(request: Request):
         "reason": (
             "backend_not_sqlite"
             if engine.name != "sqlite"
-            else (
-                "multiple_workers_not_supported" if UVICORN_WORKERS != 1 else None
-            )
+            else ("multiple_workers_not_supported" if UVICORN_WORKERS != 1 else None)
         ),
     }
 
@@ -2288,6 +2329,7 @@ async def oauth_callback(provider: str, request: Request, response: Response):
         return await oauth_manager.handle_callback(request, provider, response)
     except HTTPException as e:
         from urllib.parse import quote
+
         error_msg = quote(str(e.detail or "Authentication failed"))
         return RedirectResponse(url=f"{request.base_url}auth#error={error_msg}")
 

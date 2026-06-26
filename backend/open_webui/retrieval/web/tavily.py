@@ -31,9 +31,7 @@ def normalize_tavily_api_base_url(
 
     parsed = urlparse(normalized)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError(
-            f"Tavily {endpoint} URL must start with http:// or https://."
-        )
+        raise ValueError(f"Tavily {endpoint} URL must start with http:// or https://.")
 
     if effective_force_mode:
         return normalized, True
@@ -52,7 +50,9 @@ def normalize_tavily_api_base_url(
     if path.lower().endswith(endpoint_suffix):
         path = path[: -len(endpoint_suffix)].rstrip("/")
 
-    normalized_base_url = urlunparse(parsed._replace(path=path, fragment="")).rstrip("/")
+    normalized_base_url = urlunparse(parsed._replace(path=path, fragment="")).rstrip(
+        "/"
+    )
     return normalized_base_url or DEFAULT_TAVILY_API_BASE_URL, False
 
 

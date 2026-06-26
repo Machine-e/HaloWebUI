@@ -54,7 +54,6 @@ from open_webui.utils.error_handling import (
     read_requests_error_payload,
 )
 
-
 router = APIRouter()
 
 # Constants
@@ -100,7 +99,6 @@ MIMO_TTS_VOICES = {
 
 from pydub import AudioSegment
 from pydub.utils import mediainfo
-
 
 FFMPEG_MISSING_ERROR = (
     "ffmpeg is not installed on the server. "
@@ -168,12 +166,18 @@ def set_faster_whisper_model(model: str, auto_update: bool = False):
     return whisper_model
 
 
-async def _read_audio_aiohttp_error_detail(response=None, error=None, prefix: str | None = None) -> str:
-    payload = await read_aiohttp_error_payload(response) if response is not None else None
+async def _read_audio_aiohttp_error_detail(
+    response=None, error=None, prefix: str | None = None
+) -> str:
+    payload = (
+        await read_aiohttp_error_payload(response) if response is not None else None
+    )
     return build_error_detail(payload, error, prefix=prefix)
 
 
-def _read_audio_requests_error_detail(response=None, error=None, prefix: str | None = None) -> str:
+def _read_audio_requests_error_detail(
+    response=None, error=None, prefix: str | None = None
+) -> str:
     payload = read_requests_error_payload(response)
     return build_error_detail(payload, error, prefix=prefix)
 
@@ -192,7 +196,9 @@ def _resolve_mimo_tts_voice(*voices: str | None) -> str:
 def _build_mimo_tts_payload(payload: dict, model: str, voice: str) -> dict:
     text = str(payload.get("input") or "").strip()
     if not text:
-        raise HTTPException(status_code=400, detail="No text provided for speech synthesis")
+        raise HTTPException(
+            status_code=400, detail="No text provided for speech synthesis"
+        )
 
     selected_model = _resolve_mimo_tts_model(model)
     selected_voice = _resolve_mimo_tts_voice(payload.get("voice"), voice)
@@ -387,9 +393,7 @@ async def speech(request: Request, user=Depends(get_verified_user)):
             str(request.app.state.config.TTS_MODEL).encode("utf-8"),
         ]
 
-    name = hashlib.sha256(
-        b"".join(cache_key_parts)
-    ).hexdigest()
+    name = hashlib.sha256(b"".join(cache_key_parts)).hexdigest()
 
     file_extension = "wav" if request.app.state.config.TTS_ENGINE == "mimo" else "mp3"
     file_path = SPEECH_CACHE_DIR.joinpath(f"{name}.{file_extension}")

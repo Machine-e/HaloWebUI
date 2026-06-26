@@ -16,7 +16,11 @@ class DuckDuckGoRateLimitError(Exception):
 
 def _is_duckduckgo_rate_limit_error(exc: Exception) -> bool:
     message = str(exc).lower()
-    return isinstance(exc, RatelimitException) or "ratelimit" in message or "rate limit" in message
+    return (
+        isinstance(exc, RatelimitException)
+        or "ratelimit" in message
+        or "rate limit" in message
+    )
 
 
 def search_duckduckgo(
@@ -53,9 +57,7 @@ def search_duckduckgo(
                 backend,
                 e,
             )
-            raise DuckDuckGoRateLimitError(
-                "DuckDuckGo 当前限流，请稍后再试。"
-            ) from e
+            raise DuckDuckGoRateLimitError("DuckDuckGo 当前限流，请稍后再试。") from e
     if filter_list:
         search_results = get_filtered_results(search_results, filter_list)
 

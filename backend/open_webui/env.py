@@ -80,12 +80,14 @@ if GLOBAL_LOG_LEVEL in logging.getLevelNamesMapping():
 
         class _JsonFormatter(logging.Formatter):
             def format(self, record):
-                return _json.dumps({
-                    "ts": self.formatTime(record),
-                    "level": record.levelname,
-                    "logger": record.name,
-                    "msg": record.getMessage(),
-                })
+                return _json.dumps(
+                    {
+                        "ts": self.formatTime(record),
+                        "level": record.levelname,
+                        "logger": record.name,
+                        "msg": record.getMessage(),
+                    }
+                )
 
         _handler = logging.StreamHandler(sys.stdout)
         _handler.setFormatter(_JsonFormatter())
@@ -673,5 +675,9 @@ SCIM_AUTH_BEARER_TOKEN = os.environ.get("SCIM_AUTH_BEARER_TOKEN", "")
 # API RATE LIMITING
 ####################################
 
-ENABLE_API_RATE_LIMIT = os.environ.get("ENABLE_API_RATE_LIMIT", "False").lower() == "true"
-API_RATE_LIMIT_RPM = int(os.environ.get("API_RATE_LIMIT_RPM", "60"))  # requests per minute
+ENABLE_API_RATE_LIMIT = (
+    os.environ.get("ENABLE_API_RATE_LIMIT", "False").lower() == "true"
+)
+API_RATE_LIMIT_RPM = int(
+    os.environ.get("API_RATE_LIMIT_RPM", "60")
+)  # requests per minute

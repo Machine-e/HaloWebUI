@@ -46,7 +46,6 @@ from open_webui.utils.shared_tool_servers import (
     strip_connection_share_runtime_fields,
 )
 
-
 router = APIRouter()
 
 
@@ -282,8 +281,12 @@ async def set_connections_config(
     prev_direct_enabled = request.app.state.config.ENABLE_DIRECT_CONNECTIONS
     prev_cache_enabled = request.app.state.config.ENABLE_BASE_MODELS_CACHE
 
-    request.app.state.config.ENABLE_DIRECT_CONNECTIONS = form_data.ENABLE_DIRECT_CONNECTIONS
-    request.app.state.config.ENABLE_BASE_MODELS_CACHE = form_data.ENABLE_BASE_MODELS_CACHE
+    request.app.state.config.ENABLE_DIRECT_CONNECTIONS = (
+        form_data.ENABLE_DIRECT_CONNECTIONS
+    )
+    request.app.state.config.ENABLE_BASE_MODELS_CACHE = (
+        form_data.ENABLE_BASE_MODELS_CACHE
+    )
 
     config_changed = (
         prev_direct_enabled != form_data.ENABLE_DIRECT_CONNECTIONS
@@ -333,7 +336,9 @@ class ToolServersConfigForm(BaseModel):
 def _normalize_tool_server_connection(connection: ToolServerConnection) -> dict:
     payload = _sanitize_connection_shared_fields(connection.model_dump())
     payload["url"] = str(payload.get("url") or "").rstrip("/")
-    payload["path"] = str(payload.get("path") or "openapi.json").strip() or "openapi.json"
+    payload["path"] = (
+        str(payload.get("path") or "openapi.json").strip() or "openapi.json"
+    )
     payload["auth_type"] = str(payload.get("auth_type") or "bearer").lower()
     if payload.get("auth_type") != "bearer":
         payload.pop("key", None)
@@ -448,7 +453,8 @@ async def share_tool_server_connection(
         info = openapi_data.get("info", {}) or {}
         display_metadata = {
             **display_metadata,
-            "title": str(info.get("title") or "").strip() or display_metadata.get("title"),
+            "title": str(info.get("title") or "").strip()
+            or display_metadata.get("title"),
             "description": str(info.get("description") or "").strip()
             or display_metadata.get("description"),
         }
@@ -465,7 +471,9 @@ async def share_tool_server_connection(
             },
         )
         if shared is None:
-            raise HTTPException(status_code=400, detail="Failed to update shared tool server")
+            raise HTTPException(
+                status_code=400, detail="Failed to update shared tool server"
+            )
     else:
         shared = SharedToolServers.insert_new_shared_tool_server(
             user.id,
@@ -516,7 +524,9 @@ async def unshare_tool_server_connection(
         shared.id, {"enabled": False}
     )
     if updated is None:
-        raise HTTPException(status_code=400, detail="Failed to revoke shared tool server")
+        raise HTTPException(
+            status_code=400, detail="Failed to revoke shared tool server"
+        )
 
     return {
         "id": updated.id,
@@ -650,7 +660,9 @@ def _normalize_mcp_server_connection(connection: MCPServerConnection) -> dict:
             **base,
             "command": connection.command,
             "args": [str(item) for item in (connection.args or [])],
-            "env": {str(key): str(value) for key, value in (connection.env or {}).items()},
+            "env": {
+                str(key): str(value) for key, value in (connection.env or {}).items()
+            },
         }
     else:
         normalized = {
@@ -699,12 +711,9 @@ async def set_mcp_servers_config(
     request: Request, form_data: MCPServersConfigForm, user=Depends(get_verified_user)
 ):
     ensure_direct_tool_servers_access(request, user)
-    if (
-        getattr(user, "role", None) != "admin"
-        and any(
-            connection.transport_type == "stdio"
-            for connection in form_data.MCP_SERVER_CONNECTIONS
-        )
+    if getattr(user, "role", None) != "admin" and any(
+        connection.transport_type == "stdio"
+        for connection in form_data.MCP_SERVER_CONNECTIONS
     ):
         raise HTTPException(status_code=403, detail="stdio MCP servers are admin-only")
 
@@ -733,8 +742,13 @@ async def verify_mcp_server_connection(
     """
     try:
         ensure_direct_tool_servers_access(request, user)
-        if form_data.transport_type == "stdio" and getattr(user, "role", None) != "admin":
-            raise HTTPException(status_code=403, detail="stdio MCP servers are admin-only")
+        if (
+            form_data.transport_type == "stdio"
+            and getattr(user, "role", None) != "admin"
+        ):
+            raise HTTPException(
+                status_code=403, detail="stdio MCP servers are admin-only"
+            )
 
         normalized_connection = _normalize_mcp_server_connection(form_data)
         token = None
@@ -776,7 +790,9 @@ async def verify_mcp_server_connection(
         )
 
 
-@router.post("/mcp_servers/{index}/share", response_model=SharedToolServerAccessResponse)
+@router.post(
+    "/mcp_servers/{index}/share", response_model=SharedToolServerAccessResponse
+)
 async def share_mcp_server_connection(
     index: int,
     request: Request,
@@ -812,7 +828,9 @@ async def share_mcp_server_connection(
             },
         )
         if shared is None:
-            raise HTTPException(status_code=400, detail="Failed to update shared MCP server")
+            raise HTTPException(
+                status_code=400, detail="Failed to update shared MCP server"
+            )
     else:
         shared = SharedToolServers.insert_new_shared_tool_server(
             user.id,
@@ -863,7 +881,9 @@ async def unshare_mcp_server_connection(
         shared.id, {"enabled": False}
     )
     if updated is None:
-        raise HTTPException(status_code=400, detail="Failed to revoke shared MCP server")
+        raise HTTPException(
+            status_code=400, detail="Failed to revoke shared MCP server"
+        )
 
     return {
         "id": updated.id,

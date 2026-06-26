@@ -51,9 +51,12 @@ from open_webui.utils.skill_runtime import (
     execute_skill_entrypoint,
 )
 from open_webui.utils.user_tools import get_user_native_tools_config
-from open_webui.config import ENABLE_TERMINAL, TERMINAL_COMMAND_TIMEOUT, TERMINAL_MAX_OUTPUT_CHARS
+from open_webui.config import (
+    ENABLE_TERMINAL,
+    TERMINAL_COMMAND_TIMEOUT,
+    TERMINAL_MAX_OUTPUT_CHARS,
+)
 from open_webui.routers.terminal import _get_workspace_root
-
 
 log = logging.getLogger(__name__)
 
@@ -64,7 +67,9 @@ def _can_use_feature(request: Request, user: UserModel, key: str) -> bool:
     return has_permission(user.id, key, request.app.state.config.USER_PERMISSIONS)
 
 
-def _tool_spec(name: str, description: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+def _tool_spec(
+    name: str, description: str, parameters: Dict[str, Any]
+) -> Dict[str, Any]:
     return {"name": name, "description": description, "parameters": parameters}
 
 
@@ -200,7 +205,9 @@ def get_builtin_tools(
                     signals.append("too_short")
 
                 number_hits = len(re.findall(r"\d", content)) if content else 0
-                number_density = float(number_hits) / float(text_len) if text_len > 0 else 0.0
+                number_density = (
+                    float(number_hits) / float(text_len) if text_len > 0 else 0.0
+                )
                 if number_density < 0.01:
                     signals.append("low_numeric_density")
 
@@ -486,7 +493,9 @@ def get_builtin_tools(
             limit = max(1, min(int(k or 3), 10))
 
             def embed(text: str, prefix: Optional[str] = None):
-                return request.app.state.EMBEDDING_FUNCTION(text, prefix=prefix, user=user)
+                return request.app.state.EMBEDDING_FUNCTION(
+                    text, prefix=prefix, user=user
+                )
 
             if request.app.state.config.ENABLE_RAG_HYBRID_SEARCH:
                 return query_collection_with_hybrid_search(
@@ -721,7 +730,9 @@ def get_builtin_tools(
                 return u
 
             token_obj = getattr(getattr(request, "state", None), "token", None)
-            session_token = getattr(token_obj, "credentials", None) if token_obj else None
+            session_token = (
+                getattr(token_obj, "credentials", None) if token_obj else None
+            )
             auth_headers = (
                 {"Authorization": f"Bearer {session_token}"} if session_token else None
             )
@@ -745,7 +756,9 @@ def get_builtin_tools(
                     raise ValueError("Failed to load mask from mask_url")
                 mask_bytes, _mask_mime = mask_loaded
 
-            engine = (request.app.state.config.IMAGE_GENERATION_ENGINE or "").strip().lower()
+            engine = (
+                (request.app.state.config.IMAGE_GENERATION_ENGINE or "").strip().lower()
+            )
 
             def parse_size(value: Optional[str]) -> tuple[int, int]:
                 raw = (value or "").strip()
@@ -796,7 +809,9 @@ def get_builtin_tools(
                 if request.app.state.config.AUTOMATIC1111_CFG_SCALE:
                     data["cfg_scale"] = request.app.state.config.AUTOMATIC1111_CFG_SCALE
                 if request.app.state.config.AUTOMATIC1111_SAMPLER:
-                    data["sampler_name"] = request.app.state.config.AUTOMATIC1111_SAMPLER
+                    data["sampler_name"] = (
+                        request.app.state.config.AUTOMATIC1111_SAMPLER
+                    )
                 if request.app.state.config.AUTOMATIC1111_SCHEDULER:
                     data["scheduler"] = request.app.state.config.AUTOMATIC1111_SCHEDULER
 
@@ -948,7 +963,9 @@ def get_builtin_tools(
 
                 if mask_bytes is not None:
                     data["instances"]["mask"] = {
-                        "bytesBase64Encoded": base64.b64encode(mask_bytes).decode("utf-8")
+                        "bytesBase64Encoded": base64.b64encode(mask_bytes).decode(
+                            "utf-8"
+                        )
                     }
 
                 r = await asyncio.to_thread(
@@ -970,7 +987,9 @@ def get_builtin_tools(
                     images.append({"url": url})
                 return images
 
-            raise NotImplementedError(f"edit_image is not supported for engine '{engine}'")
+            raise NotImplementedError(
+                f"edit_image is not supported for engine '{engine}'"
+            )
 
         tools["edit_image"] = {
             "tool_id": "builtin:images",
@@ -1161,7 +1180,9 @@ def get_builtin_tools(
                 limit = max(1, min(int(k or 3), 10))
                 result = VECTOR_DB_CLIENT.search(
                     collection_name=f"user-notes-{user.id}",
-                    vectors=[request.app.state.EMBEDDING_FUNCTION(str(query), user=user)],
+                    vectors=[
+                        request.app.state.EMBEDDING_FUNCTION(str(query), user=user)
+                    ],
                     limit=limit,
                 )
                 if result is None:
@@ -1187,7 +1208,10 @@ def get_builtin_tools(
                         "type": "object",
                         "properties": {
                             "title": {"type": "string", "description": "Note title."},
-                            "content": {"type": "string", "description": "Note content."},
+                            "content": {
+                                "type": "string",
+                                "description": "Note content.",
+                            },
                         },
                         "required": ["title", "content"],
                     },
@@ -1204,7 +1228,10 @@ def get_builtin_tools(
                         "type": "object",
                         "properties": {
                             "query": {"type": "string", "description": "Search query."},
-                            "k": {"type": "integer", "description": "Top results (1-10)."},
+                            "k": {
+                                "type": "integer",
+                                "description": "Top results (1-10).",
+                            },
                         },
                         "required": ["query"],
                     },
@@ -1232,7 +1259,8 @@ def get_builtin_tools(
             )
 
             return [
-                {"id": c.id, "title": c.title, "updated_at": c.updated_at} for c in chats
+                {"id": c.id, "title": c.title, "updated_at": c.updated_at}
+                for c in chats
             ]
 
         tools["search_chats"] = {
@@ -1311,20 +1339,26 @@ def get_builtin_tools(
         and request.app.state.config.ENABLE_CHANNELS
     ):
 
-        async def search_channels(query: Optional[str] = None, limit: int = 20) -> List[dict]:
+        async def search_channels(
+            query: Optional[str] = None, limit: int = 20
+        ) -> List[dict]:
             q = (query or "").strip().lower()
             channels = Channels.get_channels_by_user_id(user.id, permission="read")
             if q:
                 channels = [
                     c
                     for c in channels
-                    if q in (c.name or "").lower()
-                    or q in (c.description or "").lower()
+                    if q in (c.name or "").lower() or q in (c.description or "").lower()
                 ]
             channels = channels[: max(1, min(int(limit or 20), 60))]
-            return [{"id": c.id, "name": c.name, "description": c.description} for c in channels]
+            return [
+                {"id": c.id, "name": c.name, "description": c.description}
+                for c in channels
+            ]
 
-        async def search_channel_messages(channel_id: str, query: str, limit: int = 20) -> List[dict]:
+        async def search_channel_messages(
+            channel_id: str, query: str, limit: int = 20
+        ) -> List[dict]:
             channel = Channels.get_channel_by_id(channel_id)
             if not channel:
                 raise ValueError("Channel not found")
@@ -1338,7 +1372,9 @@ def get_builtin_tools(
             if not q:
                 return []
 
-            messages = Messages.get_messages_by_channel_id(channel_id, skip=0, limit=200)
+            messages = Messages.get_messages_by_channel_id(
+                channel_id, skip=0, limit=200
+            )
             hits: List[dict] = []
             for m in messages:
                 if q in (m.content or "").lower():
@@ -1441,6 +1477,7 @@ def get_builtin_tools(
         def _terminal_env_desc() -> str:
             """Build environment description dynamically for the tool prompt."""
             import platform, shutil
+
             sys_name = platform.system()
             home = os.path.expanduser("~")
             lines = [
@@ -1455,15 +1492,23 @@ def get_builtin_tools(
                 try:
                     users_dir = "/mnt/c/Users"
                     if os.path.isdir(users_dir):
-                        candidates = [d for d in os.listdir(users_dir)
-                                      if d not in ("Public", "Default", "Default User", "All Users")
-                                      and os.path.isdir(os.path.join(users_dir, d))]
+                        candidates = [
+                            d
+                            for d in os.listdir(users_dir)
+                            if d
+                            not in ("Public", "Default", "Default User", "All Users")
+                            and os.path.isdir(os.path.join(users_dir, d))
+                        ]
                         if candidates:
                             win_home = f"/mnt/c/Users/{candidates[0]}"
                 except OSError:
                     pass
-                lines.append(f"Environment: WSL2 Linux (bash), with full access to Windows host.")
-                lines.append(f"Linux commands run natively. For Windows: use cmd.exe /c or powershell.exe.")
+                lines.append(
+                    f"Environment: WSL2 Linux (bash), with full access to Windows host."
+                )
+                lines.append(
+                    f"Linux commands run natively. For Windows: use cmd.exe /c or powershell.exe."
+                )
                 lines.append(f"Windows filesystem: /mnt/c/.")
                 if win_home:
                     lines.append(f"Windows user home: {win_home}/.")
@@ -1476,15 +1521,25 @@ def get_builtin_tools(
                 lines.append(f"Environment: {sys_name}. Home: {home}.")
 
             if has_ps:
-                lines.append("Tips: (1) For simple Windows tasks, prefer cmd.exe (e.g. cmd.exe /c tasklist).")
-                lines.append("(2) For complex PowerShell scripts (multi-line, Add-Type, .NET), use the powershell_script parameter "
-                             "instead of command — it base64-encodes the script and runs via -EncodedCommand, avoiding all quoting/escaping/path issues.")
+                lines.append(
+                    "Tips: (1) For simple Windows tasks, prefer cmd.exe (e.g. cmd.exe /c tasklist)."
+                )
+                lines.append(
+                    "(2) For complex PowerShell scripts (multi-line, Add-Type, .NET), use the powershell_script parameter "
+                    "instead of command — it base64-encodes the script and runs via -EncodedCommand, avoiding all quoting/escaping/path issues."
+                )
             else:
-                lines.append("PowerShell is NOT available in this environment. Do not use the powershell_script parameter.")
-            lines.append("(3) If a command fails, try a simpler approach instead of retrying the same thing.")
+                lines.append(
+                    "PowerShell is NOT available in this environment. Do not use the powershell_script parameter."
+                )
+            lines.append(
+                "(3) If a command fails, try a simpler approach instead of retrying the same thing."
+            )
             return " ".join(lines)
 
-        async def execute_command(command: str = "", timeout: int = 30, powershell_script: str = "") -> str:
+        async def execute_command(
+            command: str = "", timeout: int = 30, powershell_script: str = ""
+        ) -> str:
             max_timeout = int(TERMINAL_COMMAND_TIMEOUT.value)
             timeout = max(1, min(int(timeout), max_timeout))
             max_chars = int(TERMINAL_MAX_OUTPUT_CHARS.value)
@@ -1509,6 +1564,7 @@ def get_builtin_tools(
                     # This avoids ALL temp-file / path / quoting issues across every environment.
                     if powershell_script.strip():
                         import base64
+
                         encoded = base64.b64encode(
                             powershell_script.encode("utf-16-le")
                         ).decode("ascii")
@@ -1596,7 +1652,9 @@ def get_builtin_tools(
             timeout: Optional[int] = None,
         ) -> str:
             if skill_id not in runnable_skill_ids:
-                raise ValueError("The requested skill is not enabled for this conversation.")
+                raise ValueError(
+                    "The requested skill is not enabled for this conversation."
+                )
 
             # Refresh from the database when available so install status changes are picked up.
             from open_webui.models.skills import Skills

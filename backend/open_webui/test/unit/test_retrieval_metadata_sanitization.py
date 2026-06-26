@@ -5,7 +5,6 @@ from types import SimpleNamespace
 import pytest
 from langchain_core.documents import Document
 
-
 pytest.importorskip("chromadb")
 
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
@@ -45,9 +44,7 @@ def _build_request():
     )
     state = SimpleNamespace(
         config=config,
-        EMBEDDING_FUNCTION=lambda texts, prefix, user=None: [
-            [0.1, 0.2] for _ in texts
-        ],
+        EMBEDDING_FUNCTION=lambda texts, prefix, user=None: [[0.1, 0.2] for _ in texts],
     )
     return SimpleNamespace(app=SimpleNamespace(state=state))
 

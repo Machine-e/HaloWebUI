@@ -73,7 +73,9 @@ class MinerULoader:
                     error_detail += f" - {exc.response.json()}"
                 except Exception:
                     error_detail += f" - {exc.response.text}"
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=error_detail) from exc
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, detail=error_detail
+            ) from exc
 
         try:
             result = response.json()
@@ -177,7 +179,9 @@ class MinerULoader:
     def _upload_to_presigned_url(self, upload_url: str) -> None:
         try:
             with open(self.file_path, "rb") as file_handle:
-                response = requests.put(upload_url, data=file_handle, timeout=self.timeout)
+                response = requests.put(
+                    upload_url, data=file_handle, timeout=self.timeout
+                )
                 response.raise_for_status()
         except Exception as exc:
             raise HTTPException(

@@ -30,7 +30,6 @@ from typing import Any, Optional
 
 from open_webui.models.users import UserModel, UserSettings, Users
 
-
 TOOLS_KEY = "tools"
 NATIVE_TOOLS_KEY = "native_tools"
 TOOL_SERVER_CONNECTIONS_KEY = "tool_server_connections"
@@ -193,7 +192,9 @@ def get_user_tool_server_connections(request, user: Optional[UserModel]) -> list
     if user and getattr(user, "role", None) == "admin":
         cfg = getattr(getattr(request, "app", None), "state", None)
         cfg = getattr(cfg, "config", None)
-        legacy = getattr(cfg, "TOOL_SERVER_CONNECTIONS", None) if cfg is not None else None
+        legacy = (
+            getattr(cfg, "TOOL_SERVER_CONNECTIONS", None) if cfg is not None else None
+        )
         legacy = legacy if isinstance(legacy, list) else []
         if legacy:
             return deepcopy(legacy)
@@ -201,7 +202,9 @@ def get_user_tool_server_connections(request, user: Optional[UserModel]) -> list
     return []
 
 
-def set_user_tool_server_connections(user: UserModel, connections: list[dict]) -> Optional[UserModel]:
+def set_user_tool_server_connections(
+    user: UserModel, connections: list[dict]
+) -> Optional[UserModel]:
     return _update_tools_settings(user.id, {TOOL_SERVER_CONNECTIONS_KEY: connections})
 
 
@@ -225,7 +228,9 @@ def get_user_mcp_server_connections(request, user: Optional[UserModel]) -> list[
     if user and role == "admin":
         cfg = getattr(getattr(request, "app", None), "state", None)
         cfg = getattr(cfg, "config", None)
-        legacy = getattr(cfg, "MCP_SERVER_CONNECTIONS", None) if cfg is not None else None
+        legacy = (
+            getattr(cfg, "MCP_SERVER_CONNECTIONS", None) if cfg is not None else None
+        )
         legacy = legacy if isinstance(legacy, list) else []
         if legacy:
             return _filter_stdio(deepcopy(legacy))
@@ -233,7 +238,9 @@ def get_user_mcp_server_connections(request, user: Optional[UserModel]) -> list[
     return []
 
 
-def set_user_mcp_server_connections(user: UserModel, connections: list[dict]) -> Optional[UserModel]:
+def set_user_mcp_server_connections(
+    user: UserModel, connections: list[dict]
+) -> Optional[UserModel]:
     return _update_tools_settings(user.id, {MCP_SERVER_CONNECTIONS_KEY: connections})
 
 
@@ -273,7 +280,9 @@ def _native_defaults_from_global(request) -> dict:
         "ENABLE_URL_FETCH": _get_bool("ENABLE_URL_FETCH", True),
         "ENABLE_URL_FETCH_RENDERED": _get_bool("ENABLE_URL_FETCH_RENDERED", False),
         "ENABLE_LIST_KNOWLEDGE_BASES": _get_bool("ENABLE_LIST_KNOWLEDGE_BASES", True),
-        "ENABLE_SEARCH_KNOWLEDGE_BASES": _get_bool("ENABLE_SEARCH_KNOWLEDGE_BASES", True),
+        "ENABLE_SEARCH_KNOWLEDGE_BASES": _get_bool(
+            "ENABLE_SEARCH_KNOWLEDGE_BASES", True
+        ),
         "ENABLE_QUERY_KNOWLEDGE_FILES": _get_bool("ENABLE_QUERY_KNOWLEDGE_FILES", True),
         "ENABLE_VIEW_KNOWLEDGE_FILE": _get_bool("ENABLE_VIEW_KNOWLEDGE_FILE", True),
         "ENABLE_IMAGE_GENERATION_TOOL": _get_bool("ENABLE_IMAGE_GENERATION_TOOL", True),
@@ -332,7 +341,9 @@ def get_user_native_tools_config(request, user: Optional[UserModel]) -> dict:
     return effective
 
 
-def set_user_native_tools_config(user: UserModel, native_cfg: dict) -> Optional[UserModel]:
+def set_user_native_tools_config(
+    user: UserModel, native_cfg: dict
+) -> Optional[UserModel]:
     """
     Persist a full NativeToolsConfigForm payload under user.settings.tools.native_tools.
     """

@@ -6,7 +6,6 @@ import sys
 import pytest
 from fastapi import HTTPException
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -124,7 +123,9 @@ def test_health_check_retries_azure_deployment_fallback(monkeypatch):
         monkeypatch,
         [
             _FakeResponse(404, {"error": {"message": "chat/completions not found"}}),
-            _FakeResponse(200, {"id": "chatcmpl_123", "choices": [{"message": {"content": "ok"}}]}),
+            _FakeResponse(
+                200, {"id": "chatcmpl_123", "choices": [{"message": {"content": "ok"}}]}
+            ),
         ],
         requests_log,
     )
@@ -142,7 +143,10 @@ def test_health_check_retries_azure_deployment_fallback(monkeypatch):
     )
 
     assert result["ok"] is True
-    assert requests_log[0][1] == "https://example-resource.openai.azure.com/openai/v1/chat/completions"
+    assert (
+        requests_log[0][1]
+        == "https://example-resource.openai.azure.com/openai/v1/chat/completions"
+    )
     assert (
         requests_log[1][1]
         == "https://example-resource.openai.azure.com/openai/deployments/gpt-4.1/chat/completions?api-version=2025-01-01-preview"
@@ -159,7 +163,9 @@ def test_health_check_converts_o1_max_tokens(monkeypatch):
     _install_fake_session(
         monkeypatch,
         [
-            _FakeResponse(200, {"id": "chatcmpl_456", "choices": [{"message": {"content": "ok"}}]}),
+            _FakeResponse(
+                200, {"id": "chatcmpl_456", "choices": [{"message": {"content": "ok"}}]}
+            ),
         ],
         requests_log,
     )
@@ -215,7 +221,9 @@ def test_health_check_retries_next_api_key_on_rate_limit(monkeypatch):
         monkeypatch,
         [
             _FakeResponse(429, {"error": {"message": "rate limit"}}),
-            _FakeResponse(200, {"id": "chatcmpl_789", "choices": [{"message": {"content": "ok"}}]}),
+            _FakeResponse(
+                200, {"id": "chatcmpl_789", "choices": [{"message": {"content": "ok"}}]}
+            ),
         ],
         requests_log,
     )

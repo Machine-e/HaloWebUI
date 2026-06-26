@@ -6,7 +6,6 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -17,7 +16,11 @@ from open_webui.retrieval.web.tavily import (  # noqa: E402
     normalize_tavily_api_base_url,
     search_tavily,
 )
-from open_webui.routers.retrieval import ConfigForm, WebConfig, update_rag_config  # noqa: E402
+from open_webui.routers.retrieval import (
+    ConfigForm,
+    WebConfig,
+    update_rag_config,
+)  # noqa: E402
 
 
 def test_build_tavily_search_url_appends_endpoint_for_base_url():

@@ -22,7 +22,6 @@ from open_webui.utils.access_control import (
     has_permission,
 )
 
-
 router = APIRouter()
 
 

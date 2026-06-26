@@ -212,10 +212,17 @@ class TestUsers(AbstractPostgresTest):
             )
 
         assert response.status_code == 200
-        assert response.json()["ui"]["connections"]["openai"]["OPENAI_API_CONFIGS"]["0"]["name"] == "Wong"
+        assert (
+            response.json()["ui"]["connections"]["openai"]["OPENAI_API_CONFIGS"]["0"][
+                "name"
+            ]
+            == "Wong"
+        )
         assert re.fullmatch(
             r"[0-9a-f]{8}",
-            response.json()["ui"]["connections"]["openai"]["OPENAI_API_CONFIGS"]["0"]["prefix_id"],
+            response.json()["ui"]["connections"]["openai"]["OPENAI_API_CONFIGS"]["0"][
+                "prefix_id"
+            ],
         )
         assert invalidated == ["2"]
         assert app.state.BASE_MODELS is None
@@ -259,9 +266,13 @@ class TestUsers(AbstractPostgresTest):
         assert openai["OPENAI_API_BASE_URLS"] == ["https://api.example.com/v1"]
         assert openai["OPENAI_API_KEYS"] == [""]
         assert openai["OPENAI_API_CONFIGS"]["0"]["name"] == "api.example.com"
-        assert re.fullmatch(r"[0-9a-f]{8}", openai["OPENAI_API_CONFIGS"]["0"]["prefix_id"])
+        assert re.fullmatch(
+            r"[0-9a-f]{8}", openai["OPENAI_API_CONFIGS"]["0"]["prefix_id"]
+        )
 
-    def test_update_user_settings_replaces_connections_subtree_without_leaking_old_flags(self):
+    def test_update_user_settings_replaces_connections_subtree_without_leaking_old_flags(
+        self,
+    ):
         with mock_webui_user(id="2"):
             response = self.fast_api_client.post(
                 self.create_url("/user/settings/update"),
@@ -292,7 +303,9 @@ class TestUsers(AbstractPostgresTest):
                                 },
                             },
                             "anthropic": {
-                                "ANTHROPIC_API_BASE_URLS": ["https://api.anthropic.com/v1"],
+                                "ANTHROPIC_API_BASE_URLS": [
+                                    "https://api.anthropic.com/v1"
+                                ],
                                 "ANTHROPIC_API_KEYS": ["sk-anthropic"],
                                 "ANTHROPIC_API_CONFIGS": {
                                     "0": {
@@ -398,7 +411,9 @@ class TestUsers(AbstractPostgresTest):
                     "ui": {
                         "connections": {
                             "gemini": {
-                                "GEMINI_API_BASE_URLS": ["https://gemini.example.com/v1beta"],
+                                "GEMINI_API_BASE_URLS": [
+                                    "https://gemini.example.com/v1beta"
+                                ],
                                 "GEMINI_API_KEYS": ["gem-key"],
                                 "GEMINI_API_CONFIGS": {"0": {"remark": "Gemini"}},
                             }
@@ -461,7 +476,9 @@ class TestUsers(AbstractPostgresTest):
                     "ui": {
                         "connections": {
                             "gemini": {
-                                "GEMINI_API_BASE_URLS": ["https://gemini.example.com/v1beta"],
+                                "GEMINI_API_BASE_URLS": [
+                                    "https://gemini.example.com/v1beta"
+                                ],
                                 "GEMINI_API_KEYS": ["gem-key"],
                                 "GEMINI_API_CONFIGS": {"0": {"remark": "Gemini"}},
                             }

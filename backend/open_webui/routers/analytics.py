@@ -84,7 +84,9 @@ def _extract_usage_tokens(usage: object) -> tuple[Optional[int], Optional[int]]:
     if prompt_tokens is None:
         prompt_tokens = usage.get("input_tokens") or usage.get("promptTokenCount")
     if completion_tokens is None:
-        completion_tokens = usage.get("output_tokens") or usage.get("candidatesTokenCount")
+        completion_tokens = usage.get("output_tokens") or usage.get(
+            "candidatesTokenCount"
+        )
 
     return _coerce_int(prompt_tokens), _coerce_int(completion_tokens)
 
@@ -201,9 +203,7 @@ def _backfill_missing_message_tokens(
         completion_tokens = (
             completion_tokens
             if completion_tokens is not None
-            else (
-                existing_completion if existing_completion is not None else 0
-            )
+            else (existing_completion if existing_completion is not None else 0)
         )
 
         updates.append(
@@ -234,18 +234,15 @@ async def _ensure_tokens_backfilled(
     the frontend loads multiple analytics endpoints in parallel.
     """
     # Fast-path: if nothing is missing, do nothing.
-    missing_count = (
-        db.query(func.count(ChatMessage.id))
-        .filter(
-            ChatMessage.created_at >= cutoff,
-            ChatMessage.role == "assistant",
-            ChatMessage.model.isnot(None),
-            ChatMessage.model != "",
-            or_(
-                ChatMessage.prompt_tokens.is_(None),
-                ChatMessage.completion_tokens.is_(None),
-            ),
-        )
+    missing_count = db.query(func.count(ChatMessage.id)).filter(
+        ChatMessage.created_at >= cutoff,
+        ChatMessage.role == "assistant",
+        ChatMessage.model.isnot(None),
+        ChatMessage.model != "",
+        or_(
+            ChatMessage.prompt_tokens.is_(None),
+            ChatMessage.completion_tokens.is_(None),
+        ),
     )
     if model:
         missing_count = missing_count.filter(ChatMessage.model == model)
@@ -350,16 +347,14 @@ async def cleanup_analytics(
                 r["total_completion_tokens"] for r in per_model
             ),
         }
-        totals["total_tokens"] = (
-            int(totals["total_prompt_tokens"]) + int(totals["total_completion_tokens"])
+        totals["total_tokens"] = int(totals["total_prompt_tokens"]) + int(
+            totals["total_completion_tokens"]
         )
 
         deleted_rows = 0
         if not form_data.dry_run:
             deleted_rows = (
-                db.query(ChatMessage)
-                .filter(*filters)
-                .delete(synchronize_session=False)
+                db.query(ChatMessage).filter(*filters).delete(synchronize_session=False)
             )
             db.commit()
 
@@ -393,30 +388,26 @@ async def get_model_usage_stats(
     with get_db() as db:
         await _ensure_tokens_backfilled(db, cutoff, user_ids=group_user_ids)
 
-        query = (
-            db.query(
-                ChatMessage.model,
-                func.count(ChatMessage.id).label("message_count"),
-                func.coalesce(func.sum(ChatMessage.prompt_tokens), 0).label(
-                    "total_prompt_tokens"
-                ),
-                func.coalesce(func.sum(ChatMessage.completion_tokens), 0).label(
-                    "total_completion_tokens"
-                ),
-            )
-            .filter(
-                ChatMessage.model.isnot(None),
-                ChatMessage.model != "",
-                ChatMessage.created_at >= cutoff,
-            )
+        query = db.query(
+            ChatMessage.model,
+            func.count(ChatMessage.id).label("message_count"),
+            func.coalesce(func.sum(ChatMessage.prompt_tokens), 0).label(
+                "total_prompt_tokens"
+            ),
+            func.coalesce(func.sum(ChatMessage.completion_tokens), 0).label(
+                "total_completion_tokens"
+            ),
+        ).filter(
+            ChatMessage.model.isnot(None),
+            ChatMessage.model != "",
+            ChatMessage.created_at >= cutoff,
         )
 
         if group_user_ids is not None:
             query = query.filter(ChatMessage.user_id.in_(group_user_ids))
 
         rows = (
-            query
-            .group_by(ChatMessage.model)
+            query.group_by(ChatMessage.model)
             .order_by(func.count(ChatMessage.id).desc(), ChatMessage.model)
             .all()
         )
@@ -458,29 +449,25 @@ async def get_user_activity_stats(
     with get_db() as db:
         await _ensure_tokens_backfilled(db, cutoff, user_ids=group_user_ids)
 
-        query = (
-            db.query(
-                ChatMessage.user_id,
-                func.count(ChatMessage.id).label("message_count"),
-                func.coalesce(func.sum(ChatMessage.prompt_tokens), 0).label(
-                    "total_prompt_tokens"
-                ),
-                func.coalesce(func.sum(ChatMessage.completion_tokens), 0).label(
-                    "total_completion_tokens"
-                ),
-            )
-            .filter(
-                ChatMessage.user_id.isnot(None),
-                ChatMessage.created_at >= cutoff,
-            )
+        query = db.query(
+            ChatMessage.user_id,
+            func.count(ChatMessage.id).label("message_count"),
+            func.coalesce(func.sum(ChatMessage.prompt_tokens), 0).label(
+                "total_prompt_tokens"
+            ),
+            func.coalesce(func.sum(ChatMessage.completion_tokens), 0).label(
+                "total_completion_tokens"
+            ),
+        ).filter(
+            ChatMessage.user_id.isnot(None),
+            ChatMessage.created_at >= cutoff,
         )
 
         if group_user_ids is not None:
             query = query.filter(ChatMessage.user_id.in_(group_user_ids))
 
         rows = (
-            query
-            .group_by(ChatMessage.user_id)
+            query.group_by(ChatMessage.user_id)
             .order_by(func.count(ChatMessage.id).desc(), ChatMessage.user_id)
             .all()
         )

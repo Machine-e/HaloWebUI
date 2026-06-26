@@ -109,7 +109,15 @@ def downgrade():
         op.drop_index("ix_prompt_command", "prompt")
 
     prompt_columns = {c["name"] for c in inspector.get_columns("prompt")}
-    for col in ("version_id", "tags", "meta", "data", "updated_at", "created_at", "name"):
+    for col in (
+        "version_id",
+        "tags",
+        "meta",
+        "data",
+        "updated_at",
+        "created_at",
+        "name",
+    ):
         if col in prompt_columns:
             op.drop_column("prompt", col)
 

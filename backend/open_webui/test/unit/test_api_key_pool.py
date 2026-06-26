@@ -159,8 +159,14 @@ def test_default_retry_rules_are_transient_only():
     }
 
     assert should_retry_api_key(config, status_code=429, body="rate limit") is True
-    assert should_retry_api_key(config, status_code=503, body="service unavailable") is True
-    assert should_retry_api_key(config, body={"error": {"message": "quota exceeded"}}) is True
+    assert (
+        should_retry_api_key(config, status_code=503, body="service unavailable")
+        is True
+    )
+    assert (
+        should_retry_api_key(config, body={"error": {"message": "quota exceeded"}})
+        is True
+    )
     assert should_retry_api_key(config, exception=TimeoutError("timed out")) is True
 
     assert should_retry_api_key(config, status_code=400, body="rate limit") is False

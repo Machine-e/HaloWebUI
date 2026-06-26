@@ -10,7 +10,6 @@ from sqlalchemy import BigInteger, Column, String, Text, JSON
 
 from open_webui.utils.access_control import has_access
 
-
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
@@ -171,8 +170,13 @@ class ToolsTable:
         with get_db() as db:
             all_tools = (
                 db.query(
-                    Tool.id, Tool.user_id, Tool.name, Tool.meta,
-                    Tool.access_control, Tool.updated_at, Tool.created_at,
+                    Tool.id,
+                    Tool.user_id,
+                    Tool.name,
+                    Tool.meta,
+                    Tool.access_control,
+                    Tool.updated_at,
+                    Tool.created_at,
                 )
                 .order_by(Tool.updated_at.desc())
                 .all()
@@ -214,9 +218,9 @@ class ToolsTable:
         """Lightweight listing filtered by user access (no content/specs loaded)."""
         tools = self.get_tools_list()
         return [
-            t for t in tools
-            if t.user_id == user_id
-            or has_access(user_id, permission, t.access_control)
+            t
+            for t in tools
+            if t.user_id == user_id or has_access(user_id, permission, t.access_control)
         ]
 
     def get_tool_valves_by_id(self, id: str) -> Optional[dict]:

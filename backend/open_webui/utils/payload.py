@@ -7,7 +7,6 @@ import json
 import re
 from typing import Any, Callable, Optional
 
-
 _REASONING_OFF_VALUES = {"none", "off", "disabled", "disable", "false", "0", "no"}
 _REASONING_DEFAULT_VALUES = {"default"}
 _REASONING_AUTO_VALUES = {"auto", "automatic"}
@@ -196,7 +195,9 @@ def _normalize_max_thinking_tokens_payload(payload: dict) -> dict:
         return payload
 
     normalized = dict(payload)
-    tokens = _normalize_thinking_token_value(normalized.pop("max_thinking_tokens", None))
+    tokens = _normalize_thinking_token_value(
+        normalized.pop("max_thinking_tokens", None)
+    )
     if tokens is None:
         return normalized
 
@@ -245,8 +246,8 @@ def normalize_openai_compatible_reasoning_controls(
     is_mimo = any(_is_mimo_model_id(candidate) for candidate in model_candidates)
     if is_mimo:
         normalized = _normalize_thinking_type_payload(payload)
-        reasoning_effort, reasoning_effort_location = _get_reasoning_effort_from_payload(
-            normalized
+        reasoning_effort, reasoning_effort_location = (
+            _get_reasoning_effort_from_payload(normalized)
         )
         if reasoning_effort is None:
             return normalized
@@ -260,7 +261,9 @@ def normalize_openai_compatible_reasoning_controls(
 
         return _with_thinking_type(normalized, "enabled")
 
-    is_deepseek = any(_is_deepseek_model_id(candidate) for candidate in model_candidates)
+    is_deepseek = any(
+        _is_deepseek_model_id(candidate) for candidate in model_candidates
+    )
     if not is_deepseek:
         return payload
 
@@ -422,7 +425,10 @@ def apply_model_params_to_body_openai(params: dict, form_data: dict) -> dict:
         "frequency_penalty": float,
         "reasoning_effort": str,
         "seed": lambda x: x,
-        "stop": lambda x: [bytes(s, "utf-8").decode("unicode_escape") for s in (x if isinstance(x, list) else [x])],
+        "stop": lambda x: [
+            bytes(s, "utf-8").decode("unicode_escape")
+            for s in (x if isinstance(x, list) else [x])
+        ],
         "logit_bias": lambda x: x,
         "response_format": dict,
     }
@@ -466,7 +472,10 @@ def apply_model_params_to_body_ollama(params: dict, form_data: dict) -> dict:
         "presence_penalty": float,
         "frequency_penalty": float,
         "penalize_newline": bool,
-        "stop": lambda x: [bytes(s, "utf-8").decode("unicode_escape") for s in (x if isinstance(x, list) else [x])],
+        "stop": lambda x: [
+            bytes(s, "utf-8").decode("unicode_escape")
+            for s in (x if isinstance(x, list) else [x])
+        ],
         "numa": bool,
         "num_gpu": int,
         "main_gpu": int,

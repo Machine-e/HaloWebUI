@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
-
 NATIVE_WEB_SEARCH_STATUS_SUPPORTED = "supported"
 NATIVE_WEB_SEARCH_STATUS_UNKNOWN = "unknown"
 NATIVE_WEB_SEARCH_STATUS_UNSUPPORTED = "unsupported"
@@ -196,7 +195,11 @@ def resolve_effective_native_web_search_support(
         and model_status == NATIVE_WEB_SEARCH_STATUS_SUPPORTED
     ):
         effective_status = NATIVE_WEB_SEARCH_STATUS_SUPPORTED
-        reason = model_rule.get("reason") or connection.get("reason") or "official_connection"
+        reason = (
+            model_rule.get("reason")
+            or connection.get("reason")
+            or "official_connection"
+        )
         source = NATIVE_WEB_SEARCH_EFFECTIVE_SCOPE
     elif (
         normalized_provider == "openai"
@@ -208,11 +211,14 @@ def resolve_effective_native_web_search_support(
         source = NATIVE_WEB_SEARCH_EFFECTIVE_SCOPE
     else:
         effective_status = NATIVE_WEB_SEARCH_STATUS_UNKNOWN
-        reason = model_rule.get("reason") or connection.get("reason") or "model_rule_unknown"
+        reason = (
+            model_rule.get("reason") or connection.get("reason") or "model_rule_unknown"
+        )
         source = NATIVE_WEB_SEARCH_EFFECTIVE_SCOPE
 
     can_attempt = (
-        effective_status in {
+        effective_status
+        in {
             NATIVE_WEB_SEARCH_STATUS_SUPPORTED,
             NATIVE_WEB_SEARCH_STATUS_UNKNOWN,
         }
@@ -222,9 +228,7 @@ def resolve_effective_native_web_search_support(
 
     return {
         **{
-            k: v
-            for k, v in connection.items()
-            if k not in {"supported", "can_attempt"}
+            k: v for k, v in connection.items() if k not in {"supported", "can_attempt"}
         },
         "provider": normalized_provider,
         "status": effective_status,

@@ -10,7 +10,6 @@ from open_webui.internal.db import Base, JSONField, get_db
 from open_webui.models.users import UserResponse, Users
 from open_webui.env import SRC_LOG_LEVELS
 
-
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
@@ -132,7 +131,9 @@ class SharedToolServerTable:
                     responses.append(
                         SharedToolServerUserResponse.model_validate(
                             {
-                                **SharedToolServerModel.model_validate(result).model_dump(),
+                                **SharedToolServerModel.model_validate(
+                                    result
+                                ).model_dump(),
                                 "owner": owner.model_dump() if owner else None,
                             }
                         )

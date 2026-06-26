@@ -3,7 +3,6 @@ import sqlite3
 import sys
 from pathlib import Path
 
-
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[4] / "scripts" / "dedupe-uploads-hardlinks.py"
 )
@@ -23,8 +22,7 @@ def _load_script_module():
 def _create_file_db(db_path: Path, rows: list[tuple[str, str, str, int]]) -> None:
     connection = sqlite3.connect(db_path)
     try:
-        connection.execute(
-            """
+        connection.execute("""
             CREATE TABLE file (
                 id TEXT PRIMARY KEY,
                 filename TEXT,
@@ -32,8 +30,7 @@ def _create_file_db(db_path: Path, rows: list[tuple[str, str, str, int]]) -> Non
                 meta TEXT,
                 created_at INTEGER
             )
-            """
-        )
+            """)
         connection.executemany(
             """
             INSERT INTO file (id, filename, path, meta, created_at)
@@ -51,7 +48,9 @@ def _file_paths_from_db(db_path: Path) -> list[str]:
     try:
         return [
             row[0]
-            for row in connection.execute("SELECT path FROM file ORDER BY id").fetchall()
+            for row in connection.execute(
+                "SELECT path FROM file ORDER BY id"
+            ).fetchall()
         ]
     finally:
         connection.close()

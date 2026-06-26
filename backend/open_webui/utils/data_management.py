@@ -20,7 +20,6 @@ from open_webui.config import (
     UPLOAD_DIR,
 )
 
-
 BACKUP_KIND_SQLITE = "sqlite"
 BACKUP_KIND_FULL = "full"
 DB_RESTORE_CONFIRMATION = "RESTORE DATABASE"

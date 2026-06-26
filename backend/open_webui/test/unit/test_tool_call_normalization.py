@@ -32,7 +32,9 @@ def _merge_fragment(existing: str, incoming: str) -> str:
     return existing + incoming
 
 
-def _aggregate_stream_tool_calls(delta_tool_calls: list[dict]) -> tuple[list[dict], list[dict]]:
+def _aggregate_stream_tool_calls(
+    delta_tool_calls: list[dict],
+) -> tuple[list[dict], list[dict]]:
     response_tool_calls = []
     lookup = {}
     repairs = []
@@ -93,9 +95,9 @@ def _aggregate_stream_tool_calls(delta_tool_calls: list[dict]) -> tuple[list[dic
                 tc["index"] = incoming_index
 
             delta_name = (delta_tool_call.get("function", {}) or {}).get("name")
-            delta_arguments = (
-                delta_tool_call.get("function", {}) or {}
-            ).get("arguments")
+            delta_arguments = (delta_tool_call.get("function", {}) or {}).get(
+                "arguments"
+            )
             if delta_name:
                 tc["function"]["name"] = _merge_fragment(
                     tc["function"].get("name", ""), delta_name
@@ -133,7 +135,9 @@ def _map_aliases(args_dict: dict, allowed: set[str]) -> tuple[dict, list[dict]]:
             continue
         if key.endswith("s") and key[:-1] in allowed:
             target = key[:-1]
-            mapped[target] = value[0] if isinstance(value, list) and len(value) == 1 else value
+            mapped[target] = (
+                value[0] if isinstance(value, list) and len(value) == 1 else value
+            )
             repairs.append({"action": "param_alias_mapping", "from": key, "to": target})
             continue
         plural = f"{key}s"
@@ -155,7 +159,9 @@ def _infer_empty_name(args_dict: dict, rules: dict) -> str | None:
             continue
         if len(arg_keys & allowed) <= 0:
             continue
-        candidates.append((len(required), len(arg_keys & allowed), -len(allowed), tool_name))
+        candidates.append(
+            (len(required), len(arg_keys & allowed), -len(allowed), tool_name)
+        )
 
     if not candidates:
         return None
@@ -165,7 +171,9 @@ def _infer_empty_name(args_dict: dict, rules: dict) -> str | None:
     return candidates[0][3]
 
 
-def _normalize_calls(calls: list[dict], rules: dict) -> tuple[list[dict], list[dict], list[dict]]:
+def _normalize_calls(
+    calls: list[dict], rules: dict
+) -> tuple[list[dict], list[dict], list[dict]]:
     repaired = []
     invalid = []
     normalized = []
@@ -337,7 +345,10 @@ def test_normalize_merges_split_call_name_and_args():
     }
     calls = [
         {"id": "fc_4", "function": {"name": "search_web", "arguments": "{}"}},
-        {"id": "fc_4a", "function": {"name": "", "arguments": '{"query":"NVDA","k":5}'}},
+        {
+            "id": "fc_4a",
+            "function": {"name": "", "arguments": '{"query":"NVDA","k":5}'},
+        },
     ]
     normalized, repaired, invalid = _normalize_calls(calls, rules)
     assert not invalid
@@ -398,4 +409,3 @@ def test_invalid_for_ambiguous_or_unknown_tool_keeps_arg_keys():
     assert invalid
     assert invalid[0]["name"] == "(empty)"
     assert invalid[0]["arg_keys"] == ["count", "query"]
-

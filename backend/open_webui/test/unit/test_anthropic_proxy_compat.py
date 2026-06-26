@@ -1,7 +1,6 @@
 import pathlib
 import sys
 
-
 # Ensure `open_webui` is importable when running tests from repo root.
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
@@ -103,10 +102,22 @@ def test_is_anyrouter_url():
 
 
 def test_needs_cc_format_for_anyrouter_premium_models():
-    assert anthropic._needs_cc_format("claude-opus-4-6", "https://anyrouter.top/v1") is True
-    assert anthropic._needs_cc_format("claude-sonnet-4-6", "https://anyrouter.top/v1") is True
-    assert anthropic._needs_cc_format("claude-haiku-4-5", "https://anyrouter.top/v1") is False
-    assert anthropic._needs_cc_format("claude-opus-4-6", "https://api.anthropic.com/v1") is False
+    assert (
+        anthropic._needs_cc_format("claude-opus-4-6", "https://anyrouter.top/v1")
+        is True
+    )
+    assert (
+        anthropic._needs_cc_format("claude-sonnet-4-6", "https://anyrouter.top/v1")
+        is True
+    )
+    assert (
+        anthropic._needs_cc_format("claude-haiku-4-5", "https://anyrouter.top/v1")
+        is False
+    )
+    assert (
+        anthropic._needs_cc_format("claude-opus-4-6", "https://api.anthropic.com/v1")
+        is False
+    )
 
 
 def test_resolve_proxy_model_alias_keeps_anyrouter_opus_short_alias():
@@ -136,7 +147,9 @@ def test_apply_cc_format_preserves_display_mode():
         "metadata": {"user_id": "tester"},
     }
 
-    url = anthropic._apply_cc_format(headers, payload, "https://anyrouter.top/v1/messages")
+    url = anthropic._apply_cc_format(
+        headers, payload, "https://anyrouter.top/v1/messages"
+    )
 
     assert payload["thinking"] == {"type": "adaptive", "display": "summarized"}
     assert payload["max_tokens"] == 32000

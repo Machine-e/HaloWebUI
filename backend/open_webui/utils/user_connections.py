@@ -26,7 +26,6 @@ from open_webui.utils.model_identity import derive_connection_id
 from open_webui.models.users import UserModel, UserSettings, Users
 from open_webui.utils.api_key_pool import normalize_api_key_pool_config
 
-
 UI_KEY = "ui"
 CONNECTIONS_KEY = "connections"
 LEGACY_GLOBAL_CONNECTIONS_SEEDED_KEY = "_legacy_global_connections_seeded_v1"
@@ -108,7 +107,9 @@ def _merge_missing(dst: dict, src: dict) -> tuple[dict, bool]:
     return out, changed
 
 
-def _has_provider_values(cfg: Optional[dict], urls_key: str, keys_key: Optional[str], configs_key: str) -> bool:
+def _has_provider_values(
+    cfg: Optional[dict], urls_key: str, keys_key: Optional[str], configs_key: str
+) -> bool:
     if not isinstance(cfg, dict):
         return False
     urls = cfg.get(urls_key) or []
@@ -185,7 +186,10 @@ def _iter_active_connection_records(provider: str, provider_config: Optional[dic
     if spec is None:
         return
 
-    urls = [_normalize_connection_url(url) for url in list(provider_config.get(spec["urls_key"]) or [])]
+    urls = [
+        _normalize_connection_url(url)
+        for url in list(provider_config.get(spec["urls_key"]) or [])
+    ]
     cfgs = _as_dict(provider_config.get(spec["configs_key"]))
 
     for idx, url in enumerate(urls):
@@ -298,7 +302,10 @@ def normalize_provider_connection_config(
     keys_key = spec["keys_key"]
     configs_key = spec["configs_key"]
 
-    urls = [_normalize_connection_url(url) for url in list(next_provider.get(urls_key) or [])]
+    urls = [
+        _normalize_connection_url(url)
+        for url in list(next_provider.get(urls_key) or [])
+    ]
 
     if keys_key:
         keys = list(next_provider.get(keys_key) or [])
@@ -368,9 +375,7 @@ def normalize_provider_connection_config(
             prefix_id = _unique_candidate(tombstone_prefix_by_signature, signature)
         if not prefix_id:
             key_value = (
-                keys[idx]
-                if keys_key and idx < len(keys)
-                else cfg.get("key", None)
+                keys[idx] if keys_key and idx < len(keys) else cfg.get("key", None)
             )
             prefix_id = _next_connection_id(
                 id_strategy=id_strategy,
@@ -386,7 +391,9 @@ def normalize_provider_connection_config(
                 id_strategy=id_strategy,
                 provider=provider,
                 url=url,
-                api_key=(keys[idx] if keys_key and idx < len(keys) else cfg.get("key", None)),
+                api_key=(
+                    keys[idx] if keys_key and idx < len(keys) else cfg.get("key", None)
+                ),
                 auth_type=cfg.get("auth_type"),
                 duplicate_seed=str(duplicate_seed),
             )
@@ -468,7 +475,10 @@ def build_migrated_user_settings(
     legacy_direct = ui.get("directConnections")
     if isinstance(legacy_direct, dict) and "openai" not in connections:
         if _has_provider_values(
-            legacy_direct, "OPENAI_API_BASE_URLS", "OPENAI_API_KEYS", "OPENAI_API_CONFIGS"
+            legacy_direct,
+            "OPENAI_API_BASE_URLS",
+            "OPENAI_API_KEYS",
+            "OPENAI_API_CONFIGS",
         ):
             connections["openai"] = deepcopy(legacy_direct)
             changed = True
@@ -526,28 +536,50 @@ def maybe_migrate_user_connections(request, user: UserModel) -> UserModel:
     if cfg is not None:
         global_provider_defaults = {
             "openai": {
-                "OPENAI_API_BASE_URLS": deepcopy(getattr(cfg, "OPENAI_API_BASE_URLS", []) or []),
+                "OPENAI_API_BASE_URLS": deepcopy(
+                    getattr(cfg, "OPENAI_API_BASE_URLS", []) or []
+                ),
                 "OPENAI_API_KEYS": deepcopy(getattr(cfg, "OPENAI_API_KEYS", []) or []),
-                "OPENAI_API_CONFIGS": deepcopy(getattr(cfg, "OPENAI_API_CONFIGS", {}) or {}),
+                "OPENAI_API_CONFIGS": deepcopy(
+                    getattr(cfg, "OPENAI_API_CONFIGS", {}) or {}
+                ),
             },
             "gemini": {
-                "GEMINI_API_BASE_URLS": deepcopy(getattr(cfg, "GEMINI_API_BASE_URLS", []) or []),
+                "GEMINI_API_BASE_URLS": deepcopy(
+                    getattr(cfg, "GEMINI_API_BASE_URLS", []) or []
+                ),
                 "GEMINI_API_KEYS": deepcopy(getattr(cfg, "GEMINI_API_KEYS", []) or []),
-                "GEMINI_API_CONFIGS": deepcopy(getattr(cfg, "GEMINI_API_CONFIGS", {}) or {}),
+                "GEMINI_API_CONFIGS": deepcopy(
+                    getattr(cfg, "GEMINI_API_CONFIGS", {}) or {}
+                ),
             },
             "grok": {
-                "GROK_API_BASE_URLS": deepcopy(getattr(cfg, "GROK_API_BASE_URLS", []) or []),
+                "GROK_API_BASE_URLS": deepcopy(
+                    getattr(cfg, "GROK_API_BASE_URLS", []) or []
+                ),
                 "GROK_API_KEYS": deepcopy(getattr(cfg, "GROK_API_KEYS", []) or []),
-                "GROK_API_CONFIGS": deepcopy(getattr(cfg, "GROK_API_CONFIGS", {}) or {}),
+                "GROK_API_CONFIGS": deepcopy(
+                    getattr(cfg, "GROK_API_CONFIGS", {}) or {}
+                ),
             },
             "anthropic": {
-                "ANTHROPIC_API_BASE_URLS": deepcopy(getattr(cfg, "ANTHROPIC_API_BASE_URLS", []) or []),
-                "ANTHROPIC_API_KEYS": deepcopy(getattr(cfg, "ANTHROPIC_API_KEYS", []) or []),
-                "ANTHROPIC_API_CONFIGS": deepcopy(getattr(cfg, "ANTHROPIC_API_CONFIGS", {}) or {}),
+                "ANTHROPIC_API_BASE_URLS": deepcopy(
+                    getattr(cfg, "ANTHROPIC_API_BASE_URLS", []) or []
+                ),
+                "ANTHROPIC_API_KEYS": deepcopy(
+                    getattr(cfg, "ANTHROPIC_API_KEYS", []) or []
+                ),
+                "ANTHROPIC_API_CONFIGS": deepcopy(
+                    getattr(cfg, "ANTHROPIC_API_CONFIGS", {}) or {}
+                ),
             },
             "ollama": {
-                "OLLAMA_BASE_URLS": deepcopy(getattr(cfg, "OLLAMA_BASE_URLS", []) or []),
-                "OLLAMA_API_CONFIGS": deepcopy(getattr(cfg, "OLLAMA_API_CONFIGS", {}) or {}),
+                "OLLAMA_BASE_URLS": deepcopy(
+                    getattr(cfg, "OLLAMA_BASE_URLS", []) or []
+                ),
+                "OLLAMA_API_CONFIGS": deepcopy(
+                    getattr(cfg, "OLLAMA_API_CONFIGS", {}) or {}
+                ),
             },
         }
 

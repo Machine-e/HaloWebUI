@@ -4,7 +4,6 @@ import sys
 import time
 from types import SimpleNamespace
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -221,17 +220,11 @@ def test_grok_source_is_included_in_base_models(monkeypatch):
 
 
 def test_base_model_deduplication_removes_duplicate_identity():
-    first = _provider_model(
-        "openai", "oa1", "deepseek-ai/deepseek-v4-flash"
-    )
+    first = _provider_model("openai", "oa1", "deepseek-ai/deepseek-v4-flash")
     duplicate = {**first, "name": "duplicate display name"}
-    sibling = _provider_model(
-        "openai", "oa1", "deepseek-ai/deepseek-v4-pro"
-    )
+    sibling = _provider_model("openai", "oa1", "deepseek-ai/deepseek-v4-pro")
 
-    models = models_utils._deduplicate_models_by_identity(
-        [first, duplicate, sibling]
-    )
+    models = models_utils._deduplicate_models_by_identity([first, duplicate, sibling])
 
     assert [model["selection_id"] for model in models] == [
         first["selection_id"],
@@ -240,12 +233,8 @@ def test_base_model_deduplication_removes_duplicate_identity():
 
 
 def test_base_model_deduplication_keeps_same_model_from_different_connections():
-    first = _provider_model(
-        "openai", "oa1", "deepseek-ai/deepseek-v4-flash"
-    )
-    second = _provider_model(
-        "openai", "oa2", "deepseek-ai/deepseek-v4-flash"
-    )
+    first = _provider_model("openai", "oa1", "deepseek-ai/deepseek-v4-flash")
+    second = _provider_model("openai", "oa2", "deepseek-ai/deepseek-v4-flash")
 
     models = models_utils._deduplicate_models_by_identity([first, second])
 

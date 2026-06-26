@@ -7,7 +7,6 @@ from types import SimpleNamespace
 
 import pytest
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -175,7 +174,9 @@ def test_speech_mimo_requires_api_key(tmp_path, monkeypatch):
         asyncio.run(
             audio_router.speech(
                 FakeRequest(),
-                user=SimpleNamespace(id="user-1", name="Test User", email="", role="user"),
+                user=SimpleNamespace(
+                    id="user-1", name="Test User", email="", role="user"
+                ),
             )
         )
 

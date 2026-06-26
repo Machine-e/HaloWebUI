@@ -3,7 +3,6 @@ import argparse
 import sys
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BACKEND_ROOT = REPO_ROOT / "backend"
 if str(BACKEND_ROOT) not in sys.path:
@@ -22,7 +21,9 @@ from open_webui.utils.chat_image_refs import (  # noqa: E402
 )
 
 
-def sync_changed_messages(chat_id: str, user_id: str, chat_payload: dict, message_ids: set[str]) -> None:
+def sync_changed_messages(
+    chat_id: str, user_id: str, chat_payload: dict, message_ids: set[str]
+) -> None:
     messages = chat_payload.get("history", {}).get("messages", {}) or {}
     for message_id in message_ids:
         message = messages.get(message_id)
@@ -63,9 +64,7 @@ def build_channel_file_access_control(channel, owner_id: str) -> dict:
     read_acl = (
         {"group_ids": [], "user_ids": ["*"]}
         if normalized_channel_acl is None
-        else normalized_channel_acl.get(
-            "read", {"group_ids": [], "user_ids": []}
-        )
+        else normalized_channel_acl.get("read", {"group_ids": [], "user_ids": []})
     )
     return {
         "read": read_acl,
@@ -78,7 +77,9 @@ def share_channel_files(files: list[dict], channel, owner_id: str) -> None:
     for file_item in files:
         if not isinstance(file_item, dict):
             continue
-        file_id = file_item.get("id") or extract_chat_image_file_id(file_item.get("url"))
+        file_id = file_item.get("id") or extract_chat_image_file_id(
+            file_item.get("url")
+        )
         if not file_id:
             continue
         file_obj = Files.get_file_by_id(file_id)

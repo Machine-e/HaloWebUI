@@ -91,7 +91,6 @@ from open_webui.socket.main import get_event_emitter
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.access_control import has_access
 
-
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["OPENAI"])
 
@@ -131,9 +130,7 @@ def _is_official_openai_connection(url: str) -> bool:
     return host == "api.openai.com" or host.endswith(".openai.com")
 
 
-def _is_azure_openai_connection(
-    url: str, api_config: Optional[dict] = None
-) -> bool:
+def _is_azure_openai_connection(url: str, api_config: Optional[dict] = None) -> bool:
     if bool((api_config or {}).get("azure")):
         return True
 
@@ -209,14 +206,14 @@ def _normalize_azure_openai_base_url(
     elif path.endswith("/v1"):
         azure_path = f"{path[: -len('/v1')]}/openai/v1"
     else:
-        azure_path = f"{path}{AZURE_OPENAI_V1_SEGMENT}" if path else AZURE_OPENAI_V1_SEGMENT
+        azure_path = (
+            f"{path}{AZURE_OPENAI_V1_SEGMENT}" if path else AZURE_OPENAI_V1_SEGMENT
+        )
 
     return _replace_url_path_and_query(parsed, azure_path, "")
 
 
-def _get_azure_openai_resource_url(
-    url: str, api_config: Optional[dict] = None
-) -> str:
+def _get_azure_openai_resource_url(url: str, api_config: Optional[dict] = None) -> str:
     normalized_url = (url or "").strip().rstrip("/")
     if not normalized_url:
         return normalized_url
@@ -241,7 +238,9 @@ def _append_query_param(url: str, key: str, value: Optional[str]) -> str:
         return url
 
     parsed = urlparse(url)
-    query = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True) if k != key]
+    query = [
+        (k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True) if k != key
+    ]
     query.append((key, value))
     return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
 
@@ -267,7 +266,9 @@ def _get_azure_openai_chat_completions_urls(
     urls: list[str] = []
     resource_url = _get_azure_openai_resource_url(url, api_config)
     api_version = _get_azure_api_version(api_config)
-    urls.append(f"{resource_url}{AZURE_OPENAI_V1_SEGMENT}{OPENAI_CHAT_COMPLETIONS_SUFFIX}")
+    urls.append(
+        f"{resource_url}{AZURE_OPENAI_V1_SEGMENT}{OPENAI_CHAT_COMPLETIONS_SUFFIX}"
+    )
 
     if api_version and model_id:
         deployment = quote(str(model_id).strip(), safe="")
@@ -312,9 +313,7 @@ def _get_openai_models_url(url: str, api_config: Optional[dict] = None) -> str:
 
     if _is_force_mode_connection(normalized_url, api_config):
         if normalized_url.endswith(OPENAI_CHAT_COMPLETIONS_SUFFIX):
-            return (
-                f"{normalized_url[:-len(OPENAI_CHAT_COMPLETIONS_SUFFIX)]}/models"
-            )
+            return f"{normalized_url[:-len(OPENAI_CHAT_COMPLETIONS_SUFFIX)]}/models"
         return normalized_url
 
     return f"{normalized_url}/models"
@@ -325,9 +324,7 @@ def _get_openai_chat_completions_url(
 ) -> str:
     normalized_url = (url or "").rstrip("/")
     if _is_azure_openai_connection(normalized_url, api_config):
-        candidates = _get_azure_openai_chat_completions_urls(
-            normalized_url, api_config
-        )
+        candidates = _get_azure_openai_chat_completions_urls(normalized_url, api_config)
         return candidates[0] if candidates else normalized_url
     if _is_force_mode_connection(normalized_url, api_config):
         return normalized_url
@@ -355,7 +352,9 @@ def _coerce_bool(value: object, default: bool = False) -> bool:
     return default
 
 
-def _get_openai_user_config(connection_user: Optional[UserModel]) -> tuple[list[str], list[str], dict]:
+def _get_openai_user_config(
+    connection_user: Optional[UserModel],
+) -> tuple[list[str], list[str], dict]:
     """
     Resolve OpenAI-compatible connection config for a given user.
 
@@ -410,7 +409,9 @@ async def _is_user_visible_model(
 ) -> bool:
     state = getattr(request, "state", None)
     models_map = getattr(state, "MODELS", None) if state is not None else None
-    ambiguous_aliases = getattr(state, "MODELS_AMBIGUOUS", set()) if state is not None else set()
+    ambiguous_aliases = (
+        getattr(state, "MODELS_AMBIGUOUS", set()) if state is not None else set()
+    )
     if isinstance(models_map, dict) and resolve_model_from_lookup(
         models_map, ambiguous_aliases or set(), model_id
     ):
@@ -432,7 +433,9 @@ async def _is_user_visible_model(
 
     state = getattr(request, "state", None)
     models_map = getattr(state, "MODELS", None) if state is not None else None
-    ambiguous_aliases = getattr(state, "MODELS_AMBIGUOUS", set()) if state is not None else set()
+    ambiguous_aliases = (
+        getattr(state, "MODELS_AMBIGUOUS", set()) if state is not None else set()
+    )
     return isinstance(models_map, dict) and bool(
         resolve_model_from_lookup(models_map, ambiguous_aliases or set(), model_id)
     )
@@ -636,9 +639,10 @@ def _has_explicit_reasoning_summary_setting(chat_payload: Optional[dict]) -> boo
     if not isinstance(chat_payload, dict):
         return False
 
-    if isinstance(chat_payload.get("reasoning_summary"), str) and chat_payload.get(
-        "reasoning_summary", ""
-    ).strip():
+    if (
+        isinstance(chat_payload.get("reasoning_summary"), str)
+        and chat_payload.get("reasoning_summary", "").strip()
+    ):
         return True
 
     reasoning = chat_payload.get("reasoning")
@@ -649,9 +653,7 @@ def _has_explicit_reasoning_summary_setting(chat_payload: Optional[dict]) -> boo
     )
 
 
-async def _emit_responses_reasoning_placeholder(
-    metadata: Any, payload: Any
-) -> None:
+async def _emit_responses_reasoning_placeholder(metadata: Any, payload: Any) -> None:
     if not responses_payload_expects_reasoning(payload):
         return
     if not isinstance(metadata, dict):
@@ -761,7 +763,8 @@ def _build_upstream_headers(
             headers["x-api-key"] = key
         elif auth_type == "api-key" or (
             _is_azure_openai_connection(base_url, api_config)
-            and auth_type not in {"bearer", "authorization", "azure_ad", "microsoft_entra_id"}
+            and auth_type
+            not in {"bearer", "authorization", "azure_ad", "microsoft_entra_id"}
         ):
             headers["api-key"] = key
         else:
@@ -797,7 +800,9 @@ def _get_openai_file_cache_key(api_config: dict, url_idx: int) -> str:
     return prefix if prefix else f"idx:{url_idx}"
 
 
-def _get_openai_connection_key(api_config: Optional[dict], url_idx: Optional[int] = None) -> str:
+def _get_openai_connection_key(
+    api_config: Optional[dict], url_idx: Optional[int] = None
+) -> str:
     cfg = api_config or {}
     prefix = str(cfg.get("_resolved_prefix_id") or cfg.get("prefix_id") or "").strip()
     if prefix:
@@ -1265,7 +1270,9 @@ def _apply_native_web_search_support_to_models_response(
                 ),
                 model_name=model.get("name") or "",
             )
-            model["native_web_search_supported"] = model_support.get("supported") is True
+            model["native_web_search_supported"] = (
+                model_support.get("supported") is True
+            )
             model["native_web_search_support"] = dict(model_support)
 
     meta = body.get("_openwebui")
@@ -1317,7 +1324,8 @@ def _looks_like_models_listing_unsupported(status: int, body) -> bool:
         return True
 
     if "models" in text and any(
-        term in text for term in ("not found", "unsupported", "not support", "unknown", "no route")
+        term in text
+        for term in ("not found", "unsupported", "not support", "unknown", "no route")
     ):
         return True
 
@@ -1408,9 +1416,7 @@ def _build_native_file_input_probe_cache_key(
         "url": (url or "").rstrip("/"),
         "auth_type": str(cfg.get("auth_type") or ""),
         "headers": cfg.get("headers") or {},
-        "prefix_id": str(
-            cfg.get("_resolved_prefix_id") or cfg.get("prefix_id") or ""
-        ),
+        "prefix_id": str(cfg.get("_resolved_prefix_id") or cfg.get("prefix_id") or ""),
         "azure": bool(cfg.get("azure")),
         "force_mode": bool(cfg.get("force_mode")),
     }
@@ -1428,13 +1434,18 @@ async def _probe_responses_support_for_native_file_inputs(
 ) -> dict[str, Any]:
     cache_key = _build_native_file_input_probe_cache_key(url, api_config)
     cached_result = _NATIVE_FILE_INPUT_PROBE_CACHE.get(cache_key)
-    if cached_result and (time.time() - cached_result[0]) < _NATIVE_FILE_INPUT_PROBE_TTL_SECONDS:
+    if (
+        cached_result
+        and (time.time() - cached_result[0]) < _NATIVE_FILE_INPUT_PROBE_TTL_SECONDS
+    ):
         return dict(cached_result[1])
 
     cfg = api_config or {}
     headers = _build_upstream_headers(url, key or "", cfg, user=user)
     chosen_model = str(model_id or "gpt-4o-mini")
-    prefix_id = str(cfg.get("_resolved_prefix_id") or cfg.get("prefix_id") or "").strip()
+    prefix_id = str(
+        cfg.get("_resolved_prefix_id") or cfg.get("prefix_id") or ""
+    ).strip()
     if prefix_id:
         prefix = f"{prefix_id}."
         if chosen_model.startswith(prefix):
@@ -1473,7 +1484,9 @@ async def _probe_responses_support_for_native_file_inputs(
                         "http_status": response.status,
                         "body_preview": body_text,
                     }
-                elif _looks_like_responses_endpoint_unsupported(response.status, body_text):
+                elif _looks_like_responses_endpoint_unsupported(
+                    response.status, body_text
+                ):
                     result = {
                         "supported": False,
                         "status": NATIVE_FILE_INPUT_STATUS_PROTOCOL_NOT_ATTEMPTED,
@@ -1521,9 +1534,8 @@ def _looks_like_chat_completions_endpoint_unsupported(status: int, body) -> bool
     if not text:
         return False
 
-    return (
-        "chat/completions" in text
-        and any(term in text for term in ("not found", "unknown", "unsupported", "no route"))
+    return "chat/completions" in text and any(
+        term in text for term in ("not found", "unknown", "unsupported", "no route")
     )
 
 
@@ -1550,7 +1562,9 @@ def _build_chat_completion_request_attempts(
             next_payload.pop("model", None)
         attempts.append((request_url, next_payload))
 
-    return attempts or [(_get_openai_chat_completions_url(url, api_config), payload_dict)]
+    return attempts or [
+        (_get_openai_chat_completions_url(url, api_config), payload_dict)
+    ]
 
 
 def _format_responses_upstream_error(
@@ -1679,7 +1693,9 @@ async def send_get_request(
         # Handle connection error here
         log.error(f"Connection error: {e}")
         if len(attempts) > 1 and should_retry_api_key(api_config, exception=e):
-            log.warning("[OPENAI KEY RETRY] models fetch exception after all attempts: %s", e)
+            log.warning(
+                "[OPENAI KEY RETRY] models fetch exception after all attempts: %s", e
+            )
         return None
 
 
@@ -1755,7 +1771,9 @@ async def update_config(
 ):
     # Preserve existing per-URL prefix_id to avoid breaking chats when admins edit connections.
     # prefix_id is an internal stable identifier used for uniqueness/routing and should not be user-editable.
-    prev_urls = list(getattr(request.app.state.config, "OPENAI_API_BASE_URLS", []) or [])
+    prev_urls = list(
+        getattr(request.app.state.config, "OPENAI_API_BASE_URLS", []) or []
+    )
     prev_cfgs = getattr(request.app.state.config, "OPENAI_API_CONFIGS", {}) or {}
     prev_prefix_by_url: dict[str, str] = {}
     prev_empty_urls: set[str] = set()
@@ -1766,7 +1784,11 @@ async def update_config(
             continue
         cfg = prev_cfgs.get(str(idx), prev_cfgs.get(prev_url, {})) or {}
         raw = cfg.get("prefix_id", None)
-        prefix = (raw or "").strip() if isinstance(raw, str) else (str(raw).strip() if raw is not None else "")
+        prefix = (
+            (raw or "").strip()
+            if isinstance(raw, str)
+            else (str(raw).strip() if raw is not None else "")
+        )
         if prefix:
             prev_prefix_by_url.setdefault(url_key, prefix)
         else:
@@ -1863,13 +1885,14 @@ async def update_config(
         normalized_configs[idx_str] = normalized_cfg
 
     request.app.state.config.OPENAI_API_CONFIGS = normalized_configs
-    request.app.state.config.OPENAI_API_KEYS, request.app.state.config.OPENAI_API_CONFIGS = (
-        normalize_indexed_api_key_pools(
-            provider="openai",
-            urls=request.app.state.config.OPENAI_API_BASE_URLS,
-            keys=request.app.state.config.OPENAI_API_KEYS,
-            configs=request.app.state.config.OPENAI_API_CONFIGS,
-        )
+    (
+        request.app.state.config.OPENAI_API_KEYS,
+        request.app.state.config.OPENAI_API_CONFIGS,
+    ) = normalize_indexed_api_key_pools(
+        provider="openai",
+        urls=request.app.state.config.OPENAI_API_BASE_URLS,
+        keys=request.app.state.config.OPENAI_API_KEYS,
+        configs=request.app.state.config.OPENAI_API_CONFIGS,
     )
 
     # Refresh model list cache when config changes
@@ -2076,7 +2099,12 @@ async def get_all_models_responses(request: Request, user: UserModel) -> list:
             if prefix_id:
                 prefix = f"{prefix_id}."
                 model_ids = [
-                    (m[len(prefix) :] if isinstance(m, str) and m.startswith(prefix) else m) for m in model_ids
+                    (
+                        m[len(prefix) :]
+                        if isinstance(m, str) and m.startswith(prefix)
+                        else m
+                    )
+                    for m in model_ids
                 ]
 
             model_list = {
@@ -2149,7 +2177,9 @@ async def get_all_models_responses(request: Request, user: UserModel) -> list:
         tags = api_config.get("tags", [])
         connection_icon = (api_config.get("icon") or "").strip()
 
-        for model in response if isinstance(response, list) else response.get("data", []):
+        for model in (
+            response if isinstance(response, list) else response.get("data", [])
+        ):
             original_id = model.get("id") or model.get("name") or ""
 
             # Avoid showing/stacking internal prefixes in display names.
@@ -2200,7 +2230,9 @@ async def get_all_models_responses(request: Request, user: UserModel) -> list:
             )
 
         if tags:
-            for model in response if isinstance(response, list) else response.get("data", []):
+            for model in (
+                response if isinstance(response, list) else response.get("data", [])
+            ):
                 model["tags"] = tags
 
     log.debug(f"get_all_models:responses() {responses}")
@@ -2346,7 +2378,9 @@ async def get_models(
 
                         if response_data is None:
                             break
-                        normalized_response = _normalize_openai_models_response(response_data)
+                        normalized_response = _normalize_openai_models_response(
+                            response_data
+                        )
                         if normalized_response is None:
                             raise HTTPException(
                                 status_code=400,
@@ -2479,18 +2513,24 @@ async def verify_connection(
                 try:
                     async with session.get(
                         models_url,
-                        headers=_build_upstream_headers(url, attempt.key, api_config, user=user),
+                        headers=_build_upstream_headers(
+                            url, attempt.key, api_config, user=user
+                        ),
                         ssl=AIOHTTP_CLIENT_SESSION_SSL,
                     ) as r:
                         response_body = await _safe_read_upstream_body(r)
 
                         if r.status == 200:
-                            normalized_response = _normalize_openai_models_response(response_body)
+                            normalized_response = _normalize_openai_models_response(
+                                response_body
+                            )
                             if normalized_response is not None:
-                                return _apply_native_web_search_support_to_models_response(
-                                    normalized_response,
-                                    url=url,
-                                    api_config=api_config,
+                                return (
+                                    _apply_native_web_search_support_to_models_response(
+                                        normalized_response,
+                                        url=url,
+                                        api_config=api_config,
+                                    )
                                 )
 
                             raise HTTPException(
@@ -2522,8 +2562,11 @@ async def verify_connection(
                             )
                             continue
 
-                        if purpose == "models" and _looks_like_models_listing_unsupported(
-                            r.status, response_body
+                        if (
+                            purpose == "models"
+                            and _looks_like_models_listing_unsupported(
+                                r.status, response_body
+                            )
                         ):
                             public_catalog = await _fetch_new_api_public_pricing_models(
                                 session=session,
@@ -2537,15 +2580,19 @@ async def verify_connection(
                                     url,
                                     r.status,
                                 )
-                                return _apply_native_web_search_support_to_models_response(
-                                    public_catalog,
-                                    url=url,
-                                    api_config=api_config,
+                                return (
+                                    _apply_native_web_search_support_to_models_response(
+                                        public_catalog,
+                                        url=url,
+                                        api_config=api_config,
+                                    )
                                 )
 
                         raise HTTPException(
                             status_code=400,
-                            detail=_extract_upstream_error_detail(r.status, response_body),
+                            detail=_extract_upstream_error_detail(
+                                r.status, response_body
+                            ),
                         )
                 except HTTPException:
                     raise
@@ -2663,11 +2710,17 @@ async def health_check_connection(
                 is_o1_o3 = payload_dict["model"].lower().startswith(("o1", "o3-"))
                 if is_o1_o3:
                     payload_dict = openai_o1_o3_handler(payload_dict)
-                elif "api.openai.com" not in url and "max_completion_tokens" in payload_dict:
+                elif (
+                    "api.openai.com" not in url
+                    and "max_completion_tokens" in payload_dict
+                ):
                     payload_dict["max_tokens"] = payload_dict["max_completion_tokens"]
                     del payload_dict["max_completion_tokens"]
 
-                if "max_tokens" in payload_dict and "max_completion_tokens" in payload_dict:
+                if (
+                    "max_tokens" in payload_dict
+                    and "max_completion_tokens" in payload_dict
+                ):
                     del payload_dict["max_tokens"]
 
                 request_attempts = _build_chat_completion_request_attempts(
@@ -2722,8 +2775,8 @@ async def health_check_connection(
                                 status, response_body
                             )
                         ):
-                            next_payload_dict, removed = _strip_reasoning_summary_from_payload(
-                                payload_dict
+                            next_payload_dict, removed = (
+                                _strip_reasoning_summary_from_payload(payload_dict)
                             )
                             if removed:
                                 payload_dict = next_payload_dict
@@ -2871,7 +2924,11 @@ async def verify_responses_connection(
 
             body_text = _stringify_upstream_body(body)
             supports_responses = r.status < 400 and isinstance(body, dict)
-            endpoint_supported = None if supports_responses else not _looks_like_responses_endpoint_unsupported(r.status, body_text)
+            endpoint_supported = (
+                None
+                if supports_responses
+                else not _looks_like_responses_endpoint_unsupported(r.status, body_text)
+            )
 
             return {
                 "ok": supports_responses,
@@ -2951,7 +3008,9 @@ async def generate_chat_completion(
                 )
 
     # Resolve connection config from the *connection owner* (defaults to the requester).
-    connection_user = getattr(getattr(request, "state", None), "connection_user", None) or user
+    connection_user = (
+        getattr(getattr(request, "state", None), "connection_user", None) or user
+    )
     base_urls, keys, cfgs = _get_openai_user_config(connection_user)
     if not base_urls:
         raise HTTPException(status_code=404, detail="No connections configured")
@@ -2996,11 +3055,15 @@ async def generate_chat_completion(
     key_attempt_idx = 0
     current_key_attempt = key_attempts[key_attempt_idx]
     native_retry_metadata = metadata if isinstance(metadata, dict) else {}
-    native_cache_retry_detail = "Native file input cache was invalidated; retrying upload."
+    native_cache_retry_detail = (
+        "Native file input cache was invalidated; retrying upload."
+    )
 
     # Local-only flags (do not forward as-is).
     native_web_search = payload.pop("native_web_search", False) is True
-    native_web_search_required = payload.pop("native_web_search_required", False) is True
+    native_web_search_required = (
+        payload.pop("native_web_search_required", False) is True
+    )
     native_file_inputs = payload.pop("native_file_inputs", False) is True
 
     # Responses API routing is strict: if enabled, we only call /responses and surface real errors.
@@ -3021,10 +3084,10 @@ async def generate_chat_completion(
     payload_dict = None
     auto_reasoning_summary_applied = False
     if use_responses_api:
-        web_search_tool_type = _get_native_web_search_tool_type(api_config) if native_web_search else None
-        default_reasoning_summary = _get_default_responses_reasoning_summary(
-            api_config
+        web_search_tool_type = (
+            _get_native_web_search_tool_type(api_config) if native_web_search else None
         )
+        default_reasoning_summary = _get_default_responses_reasoning_summary(api_config)
         payload_dict = convert_chat_completions_to_responses_payload(
             payload,
             native_web_search_tool_type=web_search_tool_type,
@@ -3081,7 +3144,11 @@ async def generate_chat_completion(
         else _build_chat_completion_request_attempts(
             url=url,
             api_config=api_config,
-            model_id=payload_dict.get("model") if isinstance(payload_dict, dict) else model_id,
+            model_id=(
+                payload_dict.get("model")
+                if isinstance(payload_dict, dict)
+                else model_id
+            ),
             payload_dict=payload_dict,
         )
     )
@@ -3090,15 +3157,35 @@ async def generate_chat_completion(
     payload_json = json.dumps(payload_dict, ensure_ascii=False, default=str)
 
     # ── Diagnostic logging: key info at INFO, details at DEBUG ──
-    _diag_keys = sorted(payload_dict.keys()) if isinstance(payload_dict, dict) else "N/A"
-    _msg_count = len(payload_dict.get("messages", [])) if isinstance(payload_dict, dict) else "?"
-    _tools_count = len(payload_dict.get("tools", [])) if isinstance(payload_dict, dict) and payload_dict.get("tools") else 0
-    _reasoning_info = payload_dict.get("reasoning") if isinstance(payload_dict, dict) else None
-    _reasoning_effort_info = payload_dict.get("reasoning_effort") if isinstance(payload_dict, dict) else None
-    _thinking_info = payload_dict.get("thinking") if isinstance(payload_dict, dict) else None
-    _max_thinking_tokens_info = payload_dict.get("max_thinking_tokens") if isinstance(payload_dict, dict) else None
+    _diag_keys = (
+        sorted(payload_dict.keys()) if isinstance(payload_dict, dict) else "N/A"
+    )
+    _msg_count = (
+        len(payload_dict.get("messages", [])) if isinstance(payload_dict, dict) else "?"
+    )
+    _tools_count = (
+        len(payload_dict.get("tools", []))
+        if isinstance(payload_dict, dict) and payload_dict.get("tools")
+        else 0
+    )
+    _reasoning_info = (
+        payload_dict.get("reasoning") if isinstance(payload_dict, dict) else None
+    )
+    _reasoning_effort_info = (
+        payload_dict.get("reasoning_effort") if isinstance(payload_dict, dict) else None
+    )
+    _thinking_info = (
+        payload_dict.get("thinking") if isinstance(payload_dict, dict) else None
+    )
+    _max_thinking_tokens_info = (
+        payload_dict.get("max_thinking_tokens")
+        if isinstance(payload_dict, dict)
+        else None
+    )
     _store_info = payload_dict.get("store") if isinstance(payload_dict, dict) else None
-    _include_info = payload_dict.get("include") if isinstance(payload_dict, dict) else None
+    _include_info = (
+        payload_dict.get("include") if isinstance(payload_dict, dict) else None
+    )
     log.info(
         "[UPSTREAM REQUEST] POST %s | model=%s | payload_keys=%s | messages=%s | tools=%s | size=%d | reasoning=%s | reasoning_effort=%s | thinking=%s | max_thinking_tokens=%s | store=%s | include=%s | native_file_inputs=%s | responses=%s",
         request_url,
@@ -3132,13 +3219,25 @@ async def generate_chat_completion(
                 _diag_msgs = []
                 for m in _diag_payload["messages"]:
                     _dm = {**m} if isinstance(m, dict) else m
-                    if isinstance(_dm, dict) and isinstance(_dm.get("content"), str) and len(_dm["content"]) > 200:
-                        _dm["content"] = _dm["content"][:200] + f"...[truncated, total {len(m['content'])} chars]"
+                    if (
+                        isinstance(_dm, dict)
+                        and isinstance(_dm.get("content"), str)
+                        and len(_dm["content"]) > 200
+                    ):
+                        _dm["content"] = (
+                            _dm["content"][:200]
+                            + f"...[truncated, total {len(m['content'])} chars]"
+                        )
                     _diag_msgs.append(_dm)
                 _diag_payload["messages"] = _diag_msgs
             if "tools" in _diag_payload and _diag_payload["tools"]:
-                _diag_payload["tools"] = f"[{len(_diag_payload['tools'])} tools, omitted]"
-            log.debug("[UPSTREAM REQUEST] payload=%s", json.dumps(_diag_payload, ensure_ascii=False, default=str)[:4000])
+                _diag_payload["tools"] = (
+                    f"[{len(_diag_payload['tools'])} tools, omitted]"
+                )
+            log.debug(
+                "[UPSTREAM REQUEST] payload=%s",
+                json.dumps(_diag_payload, ensure_ascii=False, default=str)[:4000],
+            )
 
     if responses_reasoning_expected:
         try:
@@ -3153,7 +3252,10 @@ async def generate_chat_completion(
 
     try:
         chat_sock_read_timeout = AIOHTTP_CLIENT_SOCK_READ_TIMEOUT
-        if responses_reasoning_expected and CHAT_STREAM_REASONING_IDLE_TIMEOUT is not None:
+        if (
+            responses_reasoning_expected
+            and CHAT_STREAM_REASONING_IDLE_TIMEOUT is not None
+        ):
             chat_sock_read_timeout = max(
                 chat_sock_read_timeout or 0,
                 CHAT_STREAM_REASONING_IDLE_TIMEOUT,
@@ -3172,7 +3274,11 @@ async def generate_chat_completion(
                     "[UPSTREAM RETRY] reason=%s | url=%s | model=%s | key_label=%s | key_attempt=%s/%s",
                     retry_reason,
                     request_url,
-                    payload_dict.get("model", "?") if isinstance(payload_dict, dict) else "?",
+                    (
+                        payload_dict.get("model", "?")
+                        if isinstance(payload_dict, dict)
+                        else "?"
+                    ),
                     current_key_attempt.safe_label,
                     current_key_attempt.attempt,
                     current_key_attempt.total,
@@ -3217,9 +3323,8 @@ async def generate_chat_completion(
                     await _send_current_request(retry_reason=current_retry_reason)
                     return
                 except Exception as e:
-                    if (
-                        key_attempt_idx + 1 < len(key_attempts)
-                        and should_retry_api_key(api_config, exception=e)
+                    if key_attempt_idx + 1 < len(key_attempts) and should_retry_api_key(
+                        api_config, exception=e
                     ):
                         log.warning(
                             "[OPENAI KEY RETRY] chat exception=%s key_label=%s next=%s/%s",
@@ -3242,13 +3347,16 @@ async def generate_chat_completion(
             response = None
             while True:
                 response = await _safe_read_upstream_body(r)
-                if (
-                    attempt_idx + 1 < len(request_attempts)
-                    and _looks_like_chat_completions_endpoint_unsupported(r.status, response)
+                if attempt_idx + 1 < len(
+                    request_attempts
+                ) and _looks_like_chat_completions_endpoint_unsupported(
+                    r.status, response
                 ):
                     attempt_idx += 1
                     request_url, payload_dict = request_attempts[attempt_idx]
-                    payload_json = json.dumps(payload_dict, ensure_ascii=False, default=str)
+                    payload_json = json.dumps(
+                        payload_dict, ensure_ascii=False, default=str
+                    )
                     response = None
                     r.close()
                     await _send_current_request_with_key_retry(
@@ -3259,13 +3367,10 @@ async def generate_chat_completion(
                     continue
 
                 if r.status >= 400:
-                    if (
-                        key_attempt_idx + 1 < len(key_attempts)
-                        and should_retry_api_key(
-                            api_config,
-                            status_code=r.status,
-                            body=response,
-                        )
+                    if key_attempt_idx + 1 < len(key_attempts) and should_retry_api_key(
+                        api_config,
+                        status_code=r.status,
+                        body=response,
                     ):
                         key_attempt_idx += 1
                         current_key_attempt = key_attempts[key_attempt_idx]
@@ -3286,7 +3391,9 @@ async def generate_chat_completion(
 
             if r.status < 400:
                 pass
-            elif native_file_inputs and _looks_like_stale_native_file_id_error(response):
+            elif native_file_inputs and _looks_like_stale_native_file_id_error(
+                response
+            ):
                 cleared_file_ids = _clear_native_file_input_cache_for_request(
                     native_retry_metadata
                 )
@@ -3337,7 +3444,12 @@ async def generate_chat_completion(
             content_type = r.headers.get("Content-Type", "") or ""
             looks_streaming = any(
                 t in content_type.lower()
-                for t in ("text/event-stream", "application/x-ndjson", "application/ndjson", "application/jsonl")
+                for t in (
+                    "text/event-stream",
+                    "application/x-ndjson",
+                    "application/ndjson",
+                    "application/jsonl",
+                )
             )
 
             if r.status >= 400:
@@ -3347,10 +3459,12 @@ async def generate_chat_completion(
 
                     if (
                         auto_reasoning_summary_applied
-                        and _looks_like_reasoning_summary_incompatible(r.status, response)
+                        and _looks_like_reasoning_summary_incompatible(
+                            r.status, response
+                        )
                     ):
-                        next_payload_dict, removed = _strip_reasoning_summary_from_payload(
-                            payload_dict
+                        next_payload_dict, removed = (
+                            _strip_reasoning_summary_from_payload(payload_dict)
                         )
                         if removed:
                             log.warning(
@@ -3488,7 +3602,11 @@ async def generate_chat_completion(
 
                 async def one_shot_sse():
                     try:
-                        choice0 = (cc.get("choices") or [{}])[0] if isinstance(cc.get("choices"), list) else {}
+                        choice0 = (
+                            (cc.get("choices") or [{}])[0]
+                            if isinstance(cc.get("choices"), list)
+                            else {}
+                        )
                         msg = choice0.get("message") or {}
                         content = msg.get("content") or ""
                         reasoning_content = msg.get("reasoning_content") or ""
@@ -3508,7 +3626,13 @@ async def generate_chat_completion(
                                     "object": "chat.completion.chunk",
                                     "created": created,
                                     "model": model_id,
-                                    "choices": [{"index": 0, "delta": delta, "finish_reason": None}],
+                                    "choices": [
+                                        {
+                                            "index": 0,
+                                            "delta": delta,
+                                            "finish_reason": None,
+                                        }
+                                    ],
                                 },
                                 ensure_ascii=False,
                             )
@@ -3526,7 +3650,9 @@ async def generate_chat_completion(
                                         {
                                             "index": 0,
                                             "delta": {},
-                                            "finish_reason": "tool_calls" if tool_calls else "stop",
+                                            "finish_reason": (
+                                                "tool_calls" if tool_calls else "stop"
+                                            ),
                                         }
                                     ],
                                 },
@@ -3594,7 +3720,9 @@ async def generate_chat_completion(
                     # raw chunk, or none if the line is still incomplete.
                     while b"\n" in _buf:
                         line_bytes, _buf = _buf.split(b"\n", 1)
-                        line_bytes += b"\n"  # restore the delimiter the downstream expects
+                        line_bytes += (
+                            b"\n"  # restore the delimiter the downstream expects
+                        )
 
                         _line_count += 1
                         _text = line_bytes.decode("utf-8", errors="replace")
@@ -3605,7 +3733,10 @@ async def generate_chat_completion(
                             log.info("[SSE RAW %d] %s", _line_count, _stripped[:500])
 
                         # Parse data lines for diagnostics
-                        if _stripped.startswith("data:") and _stripped != "data: [DONE]":
+                        if (
+                            _stripped.startswith("data:")
+                            and _stripped != "data: [DONE]"
+                        ):
                             _data_count += 1
                             _last_data_line = _stripped[:500]
                             if _first_data_line is None:
@@ -3624,30 +3755,34 @@ async def generate_chat_completion(
                                         _total_content_len += len(_ct)
                                     _image_url = _delta.get("image_url")
                                     if isinstance(_image_url, dict):
-                                        _image_url = (
-                                            _image_url.get("url")
-                                            or _image_url.get("image_url")
-                                        )
+                                        _image_url = _image_url.get(
+                                            "url"
+                                        ) or _image_url.get("image_url")
                                     _images = _delta.get("images")
                                     if isinstance(_images, dict):
                                         _images = [_images]
                                     _has_image_list_payload = False
                                     if isinstance(_images, list):
                                         for _image_item in _images:
-                                            if isinstance(_image_item, str) and _image_item.strip():
+                                            if (
+                                                isinstance(_image_item, str)
+                                                and _image_item.strip()
+                                            ):
                                                 _has_image_list_payload = True
                                                 break
                                             if not isinstance(_image_item, dict):
                                                 continue
                                             _candidate = _image_item.get("image_url")
                                             if isinstance(_candidate, dict):
-                                                _candidate = (
-                                                    _candidate.get("url")
-                                                    or _candidate.get("image_url")
-                                                )
+                                                _candidate = _candidate.get(
+                                                    "url"
+                                                ) or _candidate.get("image_url")
                                             elif not isinstance(_candidate, str):
                                                 _candidate = _image_item.get("url")
-                                            if isinstance(_candidate, str) and _candidate.strip():
+                                            if (
+                                                isinstance(_candidate, str)
+                                                and _candidate.strip()
+                                            ):
                                                 _has_image_list_payload = True
                                                 break
                                     if (
@@ -3675,7 +3810,9 @@ async def generate_chat_completion(
                                     _stripped[:200],
                                 )
                             else:
-                                log.debug("[SSE DATA #%d] %s", _data_count, _stripped[:300])
+                                log.debug(
+                                    "[SSE DATA #%d] %s", _data_count, _stripped[:300]
+                                )
 
                         elif _stripped == "data: [DONE]":
                             log.info("[SSE] Received data: [DONE]")
@@ -3691,9 +3828,16 @@ async def generate_chat_completion(
                 log.info(
                     "[SSE DONE] total_lines=%d data_events=%d "
                     "finish_reason=%s content_len=%d image_events=%d usage=%s",
-                    _line_count, _data_count,
-                    _last_finish_reason, _total_content_len, _image_payload_count,
-                    json.dumps(_last_usage, ensure_ascii=False)[:300] if _last_usage else "(none)",
+                    _line_count,
+                    _data_count,
+                    _last_finish_reason,
+                    _total_content_len,
+                    _image_payload_count,
+                    (
+                        json.dumps(_last_usage, ensure_ascii=False)[:300]
+                        if _last_usage
+                        else "(none)"
+                    ),
                 )
                 if _last_data_line:
                     log.info("[SSE LAST DATA] %s", _last_data_line[:500])
@@ -3701,7 +3845,8 @@ async def generate_chat_completion(
                     log.warning(
                         "[SSE ABNORMAL FINISH] finish_reason=%s — "
                         "response may be truncated! content_len=%d",
-                        _last_finish_reason, _total_content_len,
+                        _last_finish_reason,
+                        _total_content_len,
                     )
 
             return StreamingResponse(
@@ -3721,7 +3866,11 @@ async def generate_chat_completion(
             response = await r.text()
 
         if log.isEnabledFor(logging.DEBUG):
-            _resp_preview = json.dumps(response, ensure_ascii=False, default=str)[:2000] if isinstance(response, dict) else str(response)[:2000]
+            _resp_preview = (
+                json.dumps(response, ensure_ascii=False, default=str)[:2000]
+                if isinstance(response, dict)
+                else str(response)[:2000]
+            )
             log.debug("[UPSTREAM RESPONSE BODY] %s", _resp_preview)
 
         r.raise_for_status()

@@ -109,7 +109,9 @@ if "sqlite" in SQLALCHEMY_DATABASE_URL:
         )
         # pysqlcipher URI format: sqlite+pysqlcipher://:KEY@/path
         db_path = DATABASE_URL.replace("sqlite:///", "")
-        SQLALCHEMY_DATABASE_URL = f"sqlite+pysqlcipher://:{DATABASE_ENCRYPTION_KEY}@/{db_path}"
+        SQLALCHEMY_DATABASE_URL = (
+            f"sqlite+pysqlcipher://:{DATABASE_ENCRYPTION_KEY}@/{db_path}"
+        )
         connect_args = {}
 
     # SQLCipher connections are not safe to share across threads; use NullPool
@@ -129,6 +131,7 @@ if "sqlite" in SQLALCHEMY_DATABASE_URL:
         cursor.execute("PRAGMA mmap_size=268435456")
         cursor.execute("PRAGMA cache_size=-64000")
         cursor.close()
+
 else:
     if isinstance(DATABASE_POOL_SIZE, int):
         if DATABASE_POOL_SIZE > 0:

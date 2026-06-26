@@ -16,7 +16,6 @@ from open_webui.utils.chat import generate_chat_completion
 from open_webui.utils.model_identity import resolve_model_from_lookup
 from open_webui.utils.models import check_model_access
 
-
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS.get("MAIN", GLOBAL_LOG_LEVEL))
 

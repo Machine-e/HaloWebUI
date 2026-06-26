@@ -38,7 +38,10 @@ from open_webui.retrieval.loaders.main import Loader
 from open_webui.retrieval.loaders.mistral import MistralLoader
 from open_webui.retrieval.vector.utils import filter_metadata
 from open_webui.storage.provider import Storage
-from open_webui.utils.error_handling import extract_error_detail, read_requests_error_payload
+from open_webui.utils.error_handling import (
+    extract_error_detail,
+    read_requests_error_payload,
+)
 from open_webui.utils.file_upload_diagnostics import (
     FileUploadDiagnosticError,
     classify_file_upload_error,
@@ -149,9 +152,14 @@ def provider_supports_file(
             "image/"
         )
     if provider == DOCUMENT_PROVIDER_PADDLEOCR:
-        return ext in {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".bmp"} or mime.startswith(
-            "image/"
-        )
+        return ext in {
+            ".pdf",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".bmp",
+        } or mime.startswith("image/")
     if provider == DOCUMENT_PROVIDER_OPEN_MINERU:
         return ext in {".pdf", ".png", ".jpg", ".jpeg"} or mime in {
             "application/pdf",
@@ -277,10 +285,14 @@ def _get_loader_for_provider(
             request.app.state.config, "MINERU_API_URL", "http://localhost:8000"
         ),
         MINERU_API_KEY=getattr(request.app.state.config, "MINERU_API_KEY", ""),
-        MINERU_API_TIMEOUT=getattr(request.app.state.config, "MINERU_API_TIMEOUT", "300"),
+        MINERU_API_TIMEOUT=getattr(
+            request.app.state.config, "MINERU_API_TIMEOUT", "300"
+        ),
         MINERU_PARAMS=getattr(request.app.state.config, "MINERU_PARAMS", {}),
         MISTRAL_OCR_API_BASE_URL=getattr(
-            request.app.state.config, "MISTRAL_OCR_API_BASE_URL", "https://api.mistral.ai/v1"
+            request.app.state.config,
+            "MISTRAL_OCR_API_BASE_URL",
+            "https://api.mistral.ai/v1",
         ),
         MISTRAL_OCR_API_KEY=provider_config.get("api_key")
         or request.app.state.config.MISTRAL_OCR_API_KEY,
@@ -305,7 +317,9 @@ def _merge_document_metadata(
     ]
 
 
-def _merge_pdf_single_mode(request: Any, file_obj: FileModel, docs: list[Document]) -> list[Document]:
+def _merge_pdf_single_mode(
+    request: Any, file_obj: FileModel, docs: list[Document]
+) -> list[Document]:
     if (
         request.app.state.config.PDF_LOADING_MODE == "single"
         and file_obj.filename.lower().endswith(".pdf")
@@ -346,7 +360,10 @@ def _raise_provider_api_error(payload: Any, provider_name: str) -> None:
     if code in (None, 0, "0"):
         return
 
-    msg = extract_error_detail(payload.get("msg")) or f"{provider_name} API returned an error."
+    msg = (
+        extract_error_detail(payload.get("msg"))
+        or f"{provider_name} API returned an error."
+    )
     trace_id = extract_error_detail(payload.get("trace_id"))
     detail = f"{provider_name} API error {code}: {msg}"
     if trace_id:
@@ -415,7 +432,9 @@ def _extract_markdown_from_zip(blob: bytes) -> str:
     raise RuntimeError("No markdown content found in provider archive response.")
 
 
-def _build_document_list(text: str, metadata: Optional[dict[str, Any]] = None) -> list[Document]:
+def _build_document_list(
+    text: str, metadata: Optional[dict[str, Any]] = None
+) -> list[Document]:
     content = str(text or "").strip()
     if not content:
         raise RuntimeError("No text content found in provider response.")
@@ -536,7 +555,9 @@ class MinerULoader:
         if not api_key:
             raise RuntimeError("MinerU API key is required.")
 
-        base_url = str(self.config.get("api_base_url") or "https://mineru.net").rstrip("/")
+        base_url = str(self.config.get("api_base_url") or "https://mineru.net").rstrip(
+            "/"
+        )
         token = (
             str(self.config.get("token") or "").strip()
             or self.file_obj.user_id
@@ -586,7 +607,9 @@ class MinerULoader:
         if isinstance(first_file_url, str):
             upload_url = first_file_url
         elif isinstance(first_file_url, dict):
-            upload_url = first_file_url.get("url") or first_file_url.get("presigned_url")
+            upload_url = first_file_url.get("url") or first_file_url.get(
+                "presigned_url"
+            )
         else:
             raise RuntimeError("MinerU returned an unsupported upload URL format.")
 
@@ -594,7 +617,9 @@ class MinerULoader:
         if not upload_url or not batch_id:
             raise RuntimeError("MinerU batch creation response is incomplete.")
 
-        requests.put(upload_url, data=_read_bytes(self.file_path), timeout=120).raise_for_status()
+        requests.put(
+            upload_url, data=_read_bytes(self.file_path), timeout=120
+        ).raise_for_status()
 
         poll_interval = _coerce_poll_interval(self.config, 3)
         timeout = _coerce_timeout(self.config, 180)
@@ -682,7 +707,9 @@ class OpenMinerULoader:
         self.config = config
 
     def load(self) -> list[Document]:
-        base_url = str(self.config.get("api_base_url") or "https://mineru.net").rstrip("/")
+        base_url = str(self.config.get("api_base_url") or "https://mineru.net").rstrip(
+            "/"
+        )
         filename = self.file_obj.filename or "file"
         payload: dict[str, Any] = {
             "file_name": filename,
@@ -707,7 +734,9 @@ class OpenMinerULoader:
         if not file_url or not task_id:
             raise RuntimeError("Open MinerU did not return upload information.")
 
-        requests.put(file_url, data=_read_bytes(self.file_path), timeout=120).raise_for_status()
+        requests.put(
+            file_url, data=_read_bytes(self.file_path), timeout=120
+        ).raise_for_status()
 
         poll_interval = _coerce_poll_interval(self.config, 3)
         timeout = _coerce_timeout(self.config, 180)
@@ -722,11 +751,12 @@ class OpenMinerULoader:
             poll_data = _requests_json(poll_response)
             _raise_provider_api_error(poll_data, "Open MinerU")
             status = str(
-                _get_nested_value(poll_data, ("data", "status"), ("status",))
-                or ""
+                _get_nested_value(poll_data, ("data", "status"), ("status",)) or ""
             ).lower()
             if status in {"done", "success", "completed", "finish", "finished"}:
-                result_payload = _get_nested_value(poll_data, ("data",), ()) or poll_data
+                result_payload = (
+                    _get_nested_value(poll_data, ("data",), ()) or poll_data
+                )
                 break
             if status in {"failed", "error"}:
                 raise RuntimeError(
@@ -742,11 +772,15 @@ class OpenMinerULoader:
         if result_payload is None:
             raise RuntimeError("Timed out while waiting for Open MinerU results.")
 
-        markdown_url = result_payload.get("markdown_url") or result_payload.get("md_url")
+        markdown_url = result_payload.get("markdown_url") or result_payload.get(
+            "md_url"
+        )
         if markdown_url:
             return _build_document_list(_download_text(markdown_url))
 
-        markdown_content = result_payload.get("markdown") or result_payload.get("md_content")
+        markdown_content = result_payload.get("markdown") or result_payload.get(
+            "md_content"
+        )
         if markdown_content:
             return _build_document_list(markdown_content)
 
@@ -764,7 +798,9 @@ class Doc2XLoader:
         if not api_key:
             raise RuntimeError("Doc2X API key is required.")
 
-        base_url = str(self.config.get("api_base_url") or "https://v2.doc2x.noedgeai.com").rstrip("/")
+        base_url = str(
+            self.config.get("api_base_url") or "https://v2.doc2x.noedgeai.com"
+        ).rstrip("/")
         ext = os.path.splitext(self.file_obj.filename or "")[1].lower()
         is_image = ext in {".png", ".jpg", ".jpeg", ".webp"}
         endpoint = "/api/v2/image" if is_image else "/api/v2/pdf"
@@ -784,7 +820,10 @@ class Doc2XLoader:
         requests.put(
             upload_url,
             data=_read_bytes(self.file_path),
-            headers={"Content-Type": self.file_obj.meta.get("content_type") or "application/octet-stream"},
+            headers={
+                "Content-Type": self.file_obj.meta.get("content_type")
+                or "application/octet-stream"
+            },
             timeout=120,
         ).raise_for_status()
 
@@ -792,7 +831,9 @@ class Doc2XLoader:
         timeout = _coerce_timeout(self.config, 180)
         deadline = time.time() + timeout
         result_payload: Optional[dict[str, Any]] = None
-        result_endpoint = "/api/v2/image/parse/status" if is_image else "/api/v2/pdf/parse/status"
+        result_endpoint = (
+            "/api/v2/image/parse/status" if is_image else "/api/v2/pdf/parse/status"
+        )
         while time.time() < deadline:
             poll_response = requests.get(
                 f"{base_url}{result_endpoint}",
@@ -813,7 +854,9 @@ class Doc2XLoader:
             ).lower()
 
             if status in {"success", "done", "completed", "finish", "finished"}:
-                result_payload = _get_nested_value(poll_data, ("data",), ()) or poll_data
+                result_payload = (
+                    _get_nested_value(poll_data, ("data",), ()) or poll_data
+                )
                 break
             if status in {"failed", "error"}:
                 raise RuntimeError(
@@ -869,7 +912,11 @@ class PaddleOCRLoader:
         if not server_url:
             raise RuntimeError("PaddleOCR server URL is required.")
 
-        mime = self.file_obj.meta.get("content_type") or mimetypes.guess_type(self.file_obj.filename or "")[0] or "application/octet-stream"
+        mime = (
+            self.file_obj.meta.get("content_type")
+            or mimetypes.guess_type(self.file_obj.filename or "")[0]
+            or "application/octet-stream"
+        )
         ext = os.path.splitext(self.file_obj.filename or "")[1].lower()
         file_type = 0 if ext == ".pdf" or mime == "application/pdf" else 1
         payload = {
@@ -895,7 +942,9 @@ class PaddleOCRLoader:
             if isinstance(pruned, dict):
                 rec_texts = pruned.get("rec_texts") or pruned.get("texts") or []
                 if isinstance(rec_texts, list):
-                    texts.extend(str(text).strip() for text in rec_texts if str(text).strip())
+                    texts.extend(
+                        str(text).strip() for text in rec_texts if str(text).strip()
+                    )
 
         if texts:
             return _build_document_list("\n".join(texts))
@@ -921,9 +970,13 @@ def _extract_docs_with_provider(
             request,
             provider,
             provider_config,
-            force_local_engine=(strict_local_only and provider == DOCUMENT_PROVIDER_LOCAL_DEFAULT),
+            force_local_engine=(
+                strict_local_only and provider == DOCUMENT_PROVIDER_LOCAL_DEFAULT
+            ),
         )
-        docs = loader.load(file_obj.filename, file_obj.meta.get("content_type"), file_path)
+        docs = loader.load(
+            file_obj.filename, file_obj.meta.get("content_type"), file_path
+        )
         docs = _merge_pdf_single_mode(request, file_obj, docs)
         return _merge_document_metadata(file_obj, docs)
 
@@ -980,8 +1033,13 @@ def extract_documents_for_file(
     mime = file_obj.meta.get("content_type") if file_obj.meta else None
 
     if not provider_supports_file(resolved_provider, file_obj.filename, mime):
-        if resolved_provider == DOCUMENT_PROVIDER_LOCAL_DEFAULT or not allow_local_fallback:
-            raise RuntimeError(f"{resolved_provider} does not support {file_obj.filename}.")
+        if (
+            resolved_provider == DOCUMENT_PROVIDER_LOCAL_DEFAULT
+            or not allow_local_fallback
+        ):
+            raise RuntimeError(
+                f"{resolved_provider} does not support {file_obj.filename}."
+            )
         primary_provider_error = (
             f"{resolved_provider} does not support {file_obj.filename}."
         )
@@ -1014,7 +1072,10 @@ def extract_documents_for_file(
         )
     except Exception as exc:
         primary_provider_error = _stringify_provider_error(exc)
-        if not allow_local_fallback or resolved_provider == DOCUMENT_PROVIDER_LOCAL_DEFAULT:
+        if (
+            not allow_local_fallback
+            or resolved_provider == DOCUMENT_PROVIDER_LOCAL_DEFAULT
+        ):
             raise FileUploadDiagnosticError(
                 classify_file_upload_error(
                     exc,

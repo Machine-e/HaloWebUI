@@ -129,6 +129,7 @@ async def _search_web_async(
 ) -> list[SearchResult]:
     return await run_in_threadpool(search_web, request, engine, query)
 
+
 ##########################################
 #
 # API routes
@@ -182,7 +183,9 @@ def _extract_error_text_from_exception(exc: Exception) -> str:
             payload = response.json()
             if isinstance(payload, dict):
                 candidate = (
-                    payload.get("detail") or payload.get("message") or payload.get("error")
+                    payload.get("detail")
+                    or payload.get("message")
+                    or payload.get("error")
                 )
                 if isinstance(candidate, dict):
                     candidate = (
@@ -435,7 +438,9 @@ async def get_embedding_config(request: Request, user=Depends(get_admin_user)):
         "azure_openai_config": {
             "url": getattr(request.app.state.config, "RAG_AZURE_OPENAI_BASE_URL", ""),
             "key": getattr(request.app.state.config, "RAG_AZURE_OPENAI_API_KEY", ""),
-            "version": getattr(request.app.state.config, "RAG_AZURE_OPENAI_API_VERSION", ""),
+            "version": getattr(
+                request.app.state.config, "RAG_AZURE_OPENAI_API_VERSION", ""
+            ),
         },
         "ollama_config": {
             "url": request.app.state.config.RAG_OLLAMA_BASE_URL,
@@ -502,7 +507,11 @@ async def update_embedding_config(
         request.app.state.config.RAG_EMBEDDING_ENGINE = form_data.embedding_engine
         request.app.state.config.RAG_EMBEDDING_MODEL = form_data.embedding_model
 
-        if request.app.state.config.RAG_EMBEDDING_ENGINE in ["ollama", "openai", "azure_openai"]:
+        if request.app.state.config.RAG_EMBEDDING_ENGINE in [
+            "ollama",
+            "openai",
+            "azure_openai",
+        ]:
             if form_data.openai_config is not None:
                 request.app.state.config.RAG_OPENAI_API_BASE_URL = (
                     form_data.openai_config.url
@@ -558,9 +567,15 @@ async def update_embedding_config(
                 "key": request.app.state.config.RAG_OPENAI_API_KEY,
             },
             "azure_openai_config": {
-                "url": getattr(request.app.state.config, "RAG_AZURE_OPENAI_BASE_URL", ""),
-                "key": getattr(request.app.state.config, "RAG_AZURE_OPENAI_API_KEY", ""),
-                "version": getattr(request.app.state.config, "RAG_AZURE_OPENAI_API_VERSION", ""),
+                "url": getattr(
+                    request.app.state.config, "RAG_AZURE_OPENAI_BASE_URL", ""
+                ),
+                "key": getattr(
+                    request.app.state.config, "RAG_AZURE_OPENAI_API_KEY", ""
+                ),
+                "version": getattr(
+                    request.app.state.config, "RAG_AZURE_OPENAI_API_VERSION", ""
+                ),
             },
             "ollama_config": {
                 "url": request.app.state.config.RAG_OLLAMA_BASE_URL,
@@ -654,7 +669,9 @@ async def get_rag_config(request: Request, user=Depends(get_admin_user)):
         "DOCUMENT_PROVIDER": request.app.state.config.DOCUMENT_PROVIDER,
         "DOCUMENT_PROVIDER_CONFIGS": request.app.state.config.DOCUMENT_PROVIDER_CONFIGS,
         "CONTENT_EXTRACTION_ENGINE": request.app.state.config.CONTENT_EXTRACTION_ENGINE,
-        "DATALAB_MARKER_API_KEY": getattr(request.app.state.config, "DATALAB_MARKER_API_KEY", ""),
+        "DATALAB_MARKER_API_KEY": getattr(
+            request.app.state.config, "DATALAB_MARKER_API_KEY", ""
+        ),
         "DATALAB_MARKER_API_BASE_URL": getattr(
             request.app.state.config, "DATALAB_MARKER_API_BASE_URL", ""
         ),
@@ -707,13 +724,21 @@ async def get_rag_config(request: Request, user=Depends(get_admin_user)):
             request.app.state.config, "DOCUMENT_INTELLIGENCE_MODEL", "prebuilt-layout"
         ),
         "MISTRAL_OCR_API_BASE_URL": getattr(
-            request.app.state.config, "MISTRAL_OCR_API_BASE_URL", "https://api.mistral.ai/v1"
+            request.app.state.config,
+            "MISTRAL_OCR_API_BASE_URL",
+            "https://api.mistral.ai/v1",
         ),
         "MISTRAL_OCR_API_KEY": request.app.state.config.MISTRAL_OCR_API_KEY,
-        "MINERU_API_MODE": getattr(request.app.state.config, "MINERU_API_MODE", "local"),
-        "MINERU_API_URL": getattr(request.app.state.config, "MINERU_API_URL", "http://localhost:8000"),
+        "MINERU_API_MODE": getattr(
+            request.app.state.config, "MINERU_API_MODE", "local"
+        ),
+        "MINERU_API_URL": getattr(
+            request.app.state.config, "MINERU_API_URL", "http://localhost:8000"
+        ),
         "MINERU_API_KEY": getattr(request.app.state.config, "MINERU_API_KEY", ""),
-        "MINERU_API_TIMEOUT": getattr(request.app.state.config, "MINERU_API_TIMEOUT", "300"),
+        "MINERU_API_TIMEOUT": getattr(
+            request.app.state.config, "MINERU_API_TIMEOUT", "300"
+        ),
         "MINERU_PARAMS": getattr(request.app.state.config, "MINERU_PARAMS", {}),
         # Chunking settings
         "TEXT_SPLITTER": request.app.state.config.TEXT_SPLITTER,
@@ -958,9 +983,11 @@ async def update_rag_config(
         else request.app.state.config.TOP_K
     )
     if form_data.FILE_PROCESSING_DEFAULT_MODE is not None:
-        request.app.state.config.FILE_PROCESSING_DEFAULT_MODE = normalize_file_processing_mode(
-            form_data.FILE_PROCESSING_DEFAULT_MODE,
-            request.app.state.config.FILE_PROCESSING_DEFAULT_MODE,
+        request.app.state.config.FILE_PROCESSING_DEFAULT_MODE = (
+            normalize_file_processing_mode(
+                form_data.FILE_PROCESSING_DEFAULT_MODE,
+                request.app.state.config.FILE_PROCESSING_DEFAULT_MODE,
+            )
         )
     elif form_data.BYPASS_EMBEDDING_AND_RETRIEVAL is not None:
         request.app.state.config.FILE_PROCESSING_DEFAULT_MODE = (
@@ -1070,7 +1097,9 @@ async def update_rag_config(
     request.app.state.config.DATALAB_MARKER_STRIP_EXISTING_OCR = (
         form_data.DATALAB_MARKER_STRIP_EXISTING_OCR
         if form_data.DATALAB_MARKER_STRIP_EXISTING_OCR is not None
-        else getattr(request.app.state.config, "DATALAB_MARKER_STRIP_EXISTING_OCR", False)
+        else getattr(
+            request.app.state.config, "DATALAB_MARKER_STRIP_EXISTING_OCR", False
+        )
     )
     request.app.state.config.DATALAB_MARKER_DISABLE_IMAGE_EXTRACTION = (
         form_data.DATALAB_MARKER_DISABLE_IMAGE_EXTRACTION
@@ -1092,7 +1121,9 @@ async def update_rag_config(
     request.app.state.config.DATALAB_MARKER_OUTPUT_FORMAT = (
         form_data.DATALAB_MARKER_OUTPUT_FORMAT
         if form_data.DATALAB_MARKER_OUTPUT_FORMAT is not None
-        else getattr(request.app.state.config, "DATALAB_MARKER_OUTPUT_FORMAT", "markdown")
+        else getattr(
+            request.app.state.config, "DATALAB_MARKER_OUTPUT_FORMAT", "markdown"
+        )
     )
     request.app.state.config.EXTERNAL_DOCUMENT_LOADER_URL = (
         form_data.EXTERNAL_DOCUMENT_LOADER_URL
@@ -1159,12 +1190,18 @@ async def update_rag_config(
     request.app.state.config.DOCUMENT_INTELLIGENCE_MODEL = (
         form_data.DOCUMENT_INTELLIGENCE_MODEL
         if form_data.DOCUMENT_INTELLIGENCE_MODEL is not None
-        else getattr(request.app.state.config, "DOCUMENT_INTELLIGENCE_MODEL", "prebuilt-layout")
+        else getattr(
+            request.app.state.config, "DOCUMENT_INTELLIGENCE_MODEL", "prebuilt-layout"
+        )
     )
     request.app.state.config.MISTRAL_OCR_API_BASE_URL = (
         form_data.MISTRAL_OCR_API_BASE_URL
         if form_data.MISTRAL_OCR_API_BASE_URL is not None
-        else getattr(request.app.state.config, "MISTRAL_OCR_API_BASE_URL", "https://api.mistral.ai/v1")
+        else getattr(
+            request.app.state.config,
+            "MISTRAL_OCR_API_BASE_URL",
+            "https://api.mistral.ai/v1",
+        )
     )
     request.app.state.config.MISTRAL_OCR_API_KEY = (
         form_data.MISTRAL_OCR_API_KEY
@@ -1179,7 +1216,9 @@ async def update_rag_config(
     request.app.state.config.MINERU_API_URL = (
         form_data.MINERU_API_URL
         if form_data.MINERU_API_URL is not None
-        else getattr(request.app.state.config, "MINERU_API_URL", "http://localhost:8000")
+        else getattr(
+            request.app.state.config, "MINERU_API_URL", "http://localhost:8000"
+        )
     )
     request.app.state.config.MINERU_API_KEY = (
         form_data.MINERU_API_KEY
@@ -1287,27 +1326,35 @@ async def update_rag_config(
     )
 
     if form_data.web is not None:
-        tavily_search_api_base_url, tavily_search_api_force_mode = _normalize_tavily_config_url(
-            form_data.web.TAVILY_SEARCH_API_BASE_URL
-            if form_data.web.TAVILY_SEARCH_API_BASE_URL is not None
-            else request.app.state.config.TAVILY_SEARCH_API_BASE_URL,
-            "search",
-            force_mode=(
-                form_data.web.TAVILY_SEARCH_API_FORCE_MODE
-                if form_data.web.TAVILY_SEARCH_API_FORCE_MODE is not None
-                else request.app.state.config.TAVILY_SEARCH_API_FORCE_MODE
-            ),
+        tavily_search_api_base_url, tavily_search_api_force_mode = (
+            _normalize_tavily_config_url(
+                (
+                    form_data.web.TAVILY_SEARCH_API_BASE_URL
+                    if form_data.web.TAVILY_SEARCH_API_BASE_URL is not None
+                    else request.app.state.config.TAVILY_SEARCH_API_BASE_URL
+                ),
+                "search",
+                force_mode=(
+                    form_data.web.TAVILY_SEARCH_API_FORCE_MODE
+                    if form_data.web.TAVILY_SEARCH_API_FORCE_MODE is not None
+                    else request.app.state.config.TAVILY_SEARCH_API_FORCE_MODE
+                ),
+            )
         )
-        tavily_extract_api_base_url, tavily_extract_api_force_mode = _normalize_tavily_config_url(
-            form_data.web.TAVILY_EXTRACT_API_BASE_URL
-            if form_data.web.TAVILY_EXTRACT_API_BASE_URL is not None
-            else request.app.state.config.TAVILY_EXTRACT_API_BASE_URL,
-            "extract",
-            force_mode=(
-                form_data.web.TAVILY_EXTRACT_API_FORCE_MODE
-                if form_data.web.TAVILY_EXTRACT_API_FORCE_MODE is not None
-                else request.app.state.config.TAVILY_EXTRACT_API_FORCE_MODE
-            ),
+        tavily_extract_api_base_url, tavily_extract_api_force_mode = (
+            _normalize_tavily_config_url(
+                (
+                    form_data.web.TAVILY_EXTRACT_API_BASE_URL
+                    if form_data.web.TAVILY_EXTRACT_API_BASE_URL is not None
+                    else request.app.state.config.TAVILY_EXTRACT_API_BASE_URL
+                ),
+                "extract",
+                force_mode=(
+                    form_data.web.TAVILY_EXTRACT_API_FORCE_MODE
+                    if form_data.web.TAVILY_EXTRACT_API_FORCE_MODE is not None
+                    else request.app.state.config.TAVILY_EXTRACT_API_FORCE_MODE
+                ),
+            )
         )
         tavily_api_key = str(
             (
@@ -1440,13 +1487,9 @@ async def update_rag_config(
         if form_data.web.DDGS_BACKEND is not None:
             request.app.state.config.DDGS_BACKEND = form_data.web.DDGS_BACKEND
         if form_data.web.JINA_API_BASE_URL is not None:
-            request.app.state.config.JINA_API_BASE_URL = (
-                form_data.web.JINA_API_BASE_URL
-            )
+            request.app.state.config.JINA_API_BASE_URL = form_data.web.JINA_API_BASE_URL
         if form_data.web.FIRECRAWL_TIMEOUT is not None:
-            request.app.state.config.FIRECRAWL_TIMEOUT = (
-                form_data.web.FIRECRAWL_TIMEOUT
-            )
+            request.app.state.config.FIRECRAWL_TIMEOUT = form_data.web.FIRECRAWL_TIMEOUT
 
     return await get_rag_config(request, user)
 
@@ -1579,6 +1622,7 @@ async def verify_playwright_web_config(
         playwright_timeout=form_data.PLAYWRIGHT_TIMEOUT,
     )
 
+
 ####################################
 #
 # Document process and retrieval
@@ -1603,7 +1647,9 @@ def merge_docs_to_target_size(
     request: Request,
     chunks: list[Document],
 ) -> list[Document]:
-    min_chunk_size_target = getattr(request.app.state.config, "CHUNK_MIN_SIZE_TARGET", 0)
+    min_chunk_size_target = getattr(
+        request.app.state.config, "CHUNK_MIN_SIZE_TARGET", 0
+    )
     max_chunk_size = request.app.state.config.CHUNK_SIZE
 
     if min_chunk_size_target <= 0:
@@ -1698,7 +1744,9 @@ def save_docs_to_vector_db(
             existing_doc_ids = result.ids[0]
             if existing_doc_ids:
                 if overwrite:
-                    log.info(f"Overwriting document with hash {metadata['hash']} ({len(existing_doc_ids)} chunks)")
+                    log.info(
+                        f"Overwriting document with hash {metadata['hash']} ({len(existing_doc_ids)} chunks)"
+                    )
                     VECTOR_DB_CLIENT.delete(
                         collection_name=collection_name,
                         ids=existing_doc_ids,
@@ -1726,7 +1774,9 @@ def save_docs_to_vector_db(
                         ids=stale_ids,
                     )
         except Exception as e:
-            log.warning(f"Failed to clean stale vectors for file_id={metadata.get('file_id')}: {e}")
+            log.warning(
+                f"Failed to clean stale vectors for file_id={metadata.get('file_id')}: {e}"
+            )
 
     if split:
         if getattr(
@@ -1752,7 +1802,9 @@ def save_docs_to_vector_db(
                             page_content=split_chunk.page_content,
                             metadata={**doc.metadata},
                         )
-                        for split_chunk in markdown_splitter.split_text(doc.page_content)
+                        for split_chunk in markdown_splitter.split_text(
+                            doc.page_content
+                        )
                     ]
                 )
 
@@ -1993,7 +2045,11 @@ def _prepare_documents_for_processing(
 
     if allow_cached_collection_docs:
         cached_docs = _get_cached_file_collection_docs(file)
-        if cached_docs and current_mode == FILE_PROCESSING_MODE_RETRIEVAL and current_provider == requested_provider:
+        if (
+            cached_docs
+            and current_mode == FILE_PROCESSING_MODE_RETRIEVAL
+            and current_provider == requested_provider
+        ):
             return (
                 cached_docs,
                 " ".join(doc.page_content for doc in cached_docs),
@@ -2287,7 +2343,9 @@ def process_file(
             )
         else:
             file_name = file.filename if file else None
-            file_content_type = file.meta.get("content_type") if file and file.meta else None
+            file_content_type = (
+                file.meta.get("content_type") if file and file.meta else None
+            )
             diagnostic = classify_file_upload_error(
                 e,
                 filename=file_name,
@@ -2677,7 +2735,9 @@ def _fill_favicons(results: list[SearchResult]) -> list[SearchResult]:
             try:
                 domain = urlparse(result.link).netloc
                 if domain:
-                    result.favicon = f"https://www.google.com/s2/favicons?domain={domain}&sz=32"
+                    result.favicon = (
+                        f"https://www.google.com/s2/favicons?domain={domain}&sz=32"
+                    )
             except Exception:
                 pass
     return results
@@ -2698,7 +2758,10 @@ def _build_direct_docs_from_web_results(
 
         title = str(result.title or "").strip() or "Search Result"
         link = str(result.link or "").strip()
-        source = link or f"{engine or 'web'}://search/{calculate_sha256_string(f'{query}-{idx}')}"
+        source = (
+            link
+            or f"{engine or 'web'}://search/{calculate_sha256_string(f'{query}-{idx}')}"
+        )
 
         metadata = {
             "source": source,
@@ -2910,12 +2973,19 @@ async def process_web_search(
                 result["loader_runtime_notice"] = loader_runtime_notice
             return result
         else:
-            MAX_WEB_PAGE_SIZE = 100_000  # ~100KB, prevent huge pages from blocking embedding
+            MAX_WEB_PAGE_SIZE = (
+                100_000  # ~100KB, prevent huge pages from blocking embedding
+            )
             collection_names = []
             failed_count = 0
             # Known challenge / block page title prefixes (lowercase).
             # These pages contain no useful content — skip to save embedding quota.
-            _CHALLENGE_TITLES = ("just a moment", "checking your browser", "attention required", "access denied")
+            _CHALLENGE_TITLES = (
+                "just a moment",
+                "checking your browser",
+                "attention required",
+                "access denied",
+            )
 
             for doc_idx, doc in enumerate(docs):
                 if doc and doc.page_content:
@@ -2933,7 +3003,10 @@ async def process_web_search(
                         continue
 
                     # Skip known challenge pages (Cloudflare etc.) with short content
-                    if any(title_lower.startswith(t) for t in _CHALLENGE_TITLES) and content_len < 500:
+                    if (
+                        any(title_lower.startswith(t) for t in _CHALLENGE_TITLES)
+                        and content_len < 500
+                    ):
                         log.info(
                             f"Skipping challenge page {urls[doc_idx]} "
                             f"(title='{doc.metadata.get('title', '')}', content_len={content_len})"

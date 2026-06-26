@@ -88,7 +88,9 @@ def _get_reranking_api_base_url_default() -> str:
         os.getenv("RAG_RERANKING_API_BASE_URL")
         or get_config_value("rag.external_reranker_url")
         or os.getenv("RAG_EXTERNAL_RERANKER_URL", "")
-        or LITE_PRESET_DEFAULTS.get(LITE_PRESET, {}).get("RAG_RERANKING_API_BASE_URL", "")
+        or LITE_PRESET_DEFAULTS.get(LITE_PRESET, {}).get(
+            "RAG_RERANKING_API_BASE_URL", ""
+        )
     )
 
 
@@ -126,7 +128,9 @@ def _get_default_file_processing_mode() -> str:
 
     bypass_flag = get_config_value("rag.bypass_embedding_and_retrieval")
     if bypass_flag is None:
-        bypass_flag = os.environ.get("BYPASS_EMBEDDING_AND_RETRIEVAL", "False").lower() == "true"
+        bypass_flag = (
+            os.environ.get("BYPASS_EMBEDDING_AND_RETRIEVAL", "False").lower() == "true"
+        )
 
     return (
         FILE_PROCESSING_MODE_FULL_CONTEXT
@@ -137,8 +141,7 @@ def _get_default_file_processing_mode() -> str:
 
 def _get_default_document_provider() -> str:
     configured = normalize_document_provider(
-        os.getenv("DOCUMENT_PROVIDER")
-        or get_config_value("rag.document_provider"),
+        os.getenv("DOCUMENT_PROVIDER") or get_config_value("rag.document_provider"),
         "",
     )
     if configured:
@@ -166,6 +169,7 @@ def _get_default_document_provider_configs() -> dict:
         return defaults
 
     return build_default_document_provider_configs()
+
 
 ####################################
 # Config helpers
@@ -287,7 +291,9 @@ WEB_SEARCH_NUMERIC_CONFIG_DEFAULTS = {
 }
 
 
-def _get_config_parent(config: dict, config_path: str) -> tuple[Optional[dict], Optional[str]]:
+def _get_config_parent(
+    config: dict, config_path: str
+) -> tuple[Optional[dict], Optional[str]]:
     path_parts = config_path.split(".")
     cur_config = config
     for key in path_parts[:-1]:
@@ -922,7 +928,9 @@ def load_oauth_providers():
                 )
 
             if OAUTH_TOKEN_ENDPOINT_AUTH_METHOD:
-                client_kwargs["token_endpoint_auth_method"] = OAUTH_TOKEN_ENDPOINT_AUTH_METHOD
+                client_kwargs["token_endpoint_auth_method"] = (
+                    OAUTH_TOKEN_ENDPOINT_AUTH_METHOD
+                )
 
             client.register(
                 name="oidc",
@@ -1039,9 +1047,7 @@ LICENSE_KEY = os.environ.get("LICENSE_KEY", "")
 
 STORAGE_PROVIDER = os.environ.get("STORAGE_PROVIDER", "local")  # defaults to local, s3
 
-ENABLE_UPLOAD_DEDUPE = (
-    os.environ.get("ENABLE_UPLOAD_DEDUPE", "False").lower() == "true"
-)
+ENABLE_UPLOAD_DEDUPE = os.environ.get("ENABLE_UPLOAD_DEDUPE", "False").lower() == "true"
 UPLOAD_DEDUPE_MIN_SIZE = int(os.environ.get("UPLOAD_DEDUPE_MIN_SIZE", "1048576"))
 UPLOAD_DEDUPE_STRATEGY = os.environ.get("UPLOAD_DEDUPE_STRATEGY", "hardlink").lower()
 
@@ -1224,7 +1230,10 @@ ENABLE_CHAT_RESPONSE_BASE64_IMAGE_URL_CONVERSION = PersistentConfig(
 CHAT_STREAM_RESPONSE_CHUNK_MAX_BUFFER_SIZE = PersistentConfig(
     "CHAT_STREAM_RESPONSE_CHUNK_MAX_BUFFER_SIZE",
     "openai.chat_response.chunk_max_buffer_size",
-    max(int(os.environ.get("CHAT_STREAM_RESPONSE_CHUNK_MAX_BUFFER_SIZE", "16777216")), 65536),
+    max(
+        int(os.environ.get("CHAT_STREAM_RESPONSE_CHUNK_MAX_BUFFER_SIZE", "16777216")),
+        65536,
+    ),
 )
 
 # Get the actual OpenAI API key based on the base URL
@@ -1300,20 +1309,13 @@ ENABLE_GROK_API = PersistentConfig(
     os.environ.get("ENABLE_GROK_API", "False").lower() == "true",
 )
 
-if (
-    GROK_CONNECTION_API_BASE_URL != ""
-    and GROK_CONNECTION_API_BASE_URL.endswith("/")
-):
+if GROK_CONNECTION_API_BASE_URL != "" and GROK_CONNECTION_API_BASE_URL.endswith("/"):
     GROK_CONNECTION_API_BASE_URL = GROK_CONNECTION_API_BASE_URL[:-1]
 
-_effective_grok_base_url = (
-    GROK_CONNECTION_API_BASE_URL or DEFAULT_GROK_API_BASE_URL
-)
+_effective_grok_base_url = GROK_CONNECTION_API_BASE_URL or DEFAULT_GROK_API_BASE_URL
 
 GROK_API_KEYS = os.environ.get("GROK_API_KEYS", "")
-GROK_API_KEYS = (
-    GROK_API_KEYS if GROK_API_KEYS != "" else GROK_CONNECTION_API_KEY
-)
+GROK_API_KEYS = GROK_API_KEYS if GROK_API_KEYS != "" else GROK_CONNECTION_API_KEY
 
 GROK_API_KEYS = [key.strip() for key in GROK_API_KEYS.split(";")]
 GROK_API_KEYS = PersistentConfig(
@@ -1363,7 +1365,9 @@ if ANTHROPIC_API_BASE_URL == "":
     ANTHROPIC_API_BASE_URL = DEFAULT_ANTHROPIC_API_BASE_URL
 
 ANTHROPIC_API_KEYS = os.environ.get("ANTHROPIC_API_KEYS", "")
-ANTHROPIC_API_KEYS = ANTHROPIC_API_KEYS if ANTHROPIC_API_KEYS != "" else ANTHROPIC_API_KEY
+ANTHROPIC_API_KEYS = (
+    ANTHROPIC_API_KEYS if ANTHROPIC_API_KEYS != "" else ANTHROPIC_API_KEY
+)
 
 ANTHROPIC_API_KEYS = [key.strip() for key in ANTHROPIC_API_KEYS.split(";")]
 ANTHROPIC_API_KEYS = PersistentConfig(
@@ -1374,9 +1378,7 @@ ANTHROPIC_API_KEYS = PersistentConfig(
 
 ANTHROPIC_API_BASE_URLS = os.environ.get("ANTHROPIC_API_BASE_URLS", "")
 ANTHROPIC_API_BASE_URLS = (
-    ANTHROPIC_API_BASE_URLS
-    if ANTHROPIC_API_BASE_URLS != ""
-    else ANTHROPIC_API_BASE_URL
+    ANTHROPIC_API_BASE_URLS if ANTHROPIC_API_BASE_URLS != "" else ANTHROPIC_API_BASE_URL
 )
 
 ANTHROPIC_API_BASE_URLS = [
@@ -2527,7 +2529,8 @@ DATALAB_MARKER_STRIP_EXISTING_OCR = PersistentConfig(
 DATALAB_MARKER_DISABLE_IMAGE_EXTRACTION = PersistentConfig(
     "DATALAB_MARKER_DISABLE_IMAGE_EXTRACTION",
     "rag.datalab_marker_disable_image_extraction",
-    os.environ.get("DATALAB_MARKER_DISABLE_IMAGE_EXTRACTION", "false").lower() == "true",
+    os.environ.get("DATALAB_MARKER_DISABLE_IMAGE_EXTRACTION", "false").lower()
+    == "true",
 )
 
 DATALAB_MARKER_FORMAT_LINES = PersistentConfig(
@@ -2687,7 +2690,8 @@ ENABLE_RAG_HYBRID_SEARCH = PersistentConfig(
 ENABLE_RAG_HYBRID_SEARCH_ENRICHED_TEXTS = PersistentConfig(
     "ENABLE_RAG_HYBRID_SEARCH_ENRICHED_TEXTS",
     "rag.enable_hybrid_search_enriched_texts",
-    os.environ.get("ENABLE_RAG_HYBRID_SEARCH_ENRICHED_TEXTS", "False").lower() == "true",
+    os.environ.get("ENABLE_RAG_HYBRID_SEARCH_ENRICHED_TEXTS", "False").lower()
+    == "true",
 )
 
 RAG_HYBRID_SEARCH_BM25_WEIGHT = PersistentConfig(
@@ -2745,7 +2749,11 @@ FILE_IMAGE_COMPRESSION_HEIGHT = PersistentConfig(
 RAG_ALLOWED_FILE_EXTENSIONS = PersistentConfig(
     "RAG_ALLOWED_FILE_EXTENSIONS",
     "rag.file.allowed_extensions",
-    [ext.strip() for ext in os.environ.get("RAG_ALLOWED_FILE_EXTENSIONS", "").split(",") if ext.strip()],
+    [
+        ext.strip()
+        for ext in os.environ.get("RAG_ALLOWED_FILE_EXTENSIONS", "").split(",")
+        if ext.strip()
+    ],
 )
 
 RAG_EMBEDDING_ENGINE = PersistentConfig(
@@ -3019,10 +3027,12 @@ ENABLE_NATIVE_WEB_SEARCH = PersistentConfig(
 DEFAULT_WEB_SEARCH_MODE = PersistentConfig(
     "DEFAULT_WEB_SEARCH_MODE",
     "rag.web.search.default_mode",
-    os.getenv("DEFAULT_WEB_SEARCH_MODE", "off").lower()
-    if os.getenv("DEFAULT_WEB_SEARCH_MODE", "off").lower()
-    in {"off", "halo", "native", "auto"}
-    else "off",
+    (
+        os.getenv("DEFAULT_WEB_SEARCH_MODE", "off").lower()
+        if os.getenv("DEFAULT_WEB_SEARCH_MODE", "off").lower()
+        in {"off", "halo", "native", "auto"}
+        else "off"
+    ),
 )
 
 WEB_SEARCH_ENGINE = PersistentConfig(

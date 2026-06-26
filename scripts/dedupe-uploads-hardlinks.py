@@ -20,7 +20,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_CONTAINER_DATA_DIR = "/app/backend/data"
 HASH_CHUNK_SIZE = 4 * 1024 * 1024
 
@@ -59,7 +58,9 @@ def parse_size(value: str) -> int:
         "gb": 1024**3,
     }
 
-    for suffix, multiplier in sorted(multipliers.items(), key=lambda item: -len(item[0])):
+    for suffix, multiplier in sorted(
+        multipliers.items(), key=lambda item: -len(item[0])
+    ):
         if raw.endswith(suffix):
             number = raw[: -len(suffix)]
             try:
@@ -152,15 +153,11 @@ def fetch_file_rows(db_path: Path) -> list[sqlite3.Row]:
     connection = sqlite3.connect(uri, uri=True)
     connection.row_factory = sqlite3.Row
     try:
-        return list(
-            connection.execute(
-                """
+        return list(connection.execute("""
                 SELECT id, filename, path, meta, created_at
                 FROM file
                 WHERE path IS NOT NULL AND path <> ''
-                """
-            )
-        )
+                """))
     finally:
         connection.close()
 
@@ -267,7 +264,9 @@ def build_duplicate_groups(entries: list[dict[str, Any]]) -> list[list[FileEntry
     groups: dict[tuple[int, str], list[FileEntry]] = {}
     for entry in entries:
         file_entry = FileEntry(**entry)
-        groups.setdefault((file_entry.stat_size, file_entry.sha256), []).append(file_entry)
+        groups.setdefault((file_entry.stat_size, file_entry.sha256), []).append(
+            file_entry
+        )
 
     duplicates: list[list[FileEntry]] = []
     for group in groups.values():
@@ -289,7 +288,9 @@ def build_already_linked_groups(entries: list[dict[str, Any]]) -> list[list[File
     groups: dict[tuple[int, str], list[FileEntry]] = {}
     for entry in entries:
         file_entry = FileEntry(**entry)
-        groups.setdefault((file_entry.stat_size, file_entry.sha256), []).append(file_entry)
+        groups.setdefault((file_entry.stat_size, file_entry.sha256), []).append(
+            file_entry
+        )
 
     already_linked: list[list[FileEntry]] = []
     for group in groups.values():
@@ -298,19 +299,25 @@ def build_already_linked_groups(entries: list[dict[str, Any]]) -> list[list[File
         if len(unique_paths) > 1 and len(unique_inodes) == 1:
             already_linked.append(group)
 
-    already_linked.sort(key=lambda group: (-group[0].stat_size * (len(group) - 1), group[0].sha256))
+    already_linked.sort(
+        key=lambda group: (-group[0].stat_size * (len(group) - 1), group[0].sha256)
+    )
     return already_linked
 
 
 def choose_canonical(group: list[FileEntry]) -> FileEntry:
-    return min(group, key=lambda item: (item.created_at or sys.maxsize, str(item.host_path)))
+    return min(
+        group, key=lambda item: (item.created_at or sys.maxsize, str(item.host_path))
+    )
 
 
 def build_actions(groups: list[list[FileEntry]]) -> list[DedupeAction]:
     actions: list[DedupeAction] = []
     for group in groups:
         canonical = choose_canonical(group)
-        for entry in sorted(group, key=lambda item: (item.created_at, str(item.host_path))):
+        for entry in sorted(
+            group, key=lambda item: (item.created_at, str(item.host_path))
+        ):
             if entry.host_path == canonical.host_path:
                 continue
             if entry.inode_key == canonical.inode_key:
@@ -324,9 +331,7 @@ def estimate_saved_bytes(groups: list[list[FileEntry]]) -> int:
     for group in groups:
         canonical = choose_canonical(group)
         noncanonical_inodes = {
-            entry.inode_key
-            for entry in group
-            if entry.inode_key != canonical.inode_key
+            entry.inode_key for entry in group if entry.inode_key != canonical.inode_key
         }
         saved += canonical.stat_size * len(noncanonical_inodes)
     return saved
@@ -369,7 +374,9 @@ def replace_with_hardlink(action: DedupeAction) -> None:
 
 def write_report(report_path: Path, report: dict[str, Any]) -> None:
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    report_path.write_text(
+        json.dumps(report, indent=2, sort_keys=True), encoding="utf-8"
+    )
 
 
 def group_to_report(group: list[FileEntry]) -> dict[str, Any]:
@@ -378,7 +385,13 @@ def group_to_report(group: list[FileEntry]) -> dict[str, Any]:
         "sha256": canonical.sha256,
         "size": canonical.stat_size,
         "estimated_saved_bytes": canonical.stat_size
-        * len({entry.inode_key for entry in group if entry.inode_key != canonical.inode_key}),
+        * len(
+            {
+                entry.inode_key
+                for entry in group
+                if entry.inode_key != canonical.inode_key
+            }
+        ),
         "canonical": {
             "id": canonical.id,
             "filename": canonical.filename,
@@ -393,7 +406,9 @@ def group_to_report(group: list[FileEntry]) -> dict[str, Any]:
                 "created_at": entry.created_at,
                 "same_inode_as_canonical": entry.inode_key == canonical.inode_key,
             }
-            for entry in sorted(group, key=lambda item: (item.created_at, str(item.host_path)))
+            for entry in sorted(
+                group, key=lambda item: (item.created_at, str(item.host_path))
+            )
             if entry.host_path != canonical.host_path
         ],
     }
@@ -443,7 +458,9 @@ def print_summary(
         )
         print(f"  canonical: {canonical['id']} {canonical['path']}")
         for duplicate in report["duplicates"][:8]:
-            marker = "already-linked" if duplicate["same_inode_as_canonical"] else "replace"
+            marker = (
+                "already-linked" if duplicate["same_inode_as_canonical"] else "replace"
+            )
             print(f"  {marker}: {duplicate['id']} {duplicate['path']}")
         if len(report["duplicates"]) > 8:
             print(f"  ... {len(report['duplicates']) - 8} more")

@@ -33,7 +33,9 @@ def build_user_message_content(
     image_prompt: Optional[str] = None,
 ) -> str | list[dict]:
     normalized_text = (text or "").strip()
-    normalized_images = [url for url in image_urls if isinstance(url, str) and url.strip()]
+    normalized_images = [
+        url for url in image_urls if isinstance(url, str) and url.strip()
+    ]
 
     if not normalized_images:
         return normalized_text
@@ -89,7 +91,11 @@ def sanitize_content_for_log(content: Any) -> Any:
         image_url = part.get("image_url", {})
         url = image_url.get("url") if isinstance(image_url, dict) else image_url
 
-        if isinstance(url, str) and url.startswith("data:") and len(url) > MAX_LOGGED_DATA_URL_CHARS:
+        if (
+            isinstance(url, str)
+            and url.startswith("data:")
+            and len(url) > MAX_LOGGED_DATA_URL_CHARS
+        ):
             sanitized.append(
                 {
                     "type": "text",
@@ -130,7 +136,9 @@ def parse_data_url(data_url: str) -> Optional[tuple[bytes, str]]:
         return None
 
 
-async def load_image_bytes(image_url: str, headers: Optional[dict] = None) -> Optional[tuple[bytes, str]]:
+async def load_image_bytes(
+    image_url: str, headers: Optional[dict] = None
+) -> Optional[tuple[bytes, str]]:
     parsed = parse_data_url(image_url)
     if parsed:
         return parsed
@@ -149,12 +157,16 @@ async def load_image_bytes(image_url: str, headers: Optional[dict] = None) -> Op
         or "image/png"
     )
 
-    if not content_type.startswith("image/") and content_type != "application/octet-stream":
-        log.warning(f"HaloClaw media load rejected non-image content-type: {content_type}")
+    if (
+        not content_type.startswith("image/")
+        and content_type != "application/octet-stream"
+    ):
+        log.warning(
+            f"HaloClaw media load rejected non-image content-type: {content_type}"
+        )
         return None
 
     if content_type == "application/octet-stream":
         content_type = mimetypes.guess_type(image_url)[0] or "image/png"
 
     return response.content, content_type
-

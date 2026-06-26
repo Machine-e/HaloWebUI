@@ -67,9 +67,7 @@ def _normalize_channel_message_form_sync(
     return MessageForm(**payload)
 
 
-async def _normalize_channel_message_form(
-    form_data: MessageForm, user
-) -> MessageForm:
+async def _normalize_channel_message_form(form_data: MessageForm, user) -> MessageForm:
     return await run_in_threadpool(
         lambda: _normalize_channel_message_form_sync(
             form_data,
@@ -84,9 +82,7 @@ def _build_channel_file_access_control(channel, owner_id: str) -> dict:
     read_acl = (
         {"group_ids": [], "user_ids": ["*"]}
         if normalized_channel_acl is None
-        else normalized_channel_acl.get(
-            "read", {"group_ids": [], "user_ids": []}
-        )
+        else normalized_channel_acl.get("read", {"group_ids": [], "user_ids": []})
     )
 
     return {
@@ -95,7 +91,9 @@ def _build_channel_file_access_control(channel, owner_id: str) -> dict:
     }
 
 
-def _share_channel_files_for_message_sync(form_data: MessageForm, channel, user) -> None:
+def _share_channel_files_for_message_sync(
+    form_data: MessageForm, channel, user
+) -> None:
     data = form_data.data if isinstance(form_data.data, dict) else {}
     files = data.get("files")
     if not isinstance(files, list) or not files:
@@ -106,7 +104,9 @@ def _share_channel_files_for_message_sync(form_data: MessageForm, channel, user)
         if not isinstance(file_item, dict):
             continue
 
-        file_id = file_item.get("id") or extract_chat_image_file_id(file_item.get("url"))
+        file_id = file_item.get("id") or extract_chat_image_file_id(
+            file_item.get("url")
+        )
         if not file_id:
             continue
 
@@ -120,10 +120,13 @@ def _share_channel_files_for_message_sync(form_data: MessageForm, channel, user)
         Files.update_file_access_control_by_id(file_id, access_control)
 
 
-async def _share_channel_files_for_message(form_data: MessageForm, channel, user) -> None:
+async def _share_channel_files_for_message(
+    form_data: MessageForm, channel, user
+) -> None:
     await run_in_threadpool(
         lambda: _share_channel_files_for_message_sync(form_data, channel, user)
     )
+
 
 ############################
 # GetChatList
@@ -329,7 +332,7 @@ async def post_new_message(
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.DEFAULT()
-    )
+        )
 
     try:
         form_data = await _normalize_channel_message_form(form_data, user)
@@ -558,7 +561,7 @@ async def update_message_by_id(
     if message.channel_id != id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=ERROR_MESSAGES.DEFAULT()
-    )
+        )
 
     try:
         form_data = await _normalize_channel_message_form(form_data, user)

@@ -48,7 +48,9 @@ class WeChatWorkAdapter(BaseAdapter):
         self._http = httpx.AsyncClient(timeout=30.0)
 
         if not await self._refresh_access_token():
-            log.error(f"HaloClaw WeChatWork [{self.gateway_id}]: failed to get access_token")
+            log.error(
+                f"HaloClaw WeChatWork [{self.gateway_id}]: failed to get access_token"
+            )
             await self._http.aclose()
             self._http = None
             return
@@ -79,7 +81,9 @@ class WeChatWorkAdapter(BaseAdapter):
         corp_id = self.config.get("corp_id", "")
         secret = self.config.get("secret", "")
         if not corp_id or not secret:
-            log.error(f"HaloClaw WeChatWork [{self.gateway_id}]: missing corp_id or secret")
+            log.error(
+                f"HaloClaw WeChatWork [{self.gateway_id}]: missing corp_id or secret"
+            )
             return False
 
         try:
@@ -89,7 +93,9 @@ class WeChatWorkAdapter(BaseAdapter):
             )
             data = resp.json()
             if data.get("errcode", 0) != 0:
-                log.error(f"HaloClaw WeChatWork [{self.gateway_id}]: token error: {data}")
+                log.error(
+                    f"HaloClaw WeChatWork [{self.gateway_id}]: token error: {data}"
+                )
                 return False
 
             self._access_token = data["access_token"]
@@ -97,7 +103,9 @@ class WeChatWorkAdapter(BaseAdapter):
             self._token_expires_at = time.time() + data.get("expires_in", 7200) - 300
             return True
         except Exception as e:
-            log.error(f"HaloClaw WeChatWork [{self.gateway_id}]: token refresh failed: {e}")
+            log.error(
+                f"HaloClaw WeChatWork [{self.gateway_id}]: token refresh failed: {e}"
+            )
             return False
 
     async def _token_refresh_loop(self) -> None:
@@ -110,7 +118,11 @@ class WeChatWorkAdapter(BaseAdapter):
             pass
 
     async def _ensure_token(self, force_refresh: bool = False) -> Optional[str]:
-        if force_refresh or not self._access_token or time.time() >= self._token_expires_at:
+        if (
+            force_refresh
+            or not self._access_token
+            or time.time() >= self._token_expires_at
+        ):
             await self._refresh_access_token()
         return self._access_token
 
@@ -175,9 +187,7 @@ class WeChatWorkAdapter(BaseAdapter):
 
         return last_msg_id
 
-    async def edit_message(
-        self, chat_id: str, message_id: str, text: str
-    ) -> None:
+    async def edit_message(self, chat_id: str, message_id: str, text: str) -> None:
         # WeChat Work does not support editing sent messages
         pass
 
@@ -192,7 +202,9 @@ class WeChatWorkAdapter(BaseAdapter):
 
         loaded = await load_image_bytes(image_url)
         if not loaded:
-            log.error("HaloClaw WeChatWork send_photo failed: unable to load image bytes")
+            log.error(
+                "HaloClaw WeChatWork send_photo failed: unable to load image bytes"
+            )
             return None
 
         image_bytes, content_type = loaded
@@ -272,7 +284,9 @@ class WeChatWorkAdapter(BaseAdapter):
             media_id = (root.findtext("MediaId") or "").strip()
             pic_url = (root.findtext("PicUrl") or "").strip()
 
-            image_url = await self._download_media_as_data_url(media_id) if media_id else None
+            image_url = (
+                await self._download_media_as_data_url(media_id) if media_id else None
+            )
             if not image_url and pic_url:
                 loaded = await load_image_bytes(pic_url)
                 if loaded:
@@ -320,7 +334,9 @@ class WeChatWorkAdapter(BaseAdapter):
         if not token or not self._http:
             return None
 
-        filename = f"haloclaw-upload{mimetypes.guess_extension(content_type or '') or '.png'}"
+        filename = (
+            f"haloclaw-upload{mimetypes.guess_extension(content_type or '') or '.png'}"
+        )
         files = {
             "media": (filename, image_bytes, content_type or "image/png"),
         }
@@ -364,7 +380,9 @@ class WeChatWorkAdapter(BaseAdapter):
                 log.error(f"HaloClaw WeChatWork download_media failed: {e}")
                 return None
 
-            content_type = (resp.headers.get("content-type") or "").split(";")[0].strip()
+            content_type = (
+                (resp.headers.get("content-type") or "").split(";")[0].strip()
+            )
             if content_type.startswith("application/json"):
                 data = resp.json()
                 errcode = data.get("errcode", 0)

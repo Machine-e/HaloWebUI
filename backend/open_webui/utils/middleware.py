@@ -198,7 +198,6 @@ from open_webui.env import (
 )
 from open_webui.constants import TASKS
 
-
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MAIN"])
@@ -390,7 +389,11 @@ def _get_file_item_meta(file_item: Any, nested_file: Optional[dict] = None) -> d
         return {}
     if isinstance(file_item.get("meta"), dict):
         return file_item.get("meta") or {}
-    nested_file = nested_file if isinstance(nested_file, dict) else _get_file_item_nested_file(file_item)
+    nested_file = (
+        nested_file
+        if isinstance(nested_file, dict)
+        else _get_file_item_nested_file(file_item)
+    )
     if isinstance(nested_file.get("meta"), dict):
         return nested_file.get("meta") or {}
     return {}
@@ -500,7 +503,9 @@ def _get_file_item_inline_text(file_item: Any, max_chars: int) -> str:
             text = _coerce_resource_text(data.get("content"), max_chars)
             if text:
                 return text
-        text = _coerce_resource_text(container.get("content") if isinstance(container, dict) else None, max_chars)
+        text = _coerce_resource_text(
+            container.get("content") if isinstance(container, dict) else None, max_chars
+        )
         if text:
             return text
 
@@ -534,12 +539,16 @@ def _is_archive_resource(name: str, media_type: str) -> bool:
     }
 
 
-def _get_current_chat_resource_access(file_item: Any, name: str, media_type: str) -> str:
+def _get_current_chat_resource_access(
+    file_item: Any, name: str, media_type: str
+) -> str:
     if not isinstance(file_item, dict):
         return "unsupported_binary"
 
     file_type = str(file_item.get("type") or "").strip().lower()
-    if file_type in {"image", "image_url", "input_image"} or media_type.startswith("image/"):
+    if file_type in {"image", "image_url", "input_image"} or media_type.startswith(
+        "image/"
+    ):
         return "visual_input"
 
     if _get_file_item_collection_name(file_item):
@@ -639,12 +648,17 @@ def _build_current_chat_resources_context(files: Any, prompt: Any) -> str:
 
         resources.append(resource)
 
-        if include_previews and preview_chars < _CURRENT_CHAT_RESOURCE_PREVIEW_TOTAL_MAX_CHARS:
+        if (
+            include_previews
+            and preview_chars < _CURRENT_CHAT_RESOURCE_PREVIEW_TOTAL_MAX_CHARS
+        ):
             preview = _build_lightweight_resource_preview(
                 file_item, _CURRENT_CHAT_RESOURCE_PREVIEW_MAX_CHARS
             )
             if preview:
-                remaining = _CURRENT_CHAT_RESOURCE_PREVIEW_TOTAL_MAX_CHARS - preview_chars
+                remaining = (
+                    _CURRENT_CHAT_RESOURCE_PREVIEW_TOTAL_MAX_CHARS - preview_chars
+                )
                 if len(preview) > remaining:
                     preview = preview[:remaining].rstrip() + "\n...[truncated]"
                 preview_chars += len(preview)
@@ -1183,8 +1197,7 @@ def _get_tool_call_result(
 
     if (
         not normalized_tool_call_id
-        and
-        isinstance(fallback_index, int)
+        and isinstance(fallback_index, int)
         and 0 <= fallback_index < len(results)
         and isinstance(results[fallback_index], dict)
     ):
@@ -1268,9 +1281,9 @@ def _has_non_reasoning_text_content(content_blocks: Any) -> bool:
 
 
 def _has_visible_answer_output(content_blocks: Any, message_files: Any) -> bool:
-    return _has_non_reasoning_text_content(content_blocks) or _has_visible_message_files(
-        message_files
-    )
+    return _has_non_reasoning_text_content(
+        content_blocks
+    ) or _has_visible_message_files(message_files)
 
 
 def _has_reasoning_output(content_blocks: Any) -> bool:
@@ -1288,10 +1301,9 @@ def _has_reasoning_output(content_blocks: Any) -> bool:
 
 
 def _has_retry_blocking_output(content_blocks: Any, message_files: Any) -> bool:
-    if (
-        _has_visible_answer_output(content_blocks, message_files)
-        or _has_reasoning_output(content_blocks)
-    ):
+    if _has_visible_answer_output(
+        content_blocks, message_files
+    ) or _has_reasoning_output(content_blocks):
         return True
 
     if not isinstance(content_blocks, list):
@@ -1464,7 +1476,11 @@ _API_ERROR_FAMILY_CONFIG: dict[str, dict[str, Any]] = {
         "suggestion": "wait_retry",
     },
     "cloudflare_timeout": {
-        "reasons": ["api_cloudflare_origin_timeout", "api_request_timeout", "proxy_error"],
+        "reasons": [
+            "api_cloudflare_origin_timeout",
+            "api_request_timeout",
+            "proxy_error",
+        ],
         "suggestion": "wait_retry",
     },
     "upstream_response_lost": {
@@ -4069,13 +4085,10 @@ async def chat_web_search_handler(
     def build_search_error_status(exc: Exception) -> dict:
         def is_duckduckgo_rate_limit_message(message: str) -> bool:
             normalized = message.lower()
-            return (
-                ("ratelimit" in normalized or "rate limit" in normalized)
-                and (
-                    "duckduckgo" in normalized
-                    or "lite.duckduckgo.com" in normalized
-                    or "duckduckgo_search" in normalized
-                )
+            return ("ratelimit" in normalized or "rate limit" in normalized) and (
+                "duckduckgo" in normalized
+                or "lite.duckduckgo.com" in normalized
+                or "duckduckgo_search" in normalized
             )
 
         detail = getattr(exc, "detail", None)
@@ -6865,7 +6878,9 @@ async def process_chat_response(
                     delay = backoffs[min(next_attempt - 2, len(backoffs) - 1)]
                     if delay > 0:
                         await asyncio.sleep(delay)
-                    return await generate_chat_completion(request, retry_form_data, user)
+                    return await generate_chat_completion(
+                        request, retry_form_data, user
+                    )
 
                 async def stream_body_handler(response):
                     nonlocal content

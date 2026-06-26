@@ -23,11 +23,9 @@ from typing import Any
 
 import requests
 
-
 DEFAULT_USER_ID = "ebb588ac-0a3f-4d99-af12-1d50e859c64f"
 DEFAULT_IMAGE_PATH = (
-    "backend/data/uploads/"
-    "c914dd23-a976-4ac2-aa91-a5ff6bc1d96b_generated-image.png"
+    "backend/data/uploads/" "c914dd23-a976-4ac2-aa91-a5ff6bc1d96b_generated-image.png"
 )
 DEFAULT_MODEL = "gpt-image-2"
 DEFAULT_PROMPT = "图中背景不变，只把猫变成黑白奶牛猫"
@@ -72,17 +70,13 @@ def _load_user_connection(
         raise RuntimeError(f"User not found: {user_id}")
 
     connections = get_user_connections(user)
-    openai_config = (
-        connections.get("openai") if isinstance(connections, dict) else None
-    )
+    openai_config = connections.get("openai") if isinstance(connections, dict) else None
     openai_config = openai_config if isinstance(openai_config, dict) else {}
 
     base_urls = list(openai_config.get("OPENAI_API_BASE_URLS") or [])
     keys = list(openai_config.get("OPENAI_API_KEYS") or [])
     if not base_urls or not keys:
-        raise RuntimeError(
-            f"User {user_id} has no usable ui.connections.openai config"
-        )
+        raise RuntimeError(f"User {user_id} has no usable ui.connections.openai config")
 
     if connection_index is None:
         connection_index = 0
@@ -112,9 +106,7 @@ def _resolve_credentials(args: argparse.Namespace) -> tuple[str, str, str]:
         return _normalize_base_url(args.base_url), args.api_key.strip(), "argument"
 
     if args.user_id:
-        base_url, api_key = _load_user_connection(
-            args.user_id, args.connection_index
-        )
+        base_url, api_key = _load_user_connection(args.user_id, args.connection_index)
         return (
             base_url,
             api_key,
@@ -271,7 +263,9 @@ def run_httpx(
 
     started = time.monotonic()
     try:
-        with httpx.Client(timeout=None, follow_redirects=True, trust_env=True) as client:
+        with httpx.Client(
+            timeout=None, follow_redirects=True, trust_env=True
+        ) as client:
             response = client.send(request)
     except Exception as error:
         elapsed = round(time.monotonic() - started, 3)

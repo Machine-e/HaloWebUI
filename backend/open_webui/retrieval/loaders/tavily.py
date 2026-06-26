@@ -33,8 +33,8 @@ def _extract_tavily_error_text(response: requests.Response) -> str:
     try:
         payload = response.json()
         if isinstance(payload, dict):
-            candidate = payload.get("detail") or payload.get("message") or payload.get(
-                "error"
+            candidate = (
+                payload.get("detail") or payload.get("message") or payload.get("error")
             )
             if isinstance(candidate, dict):
                 candidate = (

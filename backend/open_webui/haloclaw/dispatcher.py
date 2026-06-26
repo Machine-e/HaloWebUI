@@ -218,7 +218,9 @@ async def handle_message(
                         "你可以再补一句需求，例如：识别内容、提取文字、分析截图。"
                     )
                 )
-            return DispatcherResult(error="模型暂时没有返回可显示的结果，请稍后再试一次。")
+            return DispatcherResult(
+                error="模型暂时没有返回可显示的结果，请稍后再试一次。"
+            )
 
         # --- Log outbound message ---
         if not result.error and (result.text or result.images):
@@ -241,6 +243,7 @@ async def handle_message(
     except Exception as e:
         log.exception(f"HaloClaw dispatcher error: {e}")
         from open_webui.haloclaw.tool_executor import _extract_error_detail
+
         return DispatcherResult(error=_extract_error_detail(e))
 
 
@@ -294,7 +297,9 @@ def _resolve_halo_user(ext_user: ExternalUserModel) -> UserModel:
     now = int(time.time())
     return UserModel(
         id=f"haloclaw-{ext_user.id}",
-        name=ext_user.platform_display_name or ext_user.platform_username or "HaloClaw User",
+        name=ext_user.platform_display_name
+        or ext_user.platform_username
+        or "HaloClaw User",
         email=f"haloclaw-{ext_user.platform_user_id}@gateway.local",
         role="admin",
         profile_image_url="/user.png",
@@ -310,9 +315,7 @@ async def _extract_response_text(response) -> Optional[str]:
     if isinstance(response, dict):
         try:
             content = (
-                response.get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "")
+                response.get("choices", [{}])[0].get("message", {}).get("content", "")
             )
             return _stringify_message_content(content)
         except (IndexError, KeyError):
@@ -335,9 +338,7 @@ async def _extract_response_text(response) -> Optional[str]:
                 try:
                     data = json.loads(line[6:])
                     delta = (
-                        data.get("choices", [{}])[0]
-                        .get("delta", {})
-                        .get("content", "")
+                        data.get("choices", [{}])[0].get("delta", {}).get("content", "")
                     )
                     if delta:
                         text_parts.append(delta)
@@ -348,11 +349,7 @@ async def _extract_response_text(response) -> Optional[str]:
     elif isinstance(response, JSONResponse):
         try:
             data = json.loads(response.body.decode("utf-8"))
-            content = (
-                data.get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "")
-            )
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             return _stringify_message_content(content)
         except (json.JSONDecodeError, IndexError, KeyError):
             return None

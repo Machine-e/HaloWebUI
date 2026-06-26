@@ -67,7 +67,9 @@ class TestLocalStorageProvider:
 
     def test_upload_file(self, monkeypatch, tmp_path):
         upload_dir = mock_upload_dir(monkeypatch, tmp_path)
-        file_size, file_path = self.Storage.upload_file(self.file_bytesio, self.filename)
+        file_size, file_path = self.Storage.upload_file(
+            self.file_bytesio, self.filename
+        )
         assert (upload_dir / self.filename).exists()
         assert (upload_dir / self.filename).read_bytes() == self.file_content
         assert file_size == len(self.file_content)
@@ -447,7 +449,9 @@ class TestAzureStorageProvider:
         # Assertions
         self.Storage.container_client.get_blob_client.assert_called_with(self.filename)
         self.Storage.container_client.get_blob_client().upload_blob.assert_called_once()
-        args, kwargs = self.Storage.container_client.get_blob_client().upload_blob.call_args
+        args, kwargs = (
+            self.Storage.container_client.get_blob_client().upload_blob.call_args
+        )
         assert kwargs["overwrite"] is True
         assert hasattr(args[0], "read")
         assert file_size == len(self.file_content)

@@ -34,8 +34,7 @@ async def get_notes(request: Request, user=Depends(get_verified_user)):
         notes = [
             n
             for n in Notes.get_notes_preview()
-            if n.user_id == user.id
-            or has_access(user.id, "read", n.access_control)
+            if n.user_id == user.id or has_access(user.id, "read", n.access_control)
         ]
 
     return notes
@@ -70,9 +69,7 @@ async def create_note(
 async def get_note_by_id(note_id: str, user=Depends(get_verified_user)):
     note = Notes.get_note_by_id(note_id)
     if not note:
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND
-        )
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
 
     if note.user_id != user.id and user.role != "admin":
         if not has_access(user.id, "read", note.access_control):
@@ -97,9 +94,7 @@ async def update_note_by_id(
 ):
     note = Notes.get_note_by_id(note_id)
     if not note:
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND
-        )
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
 
     if note.user_id != user.id and user.role != "admin":
         if not has_access(user.id, "write", note.access_control):
@@ -150,9 +145,7 @@ async def update_note_by_id(
 async def delete_note_by_id(note_id: str, user=Depends(get_verified_user)):
     note = Notes.get_note_by_id(note_id)
     if not note:
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND
-        )
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
 
     if note.user_id != user.id and user.role != "admin":
         raise HTTPException(

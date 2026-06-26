@@ -390,10 +390,16 @@ class Loader:
                 skip_cache=self.kwargs.get("DATALAB_MARKER_SKIP_CACHE", False),
                 force_ocr=self.kwargs.get("DATALAB_MARKER_FORCE_OCR", False),
                 paginate=self.kwargs.get("DATALAB_MARKER_PAGINATE", False),
-                strip_existing_ocr=self.kwargs.get("DATALAB_MARKER_STRIP_EXISTING_OCR", False),
-                disable_image_extraction=self.kwargs.get("DATALAB_MARKER_DISABLE_IMAGE_EXTRACTION", False),
+                strip_existing_ocr=self.kwargs.get(
+                    "DATALAB_MARKER_STRIP_EXISTING_OCR", False
+                ),
+                disable_image_extraction=self.kwargs.get(
+                    "DATALAB_MARKER_DISABLE_IMAGE_EXTRACTION", False
+                ),
                 format_lines=self.kwargs.get("DATALAB_MARKER_FORMAT_LINES", False),
-                output_format=self.kwargs.get("DATALAB_MARKER_OUTPUT_FORMAT", "markdown"),
+                output_format=self.kwargs.get(
+                    "DATALAB_MARKER_OUTPUT_FORMAT", "markdown"
+                ),
             )
         elif self.engine == "docling" and self.kwargs.get("DOCLING_SERVER_URL"):
             if self._is_text_file(file_ext, file_content_type):

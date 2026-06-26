@@ -346,7 +346,9 @@ def normalize_chat_message_image_files(
             normalized_files.append(copy.deepcopy(file_item))
             continue
 
-        file_id = file_item.get("id") or extract_chat_image_file_id(file_item.get("url"))
+        file_id = file_item.get("id") or extract_chat_image_file_id(
+            file_item.get("url")
+        )
         if file_id:
             file_obj = _get_accessible_file_by_id(file_id, user_id, is_admin=is_admin)
             if file_obj:
@@ -411,7 +413,9 @@ def normalize_chat_payload_image_refs(
     if not any(
         isinstance(message, dict)
         and isinstance(message.get("files"), list)
-        and any(_image_file_needs_normalization(file_item) for file_item in message["files"])
+        and any(
+            _image_file_needs_normalization(file_item) for file_item in message["files"]
+        )
         for message in history_messages.values()
     ):
         return chat_payload, set()

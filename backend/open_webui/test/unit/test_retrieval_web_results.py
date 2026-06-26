@@ -1,13 +1,14 @@
 import pathlib
 import sys
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
 from open_webui.retrieval.web.main import SearchResult  # noqa: E402
-from open_webui.routers.retrieval import _build_direct_docs_from_web_results  # noqa: E402
+from open_webui.routers.retrieval import (
+    _build_direct_docs_from_web_results,
+)  # noqa: E402
 
 
 def test_build_direct_docs_from_web_results_preserves_content_without_urls():

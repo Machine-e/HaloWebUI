@@ -1,7 +1,6 @@
 import pathlib
 import sys
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -191,7 +190,9 @@ def test_batch_split_does_not_trigger_on_other_errors():
     assert len(call_count) == 1
 
 
-def test_cleanup_failed_uploaded_file_removes_collection_record_and_storage(monkeypatch):
+def test_cleanup_failed_uploaded_file_removes_collection_record_and_storage(
+    monkeypatch,
+):
     events: list[tuple[str, str]] = []
 
     monkeypatch.setattr(

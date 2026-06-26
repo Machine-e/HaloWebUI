@@ -66,7 +66,7 @@ def test_build_api_error_payload_marks_disconnected_response_as_possibly_billed(
 def test_build_api_error_payload_prioritizes_499_client_abort_over_invalid_request():
     payload = _build_api_error_payload(
         (
-            'Responses API upstream error (499) from api.asxs.top.\n'
+            "Responses API upstream error (499) from api.asxs.top.\n"
             'Upstream response: {"error":{"message":"client abort request",'
             '"type":"invalid_request_error"}}'
         ),
@@ -143,19 +143,25 @@ def test_stream_background_task_exception_finalizes_message(monkeypatch):
     async def fake_event_emitter(event):
         events.append(event)
 
-    def fake_create_task(coroutine, id=None, *, blocks_completion=True, message_id=None):
+    def fake_create_task(
+        coroutine, id=None, *, blocks_completion=True, message_id=None
+    ):
         created["coroutine"] = coroutine
         created["chat_id"] = id
         created["blocks_completion"] = blocks_completion
         created["message_id"] = message_id
         return "task-1", SimpleNamespace()
 
-    monkeypatch.setattr(middleware, "get_event_emitter", lambda _metadata: fake_event_emitter)
+    monkeypatch.setattr(
+        middleware, "get_event_emitter", lambda _metadata: fake_event_emitter
+    )
     monkeypatch.setattr(middleware, "get_event_call", lambda _metadata: object())
     monkeypatch.setattr(middleware, "get_sorted_filters", lambda _model: [])
     monkeypatch.setattr(middleware, "process_filter_functions", lambda **kwargs: None)
     monkeypatch.setattr(middleware, "create_task", fake_create_task)
-    monkeypatch.setattr(middleware, "set_current_task_blocks_completion", lambda _value: True)
+    monkeypatch.setattr(
+        middleware, "set_current_task_blocks_completion", lambda _value: True
+    )
     monkeypatch.setattr(
         middleware.Chats,
         "upsert_message_to_chat_by_id_and_message_id",
@@ -230,7 +236,9 @@ def test_stream_start_timeout_finalizes_message(monkeypatch):
     async def fake_event_emitter(event):
         events.append(event)
 
-    def fake_create_task(coroutine, id=None, *, blocks_completion=True, message_id=None):
+    def fake_create_task(
+        coroutine, id=None, *, blocks_completion=True, message_id=None
+    ):
         created["coroutine"] = coroutine
         created["chat_id"] = id
         created["blocks_completion"] = blocks_completion
@@ -240,12 +248,16 @@ def test_stream_start_timeout_finalizes_message(monkeypatch):
     monkeypatch.setattr(middleware, "CHAT_STREAM_START_TIMEOUT", 0.01)
     monkeypatch.setattr(middleware, "CHAT_STREAM_IDLE_TIMEOUT", 1)
     monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY", False)
-    monkeypatch.setattr(middleware, "get_event_emitter", lambda _metadata: fake_event_emitter)
+    monkeypatch.setattr(
+        middleware, "get_event_emitter", lambda _metadata: fake_event_emitter
+    )
     monkeypatch.setattr(middleware, "get_event_call", lambda _metadata: object())
     monkeypatch.setattr(middleware, "get_sorted_filters", lambda _model: [])
     monkeypatch.setattr(middleware, "process_filter_functions", lambda **kwargs: None)
     monkeypatch.setattr(middleware, "create_task", fake_create_task)
-    monkeypatch.setattr(middleware, "set_current_task_blocks_completion", lambda _value: True)
+    monkeypatch.setattr(
+        middleware, "set_current_task_blocks_completion", lambda _value: True
+    )
     monkeypatch.setattr(
         middleware.Chats,
         "upsert_message_to_chat_by_id_and_message_id",
@@ -326,7 +338,9 @@ def test_stream_start_timeout_auto_retries_before_visible_output(monkeypatch):
             _content_stream("retried"), media_type="text/event-stream"
         )
 
-    def fake_create_task(coroutine, id=None, *, blocks_completion=True, message_id=None):
+    def fake_create_task(
+        coroutine, id=None, *, blocks_completion=True, message_id=None
+    ):
         created["coroutine"] = coroutine
         created["chat_id"] = id
         created["blocks_completion"] = blocks_completion
@@ -338,16 +352,30 @@ def test_stream_start_timeout_auto_retries_before_visible_output(monkeypatch):
     monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY", True)
     monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY_MAX_ATTEMPTS", 2)
     monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY_BACKOFF_SECONDS", [0])
-    monkeypatch.setattr(middleware, "get_event_emitter", lambda _metadata: fake_event_emitter)
+    monkeypatch.setattr(
+        middleware, "get_event_emitter", lambda _metadata: fake_event_emitter
+    )
     monkeypatch.setattr(middleware, "get_event_call", lambda _metadata: object())
     monkeypatch.setattr(middleware, "get_sorted_filters", lambda _model: [])
-    monkeypatch.setattr(middleware, "process_filter_functions", fake_process_filter_functions)
-    monkeypatch.setattr(middleware, "generate_chat_completion", fake_generate_chat_completion)
+    monkeypatch.setattr(
+        middleware, "process_filter_functions", fake_process_filter_functions
+    )
+    monkeypatch.setattr(
+        middleware, "generate_chat_completion", fake_generate_chat_completion
+    )
     monkeypatch.setattr(middleware, "create_task", fake_create_task)
-    monkeypatch.setattr(middleware, "set_current_task_blocks_completion", lambda _value: True)
-    monkeypatch.setattr(middleware.Chats, "get_chat_title_by_id", lambda _chat_id: "Chat")
-    monkeypatch.setattr(middleware.Chats, "get_messages_by_chat_id", lambda _chat_id: {})
-    monkeypatch.setattr(middleware, "get_active_status_by_user_id", lambda _user_id: "active")
+    monkeypatch.setattr(
+        middleware, "set_current_task_blocks_completion", lambda _value: True
+    )
+    monkeypatch.setattr(
+        middleware.Chats, "get_chat_title_by_id", lambda _chat_id: "Chat"
+    )
+    monkeypatch.setattr(
+        middleware.Chats, "get_messages_by_chat_id", lambda _chat_id: {}
+    )
+    monkeypatch.setattr(
+        middleware, "get_active_status_by_user_id", lambda _user_id: "active"
+    )
     monkeypatch.setattr(
         middleware.Chats,
         "upsert_message_to_chat_by_id_and_message_id",
@@ -432,7 +460,9 @@ def test_reasoning_only_stream_does_not_retry_after_no_visible_output(monkeypatc
             _content_stream("visible"), media_type="text/event-stream"
         )
 
-    def fake_create_task(coroutine, id=None, *, blocks_completion=True, message_id=None):
+    def fake_create_task(
+        coroutine, id=None, *, blocks_completion=True, message_id=None
+    ):
         created["coroutine"] = coroutine
         return "task-1", SimpleNamespace()
 
@@ -443,16 +473,30 @@ def test_reasoning_only_stream_does_not_retry_after_no_visible_output(monkeypatc
     monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY", True)
     monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY_MAX_ATTEMPTS", 2)
     monkeypatch.setattr(middleware, "CHAT_COMPLETION_AUTO_RETRY_BACKOFF_SECONDS", [0])
-    monkeypatch.setattr(middleware, "get_event_emitter", lambda _metadata: fake_event_emitter)
+    monkeypatch.setattr(
+        middleware, "get_event_emitter", lambda _metadata: fake_event_emitter
+    )
     monkeypatch.setattr(middleware, "get_event_call", lambda _metadata: object())
     monkeypatch.setattr(middleware, "get_sorted_filters", lambda _model: [])
-    monkeypatch.setattr(middleware, "process_filter_functions", fake_process_filter_functions)
-    monkeypatch.setattr(middleware, "generate_chat_completion", fake_generate_chat_completion)
+    monkeypatch.setattr(
+        middleware, "process_filter_functions", fake_process_filter_functions
+    )
+    monkeypatch.setattr(
+        middleware, "generate_chat_completion", fake_generate_chat_completion
+    )
     monkeypatch.setattr(middleware, "create_task", fake_create_task)
-    monkeypatch.setattr(middleware, "set_current_task_blocks_completion", lambda _value: True)
-    monkeypatch.setattr(middleware.Chats, "get_chat_title_by_id", lambda _chat_id: "Chat")
-    monkeypatch.setattr(middleware.Chats, "get_messages_by_chat_id", lambda _chat_id: {})
-    monkeypatch.setattr(middleware, "get_active_status_by_user_id", lambda _user_id: "active")
+    monkeypatch.setattr(
+        middleware, "set_current_task_blocks_completion", lambda _value: True
+    )
+    monkeypatch.setattr(
+        middleware.Chats, "get_chat_title_by_id", lambda _chat_id: "Chat"
+    )
+    monkeypatch.setattr(
+        middleware.Chats, "get_messages_by_chat_id", lambda _chat_id: {}
+    )
+    monkeypatch.setattr(
+        middleware, "get_active_status_by_user_id", lambda _user_id: "active"
+    )
     monkeypatch.setattr(
         middleware.Chats,
         "upsert_message_to_chat_by_id_and_message_id",
@@ -478,7 +522,9 @@ def test_reasoning_only_stream_does_not_retry_after_no_visible_output(monkeypatc
         "chat_id": "chat-1",
         "message_id": "assistant-1",
     }
-    response = StreamingResponse(_reasoning_only_stream(), media_type="text/event-stream")
+    response = StreamingResponse(
+        _reasoning_only_stream(), media_type="text/event-stream"
+    )
 
     result = asyncio.run(
         middleware.process_chat_response(

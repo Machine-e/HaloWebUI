@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 
-
 FILE_PROCESSING_MODE_RETRIEVAL = "retrieval"
 FILE_PROCESSING_MODE_FULL_CONTEXT = "full_context"
 FILE_PROCESSING_MODE_NATIVE_FILE = "native_file"

@@ -45,9 +45,13 @@ def search_grok(
 
     try:
         if api_mode == "responses":
-            return _search_via_responses(api_key, query, count, filter_list, api_base_url, model)
+            return _search_via_responses(
+                api_key, query, count, filter_list, api_base_url, model
+            )
         else:
-            return _search_via_chat_completions(api_key, query, count, filter_list, api_base_url, model)
+            return _search_via_chat_completions(
+                api_key, query, count, filter_list, api_base_url, model
+            )
     except Exception as e:
         log.error(f"Error searching with Grok API ({api_mode}): {e}")
         return []
@@ -77,7 +81,9 @@ def _maybe_repair_mojibake(text: str) -> str:
     return text
 
 
-def _decode_response_bytes(payload: bytes, fallback_encoding: Optional[str] = None) -> str:
+def _decode_response_bytes(
+    payload: bytes, fallback_encoding: Optional[str] = None
+) -> str:
     if not isinstance(payload, (bytes, bytearray)):
         return str(payload or "")
 
@@ -133,7 +139,9 @@ def _search_via_chat_completions(
         "Content-Type": "application/json",
     }
 
-    response = requests.post(url, json=payload, headers=headers, timeout=60, stream=True)
+    response = requests.post(
+        url, json=payload, headers=headers, timeout=60, stream=True
+    )
     response.raise_for_status()
     response.encoding = response.encoding or "utf-8"
 
@@ -313,13 +321,17 @@ def _build_results(
             content = re.sub(r"<[^>]+>", "", raw_content).strip()
             # Remove internal tool-call lines like [WebSearch], browse_page{...}
             content = re.sub(r"\[WebSearch\][^\n]*", "", content)
-            content = re.sub(r"(web_search_with_snippets|browse_page)\s*\{[^}]*\}", "", content)
+            content = re.sub(
+                r"(web_search_with_snippets|browse_page)\s*\{[^}]*\}", "", content
+            )
             content = re.sub(r"\n{2,}", "\n", content).strip()
 
     if content:
         log.debug(f"Grok search content (first 200 chars): {content[:200]}")
     else:
-        log.warning(f"Grok search returned empty content after filtering (raw len={len(raw_content)})")
+        log.warning(
+            f"Grok search returned empty content after filtering (raw len={len(raw_content)})"
+        )
 
     results = []
     for i, citation in enumerate(citations[:count]):
@@ -330,7 +342,9 @@ def _build_results(
                     citation.get("title", f"Source {i + 1}")
                 ),
                 "snippet": _maybe_repair_mojibake(
-                    citation.get("snippet", citation.get("text", content if i == 0 else ""))
+                    citation.get(
+                        "snippet", citation.get("text", content if i == 0 else "")
+                    )
                 ),
             }
         else:
@@ -346,24 +360,30 @@ def _build_results(
     if not results and content and extract_urls_from_content:
         extracted_urls = _extract_urls_from_text(content)
         if extracted_urls:
-            log.info(f"Grok: no citations, extracted {len(extracted_urls)} URLs from content")
+            log.info(
+                f"Grok: no citations, extracted {len(extracted_urls)} URLs from content"
+            )
             # First result gets the full content as snippet, rest get empty snippet
             for i, url in enumerate(extracted_urls[:count]):
-                results.append({
-                    "link": url,
-                    "title": f"Source {i + 1}",
-                    "snippet": content[:500] if i == 0 else "",
-                })
+                results.append(
+                    {
+                        "link": url,
+                        "title": f"Source {i + 1}",
+                        "snippet": content[:500] if i == 0 else "",
+                    }
+                )
     if not results and content:
         # No structured citations/URLs were available. Preserve the raw search
         # text so the downstream model can read it directly instead of forcing
         # the content back through URL extraction and page fetching.
         log.info("Grok: no citations and no URLs in content, returning content only")
-        results.append({
-            "link": "",
-            "title": "Grok Search Result",
-            "snippet": content[:4000],
-        })
+        results.append(
+            {
+                "link": "",
+                "title": "Grok Search Result",
+                "snippet": content[:4000],
+            }
+        )
 
     if filter_list:
         results = get_filtered_results(results, filter_list)

@@ -97,7 +97,9 @@ class TestAuths(AbstractPostgresTest):
         assert data["token"] is not None and len(data["token"]) > 0
         assert data["token_type"] == "Bearer"
 
-    def test_signin_without_auth_bootstraps_admin_without_fixed_password(self, monkeypatch):
+    def test_signin_without_auth_bootstraps_admin_without_fixed_password(
+        self, monkeypatch
+    ):
         from open_webui.models.auths import Auth, get_db
         from open_webui.routers import auths as auths_router
 

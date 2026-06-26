@@ -51,7 +51,9 @@ class FeishuAdapter(BaseAdapter):
         self._http = httpx.AsyncClient(timeout=30.0)
 
         if not await self._refresh_tenant_token():
-            log.error(f"HaloClaw Feishu [{self.gateway_id}]: failed to get tenant_access_token")
+            log.error(
+                f"HaloClaw Feishu [{self.gateway_id}]: failed to get tenant_access_token"
+            )
             await self._http.aclose()
             self._http = None
             return
@@ -61,7 +63,9 @@ class FeishuAdapter(BaseAdapter):
 
         self._refresh_task = asyncio.create_task(self._token_refresh_loop())
         self._running = True
-        log.info(f"HaloClaw Feishu [{self.gateway_id}]: started (bot_open_id={self._bot_open_id})")
+        log.info(
+            f"HaloClaw Feishu [{self.gateway_id}]: started (bot_open_id={self._bot_open_id})"
+        )
 
     async def stop(self) -> None:
         self._running = False
@@ -87,7 +91,9 @@ class FeishuAdapter(BaseAdapter):
         app_id = self.config.get("app_id", "")
         app_secret = self.config.get("app_secret", "")
         if not app_id or not app_secret:
-            log.error(f"HaloClaw Feishu [{self.gateway_id}]: missing app_id or app_secret")
+            log.error(
+                f"HaloClaw Feishu [{self.gateway_id}]: missing app_id or app_secret"
+            )
             return False
 
         try:
@@ -122,7 +128,11 @@ class FeishuAdapter(BaseAdapter):
             pass
 
     async def _ensure_token(self, force_refresh: bool = False) -> Optional[str]:
-        if force_refresh or not self._tenant_token or time.time() >= self._token_expires_at:
+        if (
+            force_refresh
+            or not self._tenant_token
+            or time.time() >= self._token_expires_at
+        ):
             await self._refresh_tenant_token()
         return self._tenant_token
 
@@ -140,7 +150,9 @@ class FeishuAdapter(BaseAdapter):
             if data.get("code", -1) == 0:
                 self._bot_open_id = data.get("bot", {}).get("open_id")
         except Exception as e:
-            log.warning(f"HaloClaw Feishu [{self.gateway_id}]: failed to get bot info: {e}")
+            log.warning(
+                f"HaloClaw Feishu [{self.gateway_id}]: failed to get bot info: {e}"
+            )
 
     # ------------------------------------------------------------------
     # Send / Edit
@@ -204,9 +216,7 @@ class FeishuAdapter(BaseAdapter):
 
         return last_msg_id
 
-    async def edit_message(
-        self, chat_id: str, message_id: str, text: str
-    ) -> None:
+    async def edit_message(self, chat_id: str, message_id: str, text: str) -> None:
         token = await self._ensure_token()
         if not token or not self._http:
             return
@@ -332,7 +342,9 @@ class FeishuAdapter(BaseAdapter):
             if not message_id or not image_key:
                 return
 
-            image_url = await self._download_message_image_as_data_url(message_id, image_key)
+            image_url = await self._download_message_image_as_data_url(
+                message_id, image_key
+            )
             if not image_url:
                 chat_id = message.get("chat_id", "")
                 if chat_id:
@@ -410,7 +422,9 @@ class FeishuAdapter(BaseAdapter):
         if not token or not self._http:
             return None
 
-        filename = f"haloclaw-upload{mimetypes.guess_extension(content_type or '') or '.png'}"
+        filename = (
+            f"haloclaw-upload{mimetypes.guess_extension(content_type or '') or '.png'}"
+        )
         files = {
             "image_type": (None, "message"),
             "image": (filename, image_bytes, content_type or "image/png"),
@@ -460,7 +474,9 @@ class FeishuAdapter(BaseAdapter):
                 log.error(f"HaloClaw Feishu download_image failed: {e}")
                 return None
 
-            content_type = (resp.headers.get("content-type") or "").split(";")[0].strip()
+            content_type = (
+                (resp.headers.get("content-type") or "").split(";")[0].strip()
+            )
             if content_type.startswith("application/json"):
                 try:
                     data = resp.json()

@@ -1,7 +1,6 @@
 import copy
 from typing import Any
 
-
 DEFAULT_NEW_USER_DEFAULT_SETTINGS = {
     "configured": False,
     "enabled": False,

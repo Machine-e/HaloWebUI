@@ -165,9 +165,13 @@ def _find_user_by_external_id(external_id: str) -> Optional[UserModel]:
 
     with get_db() as db:
         # JSON field search for scim_external_id
-        users = db.query(User).filter(
-            User.info.isnot(None),
-        ).all()
+        users = (
+            db.query(User)
+            .filter(
+                User.info.isnot(None),
+            )
+            .all()
+        )
         for u in users:
             info = u.info if isinstance(u.info, dict) else {}
             if info.get("scim_external_id") == external_id:
@@ -247,18 +251,71 @@ async def get_schemas(_=Depends(verify_scim_token)):
                 "name": "User",
                 "description": "User Account",
                 "attributes": [
-                    {"name": "userName", "type": "string", "multiValued": False, "required": True, "uniqueness": "server"},
-                    {"name": "name", "type": "complex", "multiValued": False, "required": False, "subAttributes": [
-                        {"name": "formatted", "type": "string", "multiValued": False, "required": False},
-                    ]},
-                    {"name": "displayName", "type": "string", "multiValued": False, "required": False},
-                    {"name": "emails", "type": "complex", "multiValued": True, "required": False, "subAttributes": [
-                        {"name": "value", "type": "string", "multiValued": False, "required": False},
-                        {"name": "type", "type": "string", "multiValued": False, "required": False},
-                        {"name": "primary", "type": "boolean", "multiValued": False, "required": False},
-                    ]},
-                    {"name": "active", "type": "boolean", "multiValued": False, "required": False},
-                    {"name": "externalId", "type": "string", "multiValued": False, "required": False},
+                    {
+                        "name": "userName",
+                        "type": "string",
+                        "multiValued": False,
+                        "required": True,
+                        "uniqueness": "server",
+                    },
+                    {
+                        "name": "name",
+                        "type": "complex",
+                        "multiValued": False,
+                        "required": False,
+                        "subAttributes": [
+                            {
+                                "name": "formatted",
+                                "type": "string",
+                                "multiValued": False,
+                                "required": False,
+                            },
+                        ],
+                    },
+                    {
+                        "name": "displayName",
+                        "type": "string",
+                        "multiValued": False,
+                        "required": False,
+                    },
+                    {
+                        "name": "emails",
+                        "type": "complex",
+                        "multiValued": True,
+                        "required": False,
+                        "subAttributes": [
+                            {
+                                "name": "value",
+                                "type": "string",
+                                "multiValued": False,
+                                "required": False,
+                            },
+                            {
+                                "name": "type",
+                                "type": "string",
+                                "multiValued": False,
+                                "required": False,
+                            },
+                            {
+                                "name": "primary",
+                                "type": "boolean",
+                                "multiValued": False,
+                                "required": False,
+                            },
+                        ],
+                    },
+                    {
+                        "name": "active",
+                        "type": "boolean",
+                        "multiValued": False,
+                        "required": False,
+                    },
+                    {
+                        "name": "externalId",
+                        "type": "string",
+                        "multiValued": False,
+                        "required": False,
+                    },
                 ],
             },
             {
@@ -267,12 +324,38 @@ async def get_schemas(_=Depends(verify_scim_token)):
                 "name": "Group",
                 "description": "Group",
                 "attributes": [
-                    {"name": "displayName", "type": "string", "multiValued": False, "required": True},
-                    {"name": "members", "type": "complex", "multiValued": True, "required": False, "subAttributes": [
-                        {"name": "value", "type": "string", "multiValued": False, "required": False},
-                        {"name": "display", "type": "string", "multiValued": False, "required": False},
-                    ]},
-                    {"name": "externalId", "type": "string", "multiValued": False, "required": False},
+                    {
+                        "name": "displayName",
+                        "type": "string",
+                        "multiValued": False,
+                        "required": True,
+                    },
+                    {
+                        "name": "members",
+                        "type": "complex",
+                        "multiValued": True,
+                        "required": False,
+                        "subAttributes": [
+                            {
+                                "name": "value",
+                                "type": "string",
+                                "multiValued": False,
+                                "required": False,
+                            },
+                            {
+                                "name": "display",
+                                "type": "string",
+                                "multiValued": False,
+                                "required": False,
+                            },
+                        ],
+                    },
+                    {
+                        "name": "externalId",
+                        "type": "string",
+                        "multiValued": False,
+                        "required": False,
+                    },
                 ],
             },
         ],
@@ -417,9 +500,7 @@ async def create_user(request: Request, _=Depends(verify_scim_token)):
 
 
 @router.put("/Users/{user_id}")
-async def replace_user(
-    user_id: str, request: Request, _=Depends(verify_scim_token)
-):
+async def replace_user(user_id: str, request: Request, _=Depends(verify_scim_token)):
     user = Users.get_user_by_id(user_id)
     if not user:
         raise HTTPException(
@@ -476,9 +557,7 @@ async def replace_user(
 
 
 @router.patch("/Users/{user_id}")
-async def patch_user(
-    user_id: str, request: Request, _=Depends(verify_scim_token)
-):
+async def patch_user(user_id: str, request: Request, _=Depends(verify_scim_token)):
     user = Users.get_user_by_id(user_id)
     if not user:
         raise HTTPException(
@@ -507,7 +586,7 @@ async def patch_user(
                 if isinstance(value, str):
                     updates["name"] = value
 
-            elif path == "userName" or path == "emails[type eq \"work\"].value":
+            elif path == "userName" or path == 'emails[type eq "work"].value':
                 if isinstance(value, str):
                     updates["email"] = value
 
@@ -549,10 +628,13 @@ async def delete_user(user_id: str, _=Depends(verify_scim_token)):
         )
 
     # SCIM delete = deactivate (set role to pending), not hard delete
-    Users.update_user_by_id(user_id, {
-        "role": "pending",
-        "updated_at": int(time.time()),
-    })
+    Users.update_user_by_id(
+        user_id,
+        {
+            "role": "pending",
+            "updated_at": int(time.time()),
+        },
+    )
     log.info(f"SCIM: Deactivated user '{user.email}'")
     return None
 
@@ -579,8 +661,11 @@ async def list_groups(
             filtered = [g for g in all_groups if g.name == val]
         elif attr == "externalId":
             filtered = [
-                g for g in all_groups
-                if g.data and isinstance(g.data, dict) and g.data.get("scim_external_id") == val
+                g
+                for g in all_groups
+                if g.data
+                and isinstance(g.data, dict)
+                and g.data.get("scim_external_id") == val
             ]
         else:
             filtered = []
@@ -642,7 +727,9 @@ async def create_group(request: Request, _=Depends(verify_scim_token)):
         )
 
     # Set members and externalId
-    member_ids = [m.get("value") for m in members if isinstance(m, dict) and m.get("value")]
+    member_ids = [
+        m.get("value") for m in members if isinstance(m, dict) and m.get("value")
+    ]
     valid_ids = Users.get_valid_user_ids(member_ids) if member_ids else []
     data = group.data or {}
     if external_id:
@@ -670,9 +757,7 @@ async def create_group(request: Request, _=Depends(verify_scim_token)):
 
 
 @router.put("/Groups/{group_id}")
-async def replace_group(
-    group_id: str, request: Request, _=Depends(verify_scim_token)
-):
+async def replace_group(group_id: str, request: Request, _=Depends(verify_scim_token)):
     group = Groups.get_group_by_id(group_id)
     if not group:
         raise HTTPException(
@@ -685,7 +770,9 @@ async def replace_group(
     members = body.get("members", [])
     external_id = body.get("externalId")
 
-    member_ids = [m.get("value") for m in members if isinstance(m, dict) and m.get("value")]
+    member_ids = [
+        m.get("value") for m in members if isinstance(m, dict) and m.get("value")
+    ]
     valid_ids = Users.get_valid_user_ids(member_ids) if member_ids else []
 
     update_form = GroupUpdateForm(
@@ -712,9 +799,7 @@ async def replace_group(
 
 
 @router.patch("/Groups/{group_id}")
-async def patch_group(
-    group_id: str, request: Request, _=Depends(verify_scim_token)
-):
+async def patch_group(group_id: str, request: Request, _=Depends(verify_scim_token)):
     group = Groups.get_group_by_id(group_id)
     if not group:
         raise HTTPException(
@@ -737,7 +822,11 @@ async def patch_group(
             if path == "displayName" and isinstance(value, str):
                 name = value
             elif path == "members" and isinstance(value, list):
-                new_ids = [m.get("value") for m in value if isinstance(m, dict) and m.get("value")]
+                new_ids = [
+                    m.get("value")
+                    for m in value
+                    if isinstance(m, dict) and m.get("value")
+                ]
                 current_members = Users.get_valid_user_ids(new_ids) if new_ids else []
             elif path == "externalId" and isinstance(value, str):
                 data = group.data or {}
@@ -751,7 +840,11 @@ async def patch_group(
 
         elif op_type == "add":
             if path == "members" and isinstance(value, list):
-                new_ids = [m.get("value") for m in value if isinstance(m, dict) and m.get("value")]
+                new_ids = [
+                    m.get("value")
+                    for m in value
+                    if isinstance(m, dict) and m.get("value")
+                ]
                 valid = Users.get_valid_user_ids(new_ids) if new_ids else []
                 for uid in valid:
                     if uid not in current_members:

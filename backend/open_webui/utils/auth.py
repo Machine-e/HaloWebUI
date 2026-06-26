@@ -29,7 +29,6 @@ from fastapi import BackgroundTasks, Depends, HTTPException, Request, Response, 
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from passlib.context import CryptContext
 
-
 logging.getLogger("passlib").setLevel(logging.ERROR)
 
 log = logging.getLogger(__name__)
@@ -68,6 +67,7 @@ def invalidate_cached_user(user_id: Optional[str] = None):
         return
 
     _user_cache.clear()
+
 
 ##############
 # Auth Utils

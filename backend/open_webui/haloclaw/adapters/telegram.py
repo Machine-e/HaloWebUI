@@ -66,16 +66,20 @@ class TelegramAdapter(BaseAdapter):
 
         # Set bot command menu
         try:
-            await self._app.bot.set_my_commands([
-                BotCommand("model", "切换模型"),
-                BotCommand("think", "思考强度"),
-                BotCommand("tools", "工具开关"),
-                BotCommand("settings", "设置"),
-                BotCommand("clear", "清除历史"),
-                BotCommand("help", "帮助"),
-            ])
+            await self._app.bot.set_my_commands(
+                [
+                    BotCommand("model", "切换模型"),
+                    BotCommand("think", "思考强度"),
+                    BotCommand("tools", "工具开关"),
+                    BotCommand("settings", "设置"),
+                    BotCommand("clear", "清除历史"),
+                    BotCommand("help", "帮助"),
+                ]
+            )
         except Exception as e:
-            log.warning(f"HaloClaw Telegram [{self.gateway_id}]: failed to set commands: {e}")
+            log.warning(
+                f"HaloClaw Telegram [{self.gateway_id}]: failed to set commands: {e}"
+            )
 
         self._task = asyncio.create_task(self._run_polling())
         self._running = True
@@ -164,9 +168,7 @@ class TelegramAdapter(BaseAdapter):
 
         return last_msg_id
 
-    async def edit_message(
-        self, chat_id: str, message_id: str, text: str
-    ) -> None:
+    async def edit_message(self, chat_id: str, message_id: str, text: str) -> None:
         if not self._app or not self._app.bot:
             return
 
@@ -237,6 +239,7 @@ class TelegramAdapter(BaseAdapter):
             return
 
         from open_webui.haloclaw.menus.telegram import handle_start
+
         await handle_start(update, context, gateway)
 
     async def _handle_model(self, update, context) -> None:
@@ -248,6 +251,7 @@ class TelegramAdapter(BaseAdapter):
 
         from open_webui.haloclaw.menus.telegram import handle_model
         from open_webui.haloclaw.dispatcher import get_app
+
         await handle_model(update, context, gateway, get_app())
 
     async def _handle_think(self, update, context) -> None:
@@ -258,6 +262,7 @@ class TelegramAdapter(BaseAdapter):
             return
 
         from open_webui.haloclaw.menus.telegram import handle_think
+
         await handle_think(update, context, gateway)
 
     async def _handle_tools(self, update, context) -> None:
@@ -268,6 +273,7 @@ class TelegramAdapter(BaseAdapter):
             return
 
         from open_webui.haloclaw.menus.telegram import handle_tools
+
         await handle_tools(update, context, gateway)
 
     async def _handle_settings(self, update, context) -> None:
@@ -279,6 +285,7 @@ class TelegramAdapter(BaseAdapter):
 
         from open_webui.haloclaw.menus.telegram import handle_settings
         from open_webui.haloclaw.dispatcher import get_app
+
         await handle_settings(update, context, gateway, get_app())
 
     async def _handle_clear(self, update, context) -> None:
@@ -289,6 +296,7 @@ class TelegramAdapter(BaseAdapter):
             return
 
         from open_webui.haloclaw.menus.telegram import handle_clear
+
         await handle_clear(update, context, gateway)
 
     async def _handle_help(self, update, context) -> None:
@@ -299,6 +307,7 @@ class TelegramAdapter(BaseAdapter):
             return
 
         from open_webui.haloclaw.menus.telegram import handle_help
+
         await handle_help(update, context, gateway)
 
     async def _handle_callback(self, update, context) -> None:
@@ -308,6 +317,7 @@ class TelegramAdapter(BaseAdapter):
 
         from open_webui.haloclaw.menus.telegram import handle_callback
         from open_webui.haloclaw.dispatcher import get_app
+
         await handle_callback(update, context, self.gateway_id, get_app())
 
     async def _handle_incoming_message(self, update, context) -> None:
@@ -326,7 +336,9 @@ class TelegramAdapter(BaseAdapter):
         chat_id = str(update.message.chat_id)
         raw_text = (message.text or message.caption or "").strip()
         has_image = self._message_has_image(message)
-        image_urls = await self._extract_image_urls(message, context) if has_image else []
+        image_urls = (
+            await self._extract_image_urls(message, context) if has_image else []
+        )
 
         # Group chat: only respond when mentioned or replied to
         if message.chat.type in ("group", "supergroup"):
@@ -345,7 +357,11 @@ class TelegramAdapter(BaseAdapter):
                 )
                 if not is_mentioned and not is_reply:
                     return
-                text = raw_text.replace(mention_token, "").strip() if is_mentioned else raw_text
+                text = (
+                    raw_text.replace(mention_token, "").strip()
+                    if is_mentioned
+                    else raw_text
+                )
             else:
                 text = raw_text
         else:
@@ -437,9 +453,10 @@ class TelegramAdapter(BaseAdapter):
                 await tg_file.download_to_memory(out=buffer)
                 image_bytes = buffer.getvalue()
 
-            resolved_type = content_type or mimetypes.guess_type(
-                getattr(tg_file, "file_path", "") or ""
-            )[0]
+            resolved_type = (
+                content_type
+                or mimetypes.guess_type(getattr(tg_file, "file_path", "") or "")[0]
+            )
             return image_bytes_to_data_url(image_bytes, resolved_type)
         except Exception as e:
             log.warning(

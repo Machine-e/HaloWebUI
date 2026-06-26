@@ -36,9 +36,7 @@ class BaseAdapter(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def edit_message(
-        self, chat_id: str, message_id: str, text: str
-    ) -> None:
+    async def edit_message(self, chat_id: str, message_id: str, text: str) -> None:
         """Edit an existing message on the platform."""
         ...
 

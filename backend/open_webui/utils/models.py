@@ -28,14 +28,12 @@ from open_webui.utils.model_identity import (
 )
 
 
-
 from open_webui.env import (
     AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST,
     SRC_LOG_LEVELS,
     GLOBAL_LOG_LEVEL,
 )
 from open_webui.models.users import UserModel
-
 
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
@@ -231,9 +229,9 @@ def _model_ref_matches(model: dict, target_ref: dict) -> bool:
     target_index = target_ref.get("connection_index")
     if target_index is not None and str(target_index).strip() != "":
         model_index = model_ref.get("connection_index")
-        return (
-            "" if model_index is None else str(model_index).strip()
-        ) == str(target_index).strip()
+        return ("" if model_index is None else str(model_index).strip()) == str(
+            target_index
+        ).strip()
 
     return False
 
@@ -370,17 +368,20 @@ async def _fetch_all_base_models(
     # the user has no configured connections for that provider.
     # Fetch all providers in parallel and cap individual sources so one slow upstream
     # does not block the entire settings / model-management UI.
-    openai_resp, ollama_resp, gemini_resp, grok_resp, anthropic_resp, function_models_resp = (
-        await asyncio.gather(
-            _fetch_source_models("openai", openai.get_all_models(request, user=user)),
-            _fetch_source_models("ollama", ollama.get_all_models(request, user=user)),
-            _fetch_source_models("gemini", gemini.get_all_models(request, user=user)),
-            _fetch_source_models("grok", grok.get_all_models(request, user=user)),
-            _fetch_source_models(
-                "anthropic", anthropic.get_all_models(request, user=user)
-            ),
-            _fetch_source_models("functions", get_function_models(request)),
-        )
+    (
+        openai_resp,
+        ollama_resp,
+        gemini_resp,
+        grok_resp,
+        anthropic_resp,
+        function_models_resp,
+    ) = await asyncio.gather(
+        _fetch_source_models("openai", openai.get_all_models(request, user=user)),
+        _fetch_source_models("ollama", ollama.get_all_models(request, user=user)),
+        _fetch_source_models("gemini", gemini.get_all_models(request, user=user)),
+        _fetch_source_models("grok", grok.get_all_models(request, user=user)),
+        _fetch_source_models("anthropic", anthropic.get_all_models(request, user=user)),
+        _fetch_source_models("functions", get_function_models(request)),
     )
 
     # Process openai
@@ -396,7 +397,11 @@ async def _fetch_all_base_models(
     if isinstance(ollama_resp, dict) and "models" in ollama_resp:
         ollama_models = []
         for model in ollama_resp.get("models", []) or []:
-            if not isinstance(model, dict) or not model.get("model") or not model.get("name"):
+            if (
+                not isinstance(model, dict)
+                or not model.get("model")
+                or not model.get("name")
+            ):
                 continue
             original_model_id = model.get("original_model") or model.get("model")
             connection_index = (
@@ -491,7 +496,9 @@ async def get_all_base_models(request: Request, user: UserModel = None):
     # Base model freshness is event-driven: connection/model mutations invalidate the cache,
     # while normal reads reuse the cached list to avoid background refresh churn.
     cache_enabled = bool(
-        getattr(getattr(request.app.state, "config", None), "ENABLE_BASE_MODELS_CACHE", True)
+        getattr(
+            getattr(request.app.state, "config", None), "ENABLE_BASE_MODELS_CACHE", True
+        )
     )
     if not cache_enabled:
         return await _fetch_all_base_models(request, user=user)
@@ -541,11 +548,7 @@ async def get_all_models(request, user: UserModel = None):
     model_by_id, _ambiguous_model_aliases = build_model_lookup(
         [m for m in models if isinstance(m, dict)]
     )
-    model_ids = {
-        m.get("id")
-        for m in models
-        if isinstance(m, dict) and m.get("id")
-    }
+    model_ids = {m.get("id") for m in models if isinstance(m, dict) and m.get("id")}
 
     def _can_read_workspace_model(model_row) -> bool:
         if not user:
@@ -560,7 +563,9 @@ async def get_all_models(request, user: UserModel = None):
     # provider base model metadata from that owner's connections so we can route correctly.
     async def _owner_base_models_by_user_id(user_id: str) -> list[dict]:
         try:
-            from open_webui.models.users import Users  # local import to avoid heavy coupling
+            from open_webui.models.users import (
+                Users,
+            )  # local import to avoid heavy coupling
             from open_webui.utils.user_connections import maybe_migrate_user_connections
 
             owner = Users.get_user_by_id(user_id)
@@ -591,7 +596,11 @@ async def get_all_models(request, user: UserModel = None):
             if mid == model_id or model_id in get_model_aliases(m):
                 return m
             # Ollama ids can vary ('llama3' vs 'llama3:7b'); match on base name.
-            if m.get("owned_by") == "ollama" and isinstance(mid, str) and isinstance(model_id, str):
+            if (
+                m.get("owned_by") == "ollama"
+                and isinstance(mid, str)
+                and isinstance(model_id, str)
+            ):
                 if model_id == mid.split(":")[0]:
                     return m
         return None
@@ -614,10 +623,7 @@ async def get_all_models(request, user: UserModel = None):
 
     def _candidate_clean_id(model: dict) -> str:
         return str(
-            model.get("model_id")
-            or model.get("original_id")
-            or model.get("id")
-            or ""
+            model.get("model_id") or model.get("original_id") or model.get("id") or ""
         ).strip()
 
     def _model_ref_matches(candidate: dict, target_ref: dict) -> bool:
@@ -630,7 +636,11 @@ async def get_all_models(request, user: UserModel = None):
 
         target_provider = str(target_ref.get("provider") or "").strip().lower()
         candidate_provider = str(candidate_ref.get("provider") or "").strip().lower()
-        if target_provider and candidate_provider and target_provider != candidate_provider:
+        if (
+            target_provider
+            and candidate_provider
+            and target_provider != candidate_provider
+        ):
             return False
 
         target_source = str(target_ref.get("source") or "").strip()
@@ -643,7 +653,9 @@ async def get_all_models(request, user: UserModel = None):
         ).strip()
         if target_connection_id:
             candidate_connection_id = str(
-                candidate_ref.get("connection_id") or candidate_ref.get("prefix_id") or ""
+                candidate_ref.get("connection_id")
+                or candidate_ref.get("prefix_id")
+                or ""
             ).strip()
             return candidate_connection_id == target_connection_id
 
@@ -666,7 +678,11 @@ async def get_all_models(request, user: UserModel = None):
 
         target_provider = str(target_ref.get("provider") or "").strip().lower()
         candidate_provider = str(candidate_ref.get("provider") or "").strip().lower()
-        if target_provider and candidate_provider and target_provider != candidate_provider:
+        if (
+            target_provider
+            and candidate_provider
+            and target_provider != candidate_provider
+        ):
             return False
 
         target_source = str(target_ref.get("source") or "").strip()
@@ -755,7 +771,9 @@ async def get_all_models(request, user: UserModel = None):
         if user and user.role == "user" and not _can_read_workspace_model(custom_model):
             continue
 
-        existing = model_by_id.get(custom_model.id) or _find_model_like(models, custom_model.id)
+        existing = model_by_id.get(custom_model.id) or _find_model_like(
+            models, custom_model.id
+        )
         if existing:
             if custom_model.is_active:
                 existing["name"] = custom_model.name
@@ -780,7 +798,9 @@ async def get_all_models(request, user: UserModel = None):
 
         owner_id = custom_model.user_id
         if owner_id not in owner_base_models_cache:
-            owner_base_models_cache[owner_id] = await _owner_base_models_by_user_id(owner_id)
+            owner_base_models_cache[owner_id] = await _owner_base_models_by_user_id(
+                owner_id
+            )
 
         owner_base_model = _find_model_like(
             owner_base_models_cache.get(owner_id, []), custom_model.id
@@ -827,7 +847,9 @@ async def get_all_models(request, user: UserModel = None):
         if base_like is None and custom_model.user_id:
             owner_id = custom_model.user_id
             if owner_id not in owner_base_models_cache:
-                owner_base_models_cache[owner_id] = await _owner_base_models_by_user_id(owner_id)
+                owner_base_models_cache[owner_id] = await _owner_base_models_by_user_id(
+                    owner_id
+                )
             base_like = _resolve_base_model(
                 custom_model,
                 owner_base_models_cache.get(owner_id, []),

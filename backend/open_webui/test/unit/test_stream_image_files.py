@@ -1,7 +1,6 @@
 import pathlib
 import sys
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -150,7 +149,9 @@ def test_has_visible_assistant_output_accepts_files_only():
     files = [{"type": "image", "url": "data:image/png;base64,abcd"}]
 
     assert _has_visible_message_files(files) is True
-    assert _has_visible_assistant_output([{"type": "text", "content": ""}], files) is True
+    assert (
+        _has_visible_assistant_output([{"type": "text", "content": ""}], files) is True
+    )
 
 
 def test_has_visible_assistant_output_rejects_empty_text_and_files():

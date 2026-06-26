@@ -242,7 +242,9 @@ def upload_file(
                         ),
                         user=user,
                     )
-                    warning_message = process_result.get("notice") if process_result else None
+                    warning_message = (
+                        process_result.get("notice") if process_result else None
+                    )
 
                 file_item = Files.get_file_by_id(id=id)
                 if warning_message:

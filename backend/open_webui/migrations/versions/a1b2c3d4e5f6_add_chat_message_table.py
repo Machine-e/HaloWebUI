@@ -17,12 +17,26 @@ branch_labels = None
 depends_on = None
 
 # Fields from message JSON to preserve in the meta column
-_META_KEYS = frozenset({
-    "files", "sources", "code_executions", "statusHistory",
-    "childrenIds", "models", "modelName", "modelIdx",
-    "done", "error", "info", "completedAt", "userContext",
-    "merged", "lastSentence", "originalContent",
-})
+_META_KEYS = frozenset(
+    {
+        "files",
+        "sources",
+        "code_executions",
+        "statusHistory",
+        "childrenIds",
+        "models",
+        "modelName",
+        "modelIdx",
+        "done",
+        "error",
+        "info",
+        "completedAt",
+        "userContext",
+        "merged",
+        "lastSentence",
+        "originalContent",
+    }
+)
 
 
 def upgrade():
@@ -116,15 +130,12 @@ def _backfill_chat_messages(conn):
     BATCH_SIZE = 1000
     offset = 0
 
-    base_query = (
-        sa.select(
-            chat_table.c.id,
-            chat_table.c.user_id,
-            chat_table.c.chat,
-            chat_table.c.created_at,
-        )
-        .order_by(chat_table.c.id)
-    )
+    base_query = sa.select(
+        chat_table.c.id,
+        chat_table.c.user_id,
+        chat_table.c.chat,
+        chat_table.c.created_at,
+    ).order_by(chat_table.c.id)
 
     while True:
         batch_rows = conn.execute(
@@ -218,8 +229,7 @@ def _backfill_chat_messages(conn):
 
                 # Collect non-core fields into meta
                 meta = {
-                    k: v for k, v in msg.items()
-                    if k in _META_KEYS and v is not None
+                    k: v for k, v in msg.items() if k in _META_KEYS and v is not None
                 }
 
                 created_at = msg.get("timestamp", chat_created_at)
@@ -227,20 +237,22 @@ def _backfill_chat_messages(conn):
                 if not isinstance(created_at, (int, float)):
                     created_at = chat_created_at
 
-                insert_batch.append({
-                    "id": str(msg_id),
-                    "chat_id": chat_id,
-                    "user_id": user_id,
-                    "role": role,
-                    "content": content,
-                    "parent_id": parent_id,
-                    "model": model,
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "meta": json.dumps(meta) if meta else None,
-                    "created_at": int(created_at),
-                    "updated_at": now,
-                })
+                insert_batch.append(
+                    {
+                        "id": str(msg_id),
+                        "chat_id": chat_id,
+                        "user_id": user_id,
+                        "role": role,
+                        "content": content,
+                        "parent_id": parent_id,
+                        "model": model,
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "meta": json.dumps(meta) if meta else None,
+                        "created_at": int(created_at),
+                        "updated_at": now,
+                    }
+                )
 
             if insert_batch:
                 try:

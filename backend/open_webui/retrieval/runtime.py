@@ -16,7 +16,6 @@ from open_webui.config import (
     RAG_RERANKING_MODEL_TRUST_REMOTE_CODE,
 )
 
-
 log = logging.getLogger(__name__)
 
 

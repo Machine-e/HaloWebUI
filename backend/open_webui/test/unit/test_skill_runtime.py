@@ -2,7 +2,6 @@ import pathlib
 import sys
 from types import SimpleNamespace
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -81,9 +80,10 @@ def test_selected_skill_context_splits_prompt_and_runnable_skills(monkeypatch):
     monkeypatch.setattr(
         skill_runtime.Skills,
         "get_skill_by_id",
-        lambda skill_id: {"prompt-skill": prompt_skill, "runnable-skill": runnable_skill}.get(
-            skill_id
-        ),
+        lambda skill_id: {
+            "prompt-skill": prompt_skill,
+            "runnable-skill": runnable_skill,
+        }.get(skill_id),
     )
     monkeypatch.setattr(skill_runtime, "can_read_resource", lambda _user, _skill: True)
 
@@ -120,8 +120,12 @@ def test_auto_skill_matching_uses_admin_enabled_visible_packages(monkeypatch):
         meta={"kind": "prompt_legacy", "auto_enabled": True},
     )
 
-    monkeypatch.setattr(skill_runtime.Skills, "get_skills", lambda: [disabled, legacy, enabled])
-    monkeypatch.setattr(skill_runtime, "can_read_resource", lambda _user, skill: skill.id != "hidden")
+    monkeypatch.setattr(
+        skill_runtime.Skills, "get_skills", lambda: [disabled, legacy, enabled]
+    )
+    monkeypatch.setattr(
+        skill_runtime, "can_read_resource", lambda _user, skill: skill.id != "hidden"
+    )
 
     selected = select_auto_skill_ids(
         SimpleNamespace(id="user-1", role="user"),

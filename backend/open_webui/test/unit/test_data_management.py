@@ -28,8 +28,7 @@ def _create_sample_sqlite_db(db_path, *, file_rows=None):
         cursor.execute("CREATE TABLE config (id INTEGER PRIMARY KEY, data TEXT)")
         cursor.execute("CREATE TABLE chat (id TEXT PRIMARY KEY, title TEXT)")
         cursor.execute("CREATE TABLE user (id TEXT PRIMARY KEY)")
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE file (
                 id TEXT PRIMARY KEY,
                 user_id TEXT,
@@ -37,8 +36,7 @@ def _create_sample_sqlite_db(db_path, *, file_rows=None):
                 path TEXT,
                 meta TEXT
             )
-            """
-        )
+            """)
         cursor.execute("INSERT INTO config (data) VALUES ('{}')")
         cursor.execute("INSERT INTO chat (id, title) VALUES ('chat-1', 'Chat 1')")
         cursor.execute("INSERT INTO user (id) VALUES ('user-1')")

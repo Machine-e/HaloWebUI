@@ -6,7 +6,6 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -39,7 +38,9 @@ def _model_form(access_control):
 
 
 def test_non_admin_without_workspace_permission_can_create_private_model(monkeypatch):
-    monkeypatch.setattr(models_router, "has_permission", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        models_router, "has_permission", lambda *_args, **_kwargs: False
+    )
     monkeypatch.setattr(models_router.Models, "get_model_by_id", lambda _id: None)
     monkeypatch.setattr(
         models_router.Models,
@@ -61,7 +62,9 @@ def test_non_admin_without_workspace_permission_can_create_private_model(monkeyp
 
 
 def test_non_admin_without_workspace_permission_cannot_create_shared_model(monkeypatch):
-    monkeypatch.setattr(models_router, "has_permission", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        models_router, "has_permission", lambda *_args, **_kwargs: False
+    )
 
     access_control = {
         "read": {"group_ids": ["team-1"], "user_ids": []},

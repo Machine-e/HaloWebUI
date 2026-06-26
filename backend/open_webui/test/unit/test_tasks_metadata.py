@@ -2,7 +2,6 @@ import asyncio
 import pathlib
 import sys
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -28,10 +27,16 @@ def test_list_tasks_by_chat_id_includes_metadata_and_filters_blocking_tasks():
 
     async def scenario():
         blocking_id, blocking_task = task_module.create_task(
-            _sleep_forever(), id="chat-1", message_id="assistant-1", blocks_completion=True
+            _sleep_forever(),
+            id="chat-1",
+            message_id="assistant-1",
+            blocks_completion=True,
         )
         nonblocking_id, nonblocking_task = task_module.create_task(
-            _sleep_forever(), id="chat-1", message_id="assistant-2", blocks_completion=False
+            _sleep_forever(),
+            id="chat-1",
+            message_id="assistant-2",
+            blocks_completion=False,
         )
 
         blocking_only = task_module.list_tasks_by_chat_id(

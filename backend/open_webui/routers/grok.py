@@ -67,7 +67,9 @@ def _normalize_grok_base_url(url: Optional[str]) -> str:
     if not normalized:
         return ""
 
-    if normalized.lower().endswith("/v1") or VERSION_LIKE_BASE_URL_RE.search(normalized):
+    if normalized.lower().endswith("/v1") or VERSION_LIKE_BASE_URL_RE.search(
+        normalized
+    ):
         return normalized
 
     return f"{normalized}/v1"
@@ -97,7 +99,9 @@ def _build_grok_headers(
     )
 
 
-def _get_grok_connection_key(api_config: Optional[dict], url_idx: Optional[int] = None) -> str:
+def _get_grok_connection_key(
+    api_config: Optional[dict], url_idx: Optional[int] = None
+) -> str:
     cfg = api_config or {}
     prefix = str(cfg.get("_resolved_prefix_id") or cfg.get("prefix_id") or "").strip()
     if prefix:
@@ -202,7 +206,9 @@ async def _fetch_grok_models(
             try:
                 async with session.get(
                     models_url,
-                    headers=_build_grok_headers(url, attempt.key, api_config or {}, user=user),
+                    headers=_build_grok_headers(
+                        url, attempt.key, api_config or {}, user=user
+                    ),
                     ssl=AIOHTTP_CLIENT_SESSION_SSL,
                 ) as response:
                     body = await _read_response_body(response)
@@ -392,13 +398,14 @@ async def update_config(
         normalized_configs[idx_str] = normalized_cfg
 
     request.app.state.config.GROK_API_CONFIGS = normalized_configs
-    request.app.state.config.GROK_API_KEYS, request.app.state.config.GROK_API_CONFIGS = (
-        normalize_indexed_api_key_pools(
-            provider="grok",
-            urls=request.app.state.config.GROK_API_BASE_URLS,
-            keys=request.app.state.config.GROK_API_KEYS,
-            configs=request.app.state.config.GROK_API_CONFIGS,
-        )
+    (
+        request.app.state.config.GROK_API_KEYS,
+        request.app.state.config.GROK_API_CONFIGS,
+    ) = normalize_indexed_api_key_pools(
+        provider="grok",
+        urls=request.app.state.config.GROK_API_BASE_URLS,
+        keys=request.app.state.config.GROK_API_KEYS,
+        configs=request.app.state.config.GROK_API_CONFIGS,
     )
 
     from open_webui.utils.models import invalidate_base_model_cache
@@ -435,7 +442,9 @@ async def get_models(
                 url_idx=idx,
             )
             prefix_id = str(api_config.get("prefix_id") or "").strip()
-            connection_name = str(api_config.get("remark") or api_config.get("name") or "").strip()
+            connection_name = str(
+                api_config.get("remark") or api_config.get("name") or ""
+            ).strip()
             if not url or not api_key:
                 continue
 
@@ -481,7 +490,9 @@ async def get_models(
             url_idx=url_idx,
         )
         prefix_id = str(api_config.get("prefix_id") or "").strip()
-        connection_name = str(api_config.get("remark") or api_config.get("name") or "").strip()
+        connection_name = str(
+            api_config.get("remark") or api_config.get("name") or ""
+        ).strip()
         payload = await _fetch_grok_models(url, api_key, api_config, user=user)
         entries = []
         for model in payload:
@@ -593,7 +604,9 @@ async def health_check_connection(
                 try:
                     async with session.post(
                         request_url,
-                        headers=_build_grok_headers(url, attempt.key, config, user=user),
+                        headers=_build_grok_headers(
+                            url, attempt.key, config, user=user
+                        ),
                         json=payload,
                         ssl=AIOHTTP_CLIENT_SESSION_SSL,
                     ) as response:

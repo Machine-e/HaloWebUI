@@ -40,7 +40,9 @@ async def ensure_selected_shared_tool_runtime_loaded(
 
             try:
                 auth_type = str(connection_payload.get("auth_type") or "bearer").lower()
-                token = connection_payload.get("key", "") if auth_type == "bearer" else None
+                token = (
+                    connection_payload.get("key", "") if auth_type == "bearer" else None
+                )
                 url = (
                     f"{str(connection_payload.get('url') or '').rstrip('/')}/"
                     f"{str(connection_payload.get('path') or 'openapi.json').strip() or 'openapi.json'}"
@@ -97,7 +99,9 @@ async def ensure_selected_shared_tool_runtime_loaded(
                     "transport_type": connection_payload.get("transport_type", "http"),
                     "url": connection_payload.get("url", ""),
                     "command": connection_payload.get("command", ""),
-                    "server_info": deepcopy(connection_payload.get("server_info") or {}),
+                    "server_info": deepcopy(
+                        connection_payload.get("server_info") or {}
+                    ),
                     "capabilities": {},
                     "tools": cached_tools,
                 }

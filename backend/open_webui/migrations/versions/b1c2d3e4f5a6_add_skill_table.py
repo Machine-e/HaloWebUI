@@ -49,9 +49,7 @@ def upgrade():
     folder_columns = {c["name"] for c in inspector.get_columns("folder")}
 
     if "system_prompt" not in folder_columns:
-        op.add_column(
-            "folder", sa.Column("system_prompt", sa.Text(), nullable=True)
-        )
+        op.add_column("folder", sa.Column("system_prompt", sa.Text(), nullable=True))
 
     # Enhance prompt table: add is_active if missing
     prompt_columns = {c["name"] for c in inspector.get_columns("prompt")}
@@ -59,7 +57,9 @@ def upgrade():
     if "is_active" not in prompt_columns:
         op.add_column(
             "prompt",
-            sa.Column("is_active", sa.Boolean(), server_default=sa.true(), nullable=False),
+            sa.Column(
+                "is_active", sa.Boolean(), server_default=sa.true(), nullable=False
+            ),
         )
 
 

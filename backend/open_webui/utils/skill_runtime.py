@@ -21,7 +21,6 @@ from open_webui.storage.provider import Storage
 from open_webui.utils.access_control import can_read_resource
 from open_webui.utils.mcp import get_mcp_runtime_profile
 
-
 SKILL_ARCHIVE_MAX_BYTES = 50 * 1024 * 1024
 SKILL_SOURCE_MAX_BYTES = 200 * 1024 * 1024
 SKILL_RUNTIME_MAX_BYTES = 1024 * 1024 * 1024
@@ -190,7 +189,9 @@ def build_skill_runtime_metadata(
     has_package_assets: bool,
 ) -> dict[str, Any]:
     manifest = manifest if isinstance(manifest, dict) else {}
-    runtime_cfg = manifest.get("runtime") if isinstance(manifest.get("runtime"), dict) else {}
+    runtime_cfg = (
+        manifest.get("runtime") if isinstance(manifest.get("runtime"), dict) else {}
+    )
     dependencies_cfg = (
         manifest.get("dependencies")
         if isinstance(manifest.get("dependencies"), dict)
@@ -225,7 +226,11 @@ def build_skill_runtime_metadata(
             )
 
     requested_mode = str(runtime_cfg.get("mode") or "").strip().lower()
-    mode = "runnable" if entrypoints and has_package_assets and source in {"zip", "github"} else "prompt_only"
+    mode = (
+        "runnable"
+        if entrypoints and has_package_assets and source in {"zip", "github"}
+        else "prompt_only"
+    )
     if requested_mode == "prompt_only":
         mode = "prompt_only"
 
@@ -250,7 +255,9 @@ def build_skill_runtime_metadata(
             raise SkillRuntimeError("Skill Python requirements must be a list.")
         dependencies["python"] = {
             "requirements_file": requirements_file,
-            "requirements": [str(req).strip() for req in (requirements or []) if str(req).strip()],
+            "requirements": [
+                str(req).strip() for req in (requirements or []) if str(req).strip()
+            ],
         }
 
     if node_deps:
@@ -314,7 +321,11 @@ def get_skill_kind(skill: SkillModel) -> str:
         return explicit_kind
 
     source = str(skill.source or "manual").strip().lower()
-    if source in {"url", "github", "zip"} or meta.get("manifest") or meta.get("package"):
+    if (
+        source in {"url", "github", "zip"}
+        or meta.get("manifest")
+        or meta.get("package")
+    ):
         return SKILL_KIND_PACKAGE
 
     return SKILL_KIND_PROMPT_LEGACY
@@ -366,7 +377,10 @@ def _extract_recent_user_text(messages: list[dict[str, Any]], limit: int = 4) ->
             parts.append(content)
         elif isinstance(content, list):
             for item in content:
-                if isinstance(item, dict) and item.get("type") in {"text", "input_text"}:
+                if isinstance(item, dict) and item.get("type") in {
+                    "text",
+                    "input_text",
+                }:
                     parts.append(str(item.get("text") or ""))
 
         if len(parts) >= limit:
@@ -379,7 +393,11 @@ def _tokenize_for_skill_match(text: str) -> set[str]:
     normalized = str(text or "").lower()
     ascii_tokens = re.findall(r"[a-z0-9][a-z0-9._:/+-]{1,}", normalized)
     cjk_tokens = re.findall(r"[\u3400-\u9fff]{2,}", normalized)
-    return {token.strip("._:/+-") for token in [*ascii_tokens, *cjk_tokens] if token.strip("._:/+-")}
+    return {
+        token.strip("._:/+-")
+        for token in [*ascii_tokens, *cjk_tokens]
+        if token.strip("._:/+-")
+    }
 
 
 def _score_skill_match(skill: SkillModel, request_text: str) -> int:
@@ -409,7 +427,9 @@ def _score_skill_match(skill: SkillModel, request_text: str) -> int:
         manifest.get("category"),
     ]
 
-    high_tokens = _tokenize_for_skill_match(" ".join(str(value) for value in high_weight_values if value))
+    high_tokens = _tokenize_for_skill_match(
+        " ".join(str(value) for value in high_weight_values if value)
+    )
     medium_tokens = _tokenize_for_skill_match(
         " ".join(str(value) for value in medium_weight_values if value)
     )
@@ -520,13 +540,17 @@ def _remove_tree(path: Optional[str]) -> None:
         pass
 
 
-def save_imported_skill_assets(user_id: str, skill: SkillModel, payload: Any) -> dict[str, Any]:
+def save_imported_skill_assets(
+    user_id: str, skill: SkillModel, payload: Any
+) -> dict[str, Any]:
     package_files_map = getattr(payload, "package_files_map", None) or {}
     archive_bytes = getattr(payload, "archive_bytes", None)
     archive_name = getattr(payload, "archive_name", None) or f"{skill.id}.zip"
     current_meta = _skill_meta_dict(skill)
     current_package = (
-        current_meta.get("package") if isinstance(current_meta.get("package"), dict) else {}
+        current_meta.get("package")
+        if isinstance(current_meta.get("package"), dict)
+        else {}
     )
 
     if not package_files_map or archive_bytes is None:
@@ -544,13 +568,20 @@ def save_imported_skill_assets(user_id: str, skill: SkillModel, payload: Any) ->
         _safe_relative_path(relative_path)
         total_source_bytes += len(content or b"")
     if total_source_bytes > SKILL_SOURCE_MAX_BYTES:
-        raise SkillRuntimeError("Skill package exceeds the 200MB extracted source limit.")
+        raise SkillRuntimeError(
+            "Skill package exceeds the 200MB extracted source limit."
+        )
 
     if current_package:
         _remove_tree(current_package.get("extracted_root"))
         _delete_archive_file(current_package.get("archive_file_id"))
 
-    extracted_root = SKILL_SOURCE_CACHE_DIR / skill.id / str(payload.meta.get("import_hash") or "latest") / "src"
+    extracted_root = (
+        SKILL_SOURCE_CACHE_DIR
+        / skill.id
+        / str(payload.meta.get("import_hash") or "latest")
+        / "src"
+    )
     _remove_tree(str(extracted_root))
     extracted_root.mkdir(parents=True, exist_ok=True)
 
@@ -561,7 +592,9 @@ def save_imported_skill_assets(user_id: str, skill: SkillModel, payload: Any) ->
         _ensure_path_within(extracted_root, target_path)
         target_path.write_bytes(content)
 
-    archive_file = _save_private_archive_file(user_id, skill.id, archive_name, archive_bytes)
+    archive_file = _save_private_archive_file(
+        user_id, skill.id, archive_name, archive_bytes
+    )
 
     next_meta = {
         **current_meta,
@@ -584,7 +617,9 @@ def cleanup_skill_assets(skill: SkillModel) -> None:
     _delete_archive_file(package.get("archive_file_id"))
 
 
-def _other_skills_use_installed_hash(skill_id: str, installed_hash: Optional[str]) -> bool:
+def _other_skills_use_installed_hash(
+    skill_id: str, installed_hash: Optional[str]
+) -> bool:
     if not installed_hash:
         return False
 
@@ -618,10 +653,14 @@ def uninstall_skill_runtime(skill: SkillModel) -> dict[str, Any]:
     if skill_root and skill_root.exists():
         _unlink_skill_node_modules(skill_root)
 
-    if runtime.get("python_env_dir") and not _other_skills_use_installed_hash(skill.id, installed_hash):
+    if runtime.get("python_env_dir") and not _other_skills_use_installed_hash(
+        skill.id, installed_hash
+    ):
         _remove_tree(runtime.get("python_env_dir"))
 
-    if runtime.get("node_env_dir") and not _other_skills_use_installed_hash(skill.id, installed_hash):
+    if runtime.get("node_env_dir") and not _other_skills_use_installed_hash(
+        skill.id, installed_hash
+    ):
         _remove_tree(runtime.get("node_env_dir"))
 
     if runtime.get("mode") == "prompt_only":
@@ -675,17 +714,28 @@ def _prepare_python_requirements(
         lowered = req.lower()
         if lowered.startswith("-e ") or lowered.startswith("--editable"):
             raise SkillRuntimeError("Editable Python requirements are not supported.")
-        if "://" in req or lowered.startswith("git+") or " @ " in req or lowered.endswith(".whl"):
-            raise SkillRuntimeError("URL, VCS, file and wheel Python requirements are not supported.")
+        if (
+            "://" in req
+            or lowered.startswith("git+")
+            or " @ " in req
+            or lowered.endswith(".whl")
+        ):
+            raise SkillRuntimeError(
+                "URL, VCS, file and wheel Python requirements are not supported."
+            )
 
         package_name = _normalize_package_name(req)
         if package_name in BLOCKED_PYTHON_PACKAGES:
-            raise SkillRuntimeError(f"Python package '{package_name}' is not supported in runnable skills.")
+            raise SkillRuntimeError(
+                f"Python package '{package_name}' is not supported in runnable skills."
+            )
 
     return requirements
 
 
-def _prepare_node_installation(skill_root: Path, runtime_meta: dict[str, Any]) -> tuple[Path, Path]:
+def _prepare_node_installation(
+    skill_root: Path, runtime_meta: dict[str, Any]
+) -> tuple[Path, Path]:
     node_deps = (
         runtime_meta.get("dependencies", {}).get("node")
         if isinstance(runtime_meta.get("dependencies"), dict)
@@ -705,7 +755,11 @@ def _prepare_node_installation(skill_root: Path, runtime_meta: dict[str, Any]) -
         raise SkillRuntimeError("Node runnable skills must include package-lock.json.")
 
     package_json = _read_json_file(package_json_path)
-    scripts = package_json.get("scripts") if isinstance(package_json.get("scripts"), dict) else {}
+    scripts = (
+        package_json.get("scripts")
+        if isinstance(package_json.get("scripts"), dict)
+        else {}
+    )
     blocked_scripts = [name for name in BLOCKED_NODE_SCRIPT_NAMES if name in scripts]
     if blocked_scripts:
         raise SkillRuntimeError(
@@ -758,7 +812,9 @@ def _build_dependency_hash(runtime_meta: dict[str, Any]) -> str:
 def install_skill_runtime(skill: SkillModel) -> dict[str, Any]:
     capabilities = get_skill_runtime_capabilities()
     if not capabilities.get("install_allowed"):
-        raise SkillRuntimeError("Runnable skills are not supported in the current runtime profile.")
+        raise SkillRuntimeError(
+            "Runnable skills are not supported in the current runtime profile."
+        )
 
     meta = _skill_meta_dict(skill)
     runtime = _skill_runtime_meta(skill)
@@ -769,13 +825,21 @@ def install_skill_runtime(skill: SkillModel) -> dict[str, Any]:
 
     skill_root_value = package.get("extracted_root")
     if not skill_root_value:
-        raise SkillRuntimeError("Skill source package is missing. Re-import the skill package first.")
+        raise SkillRuntimeError(
+            "Skill source package is missing. Re-import the skill package first."
+        )
 
     skill_root = Path(skill_root_value)
     if not skill_root.exists():
-        raise SkillRuntimeError("Skill source package is missing. Re-import the skill package first.")
+        raise SkillRuntimeError(
+            "Skill source package is missing. Re-import the skill package first."
+        )
 
-    entrypoints = runtime.get("entrypoints") if isinstance(runtime.get("entrypoints"), list) else []
+    entrypoints = (
+        runtime.get("entrypoints")
+        if isinstance(runtime.get("entrypoints"), list)
+        else []
+    )
     if not entrypoints:
         raise SkillRuntimeError("Runnable skill is missing entrypoints.")
 
@@ -794,7 +858,9 @@ def install_skill_runtime(skill: SkillModel) -> dict[str, Any]:
     try:
         if requires_python:
             if not capabilities["python"]["available"]:
-                raise SkillRuntimeError("Python runnable skills are not supported in the current environment.")
+                raise SkillRuntimeError(
+                    "Python runnable skills are not supported in the current environment."
+                )
 
             requirements = _prepare_python_requirements(skill_root, runtime)
             python_env_dir = SKILL_PYTHON_ENV_DIR / dependency_hash
@@ -812,7 +878,11 @@ def install_skill_runtime(skill: SkillModel) -> dict[str, Any]:
                     timeout=SKILL_INSTALL_TIMEOUT_SECONDS,
                 )
                 if create_env.returncode != 0:
-                    raise SkillRuntimeError(create_env.stderr.strip() or create_env.stdout.strip() or "Failed to create Python skill environment.")
+                    raise SkillRuntimeError(
+                        create_env.stderr.strip()
+                        or create_env.stdout.strip()
+                        or "Failed to create Python skill environment."
+                    )
 
                 created_python_env = True
 
@@ -849,16 +919,22 @@ def install_skill_runtime(skill: SkillModel) -> dict[str, Any]:
                         )
 
             if _directory_size_bytes(python_env_dir) > SKILL_RUNTIME_MAX_BYTES:
-                raise SkillRuntimeError("Python skill runtime exceeds the 1GB environment limit.")
+                raise SkillRuntimeError(
+                    "Python skill runtime exceeds the 1GB environment limit."
+                )
 
             runtime["python_env_dir"] = str(python_env_dir)
             runtime["python_bin"] = str(python_bin)
 
         if requires_node:
             if not capabilities["node"]["available"]:
-                raise SkillRuntimeError("Node runnable skills are not supported in the current environment.")
+                raise SkillRuntimeError(
+                    "Node runnable skills are not supported in the current environment."
+                )
 
-            package_json_path, package_lock_path = _prepare_node_installation(skill_root, runtime)
+            package_json_path, package_lock_path = _prepare_node_installation(
+                skill_root, runtime
+            )
             node_env_dir = SKILL_NODE_ENV_DIR / dependency_hash
             node_modules_path = node_env_dir / "node_modules"
             if not node_modules_path.exists():
@@ -884,12 +960,16 @@ def install_skill_runtime(skill: SkillModel) -> dict[str, Any]:
                     )
 
             if _directory_size_bytes(node_env_dir) > SKILL_RUNTIME_MAX_BYTES:
-                raise SkillRuntimeError("Node skill runtime exceeds the 1GB environment limit.")
+                raise SkillRuntimeError(
+                    "Node skill runtime exceeds the 1GB environment limit."
+                )
 
             linked_node_modules = skill_root / "node_modules"
             _unlink_skill_node_modules(skill_root)
             try:
-                os.symlink(node_modules_path, linked_node_modules, target_is_directory=True)
+                os.symlink(
+                    node_modules_path, linked_node_modules, target_is_directory=True
+                )
             except FileExistsError:
                 pass
 
@@ -937,7 +1017,11 @@ def execute_skill_entrypoint(
     if not skill_root.exists():
         raise SkillRuntimeError("Skill source directory is missing.")
 
-    entrypoints = runtime.get("entrypoints") if isinstance(runtime.get("entrypoints"), list) else []
+    entrypoints = (
+        runtime.get("entrypoints")
+        if isinstance(runtime.get("entrypoints"), list)
+        else []
+    )
     selected_entrypoint = next(
         (
             item
@@ -1018,7 +1102,9 @@ def execute_skill_entrypoint(
             "runtime": selected_entrypoint.get("runtime"),
             "exit_code": -1,
             "stdout": _truncate_output(exc.stdout or ""),
-            "stderr": _truncate_output((exc.stderr or "").strip() or "Skill execution timed out."),
+            "stderr": _truncate_output(
+                (exc.stderr or "").strip() or "Skill execution timed out."
+            ),
             "ok": False,
         }
     finally:
@@ -1066,7 +1152,11 @@ def get_selected_skill_context(
         "resolved_ids": [skill.id for skill in visible_skills],
         "prompt_skills": prompt_skills,
         "runnable_skills": runnable_skills,
-        "requested_ids": [str(raw_id or "").strip() for raw_id in (requested_skill_ids or []) if str(raw_id or "").strip()],
+        "requested_ids": [
+            str(raw_id or "").strip()
+            for raw_id in (requested_skill_ids or [])
+            if str(raw_id or "").strip()
+        ],
     }
 
 
@@ -1078,7 +1168,11 @@ def build_skill_tool_context(runnable_skills: list[SkillModel]) -> dict[str, Any
         if runtime.get("install_status") != SKILL_RUNTIME_STATUS_READY:
             continue
         enabled_skill_ids.append(skill.id)
-        for entrypoint in runtime.get("entrypoints", []) if isinstance(runtime.get("entrypoints"), list) else []:
+        for entrypoint in (
+            runtime.get("entrypoints", [])
+            if isinstance(runtime.get("entrypoints"), list)
+            else []
+        ):
             entries.append(
                 {
                     "skill_id": skill.id,
@@ -1102,9 +1196,17 @@ def build_skill_system_prompt(
     if not prompt_skills:
         return None
 
-    requested_set = {str(skill_id or "").strip() for skill_id in (requested_skill_ids or []) if str(skill_id or "").strip()}
-    model_default_skills = [skill for skill in prompt_skills if skill.id not in requested_set]
-    explicitly_selected_skills = [skill for skill in prompt_skills if skill.id in requested_set]
+    requested_set = {
+        str(skill_id or "").strip()
+        for skill_id in (requested_skill_ids or [])
+        if str(skill_id or "").strip()
+    }
+    model_default_skills = [
+        skill for skill in prompt_skills if skill.id not in requested_set
+    ]
+    explicitly_selected_skills = [
+        skill for skill in prompt_skills if skill.id in requested_set
+    ]
 
     sections: list[str] = []
 
@@ -1118,7 +1220,7 @@ def build_skill_system_prompt(
             if not content:
                 continue
             rendered.append(
-                f"<skill id=\"{skill.id}\" name=\"{skill.name}\">\n{content}\n</skill>"
+                f'<skill id="{skill.id}" name="{skill.name}">\n{content}\n</skill>'
             )
         if rendered:
             sections.append(f"{title}\n" + "\n\n".join(rendered))

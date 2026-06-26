@@ -188,9 +188,11 @@ class GatewayTable:
 
     def get_all(self) -> list[GatewayModel]:
         with get_db() as db:
-            rows = db.query(HaloClawGateway).order_by(
-                HaloClawGateway.created_at.desc()
-            ).all()
+            rows = (
+                db.query(HaloClawGateway)
+                .order_by(HaloClawGateway.created_at.desc())
+                .all()
+            )
             return [GatewayModel.model_validate(r) for r in rows]
 
     def get_by_id(self, id: str) -> Optional[GatewayModel]:
@@ -203,9 +205,7 @@ class GatewayTable:
             rows = db.query(HaloClawGateway).filter_by(enabled=True).all()
             return [GatewayModel.model_validate(r) for r in rows]
 
-    def update_by_id(
-        self, id: str, form_data: GatewayForm
-    ) -> Optional[GatewayModel]:
+    def update_by_id(self, id: str, form_data: GatewayForm) -> Optional[GatewayModel]:
         with get_db() as db:
             row = db.query(HaloClawGateway).filter_by(id=id).first()
             if not row:
@@ -323,9 +323,7 @@ class ExternalUserTable:
             db.commit()
             return ExternalUserModel.model_validate(row)
 
-    def update_meta(
-        self, id: str, meta: Optional[dict]
-    ) -> Optional[ExternalUserModel]:
+    def update_meta(self, id: str, meta: Optional[dict]) -> Optional[ExternalUserModel]:
         with get_db() as db:
             row = db.query(HaloClawExternalUser).filter_by(id=id).first()
             if not row:

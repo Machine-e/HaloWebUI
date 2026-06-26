@@ -38,7 +38,6 @@ from open_webui.utils.optional_dependencies import (
     require_module,
 )
 
-
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MAIN"])
 

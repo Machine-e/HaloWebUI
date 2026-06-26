@@ -41,7 +41,9 @@ def _build_vector_db_client():
 
             return PgvectorClient()
         if VECTOR_DB == "elasticsearch":
-            from open_webui.retrieval.vector.dbs.elasticsearch import ElasticsearchClient
+            from open_webui.retrieval.vector.dbs.elasticsearch import (
+                ElasticsearchClient,
+            )
 
             return ElasticsearchClient()
 

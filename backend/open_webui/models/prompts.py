@@ -147,14 +147,16 @@ class PromptsTable:
             "id": str(getattr(prompt, "id", "") or ""),
             "command": self._normalize_command(getattr(prompt, "command", "") or ""),
             "user_id": getattr(prompt, "user_id", "") or "",
-            "name": getattr(prompt, "name", None) or getattr(prompt, "title", None) or "",
+            "name": getattr(prompt, "name", None)
+            or getattr(prompt, "title", None)
+            or "",
             "content": getattr(prompt, "content", "") or "",
             "data": getattr(prompt, "data", None),
             "meta": getattr(prompt, "meta", None),
             "tags": getattr(prompt, "tags", None),
-            "is_active": True
-            if getattr(prompt, "is_active", None) is None
-            else prompt.is_active,
+            "is_active": (
+                True if getattr(prompt, "is_active", None) is None else prompt.is_active
+            ),
             "version_id": getattr(prompt, "version_id", None),
             "access_control": getattr(prompt, "access_control", None),
             "created_at": int(created_at) if created_at is not None else None,
@@ -217,7 +219,9 @@ class PromptsTable:
                     data=form_data.data,
                     meta=form_data.meta,
                     tags=form_data.tags,
-                    is_active=form_data.is_active if form_data.is_active is not None else True,
+                    is_active=(
+                        form_data.is_active if form_data.is_active is not None else True
+                    ),
                     access_control=form_data.access_control,
                     created_at=now,
                     updated_at=now,
@@ -460,7 +464,9 @@ class PromptsTable:
     def delete_prompt_by_id(self, prompt_id: str) -> bool:
         try:
             with get_db() as db:
-                db.query(Prompt).filter_by(id=self._coerce_prompt_id(db, prompt_id)).delete()
+                db.query(Prompt).filter_by(
+                    id=self._coerce_prompt_id(db, prompt_id)
+                ).delete()
                 db.commit()
                 return True
         except Exception:

@@ -35,7 +35,15 @@ SUPPORTED_MCP_PROTOCOL_VERSIONS = [
     "2024-10-07",
 ]
 DEFAULT_MCP_PROTOCOL_VERSION = "2025-06-18"
-DEFAULT_STDIO_ALLOWED_COMMANDS = {"npx", "node", "python", "python3", "uvx", "uv", "deno"}
+DEFAULT_STDIO_ALLOWED_COMMANDS = {
+    "npx",
+    "node",
+    "python",
+    "python3",
+    "uvx",
+    "uv",
+    "deno",
+}
 DEFAULT_MCP_PRESET_RUNTIME_COMMANDS = ("npx", "uvx", "git")
 USER_FACING_SELECTION_ERROR = "所选 MCP 服务器当前不可用，请前往 设置 > 工具 重新验证。"
 VERSION_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -144,7 +152,9 @@ def _get_transport_type(connection: Dict[str, Any]) -> str:
     return transport_type if transport_type in {"http", "stdio"} else "http"
 
 
-def _get_auth_headers(connection: Dict[str, Any], session_token: Optional[str]) -> Dict[str, str]:
+def _get_auth_headers(
+    connection: Dict[str, Any], session_token: Optional[str]
+) -> Dict[str, str]:
     auth_type = (connection.get("auth_type") or "none").lower()
     if auth_type in {"bearer", "oauth21", "oauth2", "oauth"}:
         key = connection.get("key") or ""
@@ -230,12 +240,16 @@ def _extract_versions_from_text(text: str) -> List[str]:
 def _extract_supported_versions(payload: Any, raw_text: str = "") -> List[str]:
     versions: List[str] = []
     if isinstance(payload, dict):
-        error = payload.get("error") if isinstance(payload.get("error"), dict) else payload
+        error = (
+            payload.get("error") if isinstance(payload.get("error"), dict) else payload
+        )
         if isinstance(error, dict):
             data = error.get("data")
             if isinstance(data, dict):
                 versions.extend(_coerce_supported_versions(data.get("supported")))
-            versions.extend(_extract_versions_from_text(str(error.get("message") or "")))
+            versions.extend(
+                _extract_versions_from_text(str(error.get("message") or ""))
+            )
     versions.extend(_extract_versions_from_text(raw_text))
     return list(dict.fromkeys(versions))
 
@@ -260,7 +274,10 @@ def _format_protocol_error(
             f"client supports {', '.join(SUPPORTED_MCP_PROTOCOL_VERSIONS)}, "
             f"server supports {', '.join(supported_versions)}."
         )
-    return original_message or f"MCP initialize failed for protocol version {requested_version}."
+    return (
+        original_message
+        or f"MCP initialize failed for protocol version {requested_version}."
+    )
 
 
 def _finalize_protocol_version(
@@ -290,13 +307,17 @@ def _finalize_protocol_version(
 def _friendly_missing_command_message(command_name: str) -> str:
     normalized = command_name.lower()
     if normalized in {"npx", "node"}:
-        return f"{command_name} 不存在，请安装 Node.js 并确保 {command_name} 在 PATH 中。"
+        return (
+            f"{command_name} 不存在，请安装 Node.js 并确保 {command_name} 在 PATH 中。"
+        )
     if normalized in {"uv", "uvx"}:
         return f"{command_name} 不存在，请安装 Python + uv 并确保 {command_name} 在 PATH 中。"
     if normalized == "git":
         return "git 不存在，请安装 git 并确保 git 在 PATH 中。"
     if normalized in {"python", "python3"}:
-        return f"{command_name} 不存在，请安装 Python 并确保 {command_name} 在 PATH 中。"
+        return (
+            f"{command_name} 不存在，请安装 Python 并确保 {command_name} 在 PATH 中。"
+        )
     if normalized == "deno":
         return "deno 不存在，请安装 Deno 并确保 deno 在 PATH 中。"
     return f"{command_name} 不存在，请确保该命令已安装并可在 PATH 中找到。"
@@ -402,7 +423,9 @@ def _validate_stdio_command(connection: Dict[str, Any]) -> str:
 
     for dependency in _get_derived_stdio_runtime_requirements(connection):
         if not _resolve_stdio_command(connection, dependency):
-            raise ValueError(_friendly_missing_stdio_dependency_message(connection, dependency))
+            raise ValueError(
+                _friendly_missing_stdio_dependency_message(connection, dependency)
+            )
 
     return resolved
 
@@ -530,9 +553,13 @@ class MCPStreamableHttpClient:
         self.request_headers = merged_headers
         self.protocol_version = protocol_version
         self.timeout_s = (
-            timeout_s if timeout_s is not None else AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA
+            timeout_s
+            if timeout_s is not None
+            else AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA
         )
-        self.tool_timeout_s = tool_timeout_s if tool_timeout_s is not None else self.timeout_s
+        self.tool_timeout_s = (
+            tool_timeout_s if tool_timeout_s is not None else self.timeout_s
+        )
         self.session_id: Optional[str] = None
 
     def _build_request_headers(self) -> Dict[str, str]:
@@ -554,10 +581,16 @@ class MCPStreamableHttpClient:
     ) -> Tuple[Dict[str, Any], Optional[str]]:
         headers = self._build_request_headers()
         effective_timeout_s = self.timeout_s if timeout_s is None else timeout_s
-        timeout = aiohttp.ClientTimeout(total=effective_timeout_s) if effective_timeout_s else None
+        timeout = (
+            aiohttp.ClientTimeout(total=effective_timeout_s)
+            if effective_timeout_s
+            else None
+        )
         ssl_ctx = _get_ssl_context()
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(self.url, headers=headers, json=payload, ssl=ssl_ctx) as resp:
+            async with session.post(
+                self.url, headers=headers, json=payload, ssl=ssl_ctx
+            ) as resp:
                 if resp.status >= 400:
                     raw_body = await resp.text()
                     parsed_json = None
@@ -672,10 +705,14 @@ class MCPStreamableHttpClient:
             "params": {},
         }
         headers = self._build_request_headers()
-        timeout = aiohttp.ClientTimeout(total=self.timeout_s) if self.timeout_s else None
+        timeout = (
+            aiohttp.ClientTimeout(total=self.timeout_s) if self.timeout_s else None
+        )
         ssl_ctx = _get_ssl_context()
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(self.url, headers=headers, json=payload, ssl=ssl_ctx) as resp:
+            async with session.post(
+                self.url, headers=headers, json=payload, ssl=ssl_ctx
+            ) as resp:
                 if resp.status >= 400:
                     raw_body = await resp.text()
                     parsed_json = None
@@ -760,9 +797,13 @@ class MCPLegacySSEHttpClient:
         self.request_headers = merged_headers
         self.protocol_version = protocol_version
         self.timeout_s = (
-            timeout_s if timeout_s is not None else AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA
+            timeout_s
+            if timeout_s is not None
+            else AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA
         )
-        self.tool_timeout_s = tool_timeout_s if tool_timeout_s is not None else self.timeout_s
+        self.tool_timeout_s = (
+            tool_timeout_s if tool_timeout_s is not None else self.timeout_s
+        )
         self.message_url: Optional[str] = None
         self._session: Optional[aiohttp.ClientSession] = None
         self._sse_response: Optional[aiohttp.ClientResponse] = None
@@ -827,7 +868,9 @@ class MCPLegacySSEHttpClient:
         while True:
             raw_line = await self._sse_response.content.readline()
             if not raw_line:
-                raise RuntimeError("Legacy MCP SSE stream closed before delivering a message.")
+                raise RuntimeError(
+                    "Legacy MCP SSE stream closed before delivering a message."
+                )
 
             line = raw_line.decode("utf-8", errors="ignore").rstrip("\r\n")
             if not line:
@@ -898,7 +941,9 @@ class MCPLegacySSEHttpClient:
         if not endpoint_data:
             response.close()
             self._sse_response = None
-            raise RuntimeError("Legacy MCP SSE endpoint event did not include a POST target.")
+            raise RuntimeError(
+                "Legacy MCP SSE endpoint event did not include a POST target."
+            )
 
         self.message_url = urljoin(self.url, endpoint_data)
 
@@ -1323,7 +1368,9 @@ class MCPStdioClient:
                 text = line.decode("utf-8", errors="ignore").rstrip()
                 if text:
                     self._stderr_tail.append(text)
-                    log.debug("MCP stdio stderr[%s]: %s", self.user_id or "unknown", text)
+                    log.debug(
+                        "MCP stdio stderr[%s]: %s", self.user_id or "unknown", text
+                    )
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -1348,7 +1395,9 @@ class MCPStdioClient:
         while True:
             raw_line = await self.process.stdout.readline()
             if not raw_line:
-                raise RuntimeError("MCP stdio server closed stdout before sending a response.")
+                raise RuntimeError(
+                    "MCP stdio server closed stdout before sending a response."
+                )
 
             line = raw_line.decode("utf-8", errors="ignore").strip()
             if not line:
@@ -1369,7 +1418,9 @@ class MCPStdioClient:
                 except Exception:
                     pass
 
-    async def _send_notification(self, method: str, params: Optional[Dict[str, Any]] = None) -> None:
+    async def _send_notification(
+        self, method: str, params: Optional[Dict[str, Any]] = None
+    ) -> None:
         await self._write_json_line(
             {
                 "jsonrpc": "2.0",
@@ -1401,6 +1452,7 @@ class MCPStdioClient:
             }
 
             try:
+
                 async def _do_request() -> Dict[str, Any]:
                     await self._write_json_line(payload)
                     return await self._read_jsonrpc_response(
@@ -1462,6 +1514,7 @@ class MCPStdioClient:
                 }
 
                 try:
+
                     async def _do_initialize() -> Dict[str, Any]:
                         await self._write_json_line(payload)
                         return await self._read_jsonrpc_response(request_id)
@@ -1553,7 +1606,9 @@ class MCPStdioClient:
             self._last_activity = time.monotonic()
 
             try:
-                await asyncio.wait_for(self.initialize(), timeout=MCP_STDIO_START_TIMEOUT)
+                await asyncio.wait_for(
+                    self.initialize(), timeout=MCP_STDIO_START_TIMEOUT
+                )
                 await asyncio.wait_for(
                     self.notify_initialized(), timeout=MCP_STDIO_START_TIMEOUT
                 )
@@ -1746,7 +1801,9 @@ class MCPStdioProcessManager:
                 stale_fingerprints: List[Tuple[Any, ...]] = []
                 for fingerprint, client in items:
                     try:
-                        should_remove = await client.reap_if_idle(MCP_STDIO_IDLE_TIMEOUT)
+                        should_remove = await client.reap_if_idle(
+                            MCP_STDIO_IDLE_TIMEOUT
+                        )
                     except Exception as exc:
                         log.debug("MCP stdio idle reap failed: %s", exc)
                         should_remove = client.tainted or not client.is_alive()
@@ -1917,7 +1974,9 @@ async def get_mcp_server_data(
         if use_temp_stdio_client:
             return await verify_stdio_server(connection)
 
-        client = await MCPStdioProcessManager.instance().get_or_start(connection, user_id)
+        client = await MCPStdioProcessManager.instance().get_or_start(
+            connection, user_id
+        )
         tools = await client.list_tools()
         return {
             "server_info": deepcopy(client.server_info),
@@ -2037,7 +2096,9 @@ async def execute_mcp_tool(
     transport_type = _get_transport_type(connection)
 
     if transport_type == "stdio":
-        client = await MCPStdioProcessManager.instance().get_or_start(connection, user_id)
+        client = await MCPStdioProcessManager.instance().get_or_start(
+            connection, user_id
+        )
         try:
             return await client.call_tool(
                 name=name,

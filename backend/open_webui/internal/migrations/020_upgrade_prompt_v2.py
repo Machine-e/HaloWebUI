@@ -83,7 +83,15 @@ def migrate(migrator: Migrator, database: pw.Database, *, fake=False):
 
 
 def rollback(migrator: Migrator, database: pw.Database, *, fake=False):
-    for col in ("version_id", "tags", "meta", "data", "updated_at", "created_at", "name"):
+    for col in (
+        "version_id",
+        "tags",
+        "meta",
+        "data",
+        "updated_at",
+        "created_at",
+        "name",
+    ):
         try:
             migrator.remove_columns("prompt", col)
         except Exception:

@@ -2,7 +2,6 @@ import asyncio
 import pathlib
 import sys
 
-
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[3]
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
@@ -58,7 +57,9 @@ class _FakeSession:
         return self._responses.pop(0)
 
 
-def test_gemini_health_check_discovers_generate_content_model_and_uses_query_auth(monkeypatch):
+def test_gemini_health_check_discovers_generate_content_model_and_uses_query_auth(
+    monkeypatch,
+):
     requests_log = []
 
     async def fake_send_get_request(url: str, key: str = None, config: dict = None):

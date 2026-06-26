@@ -7,7 +7,6 @@ from urllib.parse import quote, unquote
 
 from fastapi import HTTPException
 
-
 SELECTION_ID_PREFIX = "modelref"
 AMBIGUOUS_MODEL_DETAIL = "模型连接不明确，请重新选择模型。"
 STALE_MODEL_REF_DETAIL = "模型连接已失效，请重新选择模型。"
@@ -48,9 +47,7 @@ def build_model_resolution_error(
         payload["requested_model_id"] = normalized_requested_model_id
     if candidates is not None:
         payload["candidates"] = [
-            _clean_str(candidate)
-            for candidate in candidates
-            if _clean_str(candidate)
+            _clean_str(candidate) for candidate in candidates if _clean_str(candidate)
         ]
     return payload
 
@@ -345,13 +342,16 @@ def _connection_matches_ref(
     if ref_provider and ref_provider != _clean_str(provider).lower():
         return False
 
-    connection_id = _clean_str(model_ref.get("connection_id") or model_ref.get("prefix_id"))
+    connection_id = _clean_str(
+        model_ref.get("connection_id") or model_ref.get("prefix_id")
+    )
     if connection_id:
         return _connection_prefix(cfg) == connection_id
 
-    if model_ref.get("connection_index") is not None and _clean_str(
-        model_ref.get("connection_index")
-    ) != "":
+    if (
+        model_ref.get("connection_index") is not None
+        and _clean_str(model_ref.get("connection_index")) != ""
+    ):
         return _clean_str(idx) == _clean_str(model_ref.get("connection_index"))
 
     return False
@@ -460,7 +460,8 @@ def resolve_provider_connection_by_model_id(
 
     if effective_model_ref:
         ref_connection_id = _clean_str(
-            effective_model_ref.get("connection_id") or effective_model_ref.get("prefix_id")
+            effective_model_ref.get("connection_id")
+            or effective_model_ref.get("prefix_id")
         )
         ref_connection_index = effective_model_ref.get("connection_index")
         if (

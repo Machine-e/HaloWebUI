@@ -139,7 +139,10 @@ def test_normalize_connections_payload_reuses_unique_tombstone_match_only():
 
     openai = normalized["openai"]
     assert openai["OPENAI_API_CONFIGS"]["0"]["prefix_id"] == "7ad57b3e"
-    assert openai["OPENAI_API_CONFIGS"]["1"]["prefix_id"] not in {"aaaaaaaa", "bbbbbbbb"}
+    assert openai["OPENAI_API_CONFIGS"]["1"]["prefix_id"] not in {
+        "aaaaaaaa",
+        "bbbbbbbb",
+    }
     assert len(openai[CONNECTION_ID_TOMBSTONES_KEY]) <= 50
 
 

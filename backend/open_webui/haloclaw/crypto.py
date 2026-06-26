@@ -68,7 +68,9 @@ def wechat_work_encrypt(msg: str, encoding_aes_key: str, receive_id: str) -> str
     receive_id_bytes = receive_id.encode("utf-8")
     random_bytes = os.urandom(16)
 
-    plaintext = random_bytes + struct.pack("!I", len(msg_bytes)) + msg_bytes + receive_id_bytes
+    plaintext = (
+        random_bytes + struct.pack("!I", len(msg_bytes)) + msg_bytes + receive_id_bytes
+    )
 
     # PKCS#7 pad to 32-byte blocks
     block_size = 32
