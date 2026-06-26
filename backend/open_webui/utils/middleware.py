@@ -892,9 +892,9 @@ def _register_code_interpreter_generated_files(
 
         file_path = None
         try:
-            file_size, file_path = Storage.upload_file(
-                BytesIO(content), storage_filename
-            )
+            upload_result = Storage.upload_file(BytesIO(content), storage_filename)
+            file_size, file_path = upload_result
+            upload_storage_meta = getattr(upload_result, "meta", {}) or {}
             file_item = Files.insert_new_file(
                 user.id,
                 FileForm(
@@ -906,6 +906,7 @@ def _register_code_interpreter_generated_files(
                             "name": name,
                             "content_type": content_type,
                             "size": file_size,
+                            **upload_storage_meta,
                             "data": {
                                 "source": "code_interpreter",
                                 "path": relative_path or name,
