@@ -25,8 +25,8 @@ describe('file upload errors', () => {
 		);
 
 		expect(localized.title).toBe('Archive not supported');
-		expect(localized.message).toContain('Compressed archives cannot be uploaded directly');
-		expect(localized.hint).toContain('Extract the archive');
+		expect(localized.message).toContain('does not support archive files');
+		expect(localized.hint).toBe('ignored');
 	});
 
 	it('uses role-specific hints for embedding configuration failures', () => {
