@@ -65,7 +65,10 @@
 								on:change={() => {
 									dispatch('change');
 								}}
-								options={(valvesSpec.properties[property].enum ?? []).map((option) => ({ value: String(option), label: String(option) }))}
+								options={(valvesSpec.properties[property].enum ?? []).map((option) => ({
+									value: String(option),
+									label: String(option)
+								}))}
 								className="w-full"
 							/>
 						{:else if (valvesSpec.properties[property]?.type ?? null) === 'boolean'}

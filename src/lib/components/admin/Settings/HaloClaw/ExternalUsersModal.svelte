@@ -40,7 +40,10 @@
 			)
 		: users;
 	$: modelLabelById = new Map(
-		(models ?? []).map((model) => [model.id, getModelChatDisplayName(model) || model.name || model.id])
+		(models ?? []).map((model) => [
+			model.id,
+			getModelChatDisplayName(model) || model.name || model.id
+		])
 	);
 
 	async function loadUsers() {

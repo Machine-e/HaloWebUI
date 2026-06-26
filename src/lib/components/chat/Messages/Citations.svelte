@@ -103,7 +103,9 @@
 		showPercentage = shouldShowPercentage(citations);
 	}
 
-	function normalizeCitationIndex(indexOrIdentifier: number | string | null | undefined): number | null {
+	function normalizeCitationIndex(
+		indexOrIdentifier: number | string | null | undefined
+	): number | null {
 		if (typeof indexOrIdentifier === 'number' && Number.isInteger(indexOrIdentifier)) {
 			return indexOrIdentifier;
 		}
@@ -118,7 +120,9 @@
 		return null;
 	}
 
-	export function openCitationByIndex(indexOrIdentifier: number | string | null | undefined): boolean {
+	export function openCitationByIndex(
+		indexOrIdentifier: number | string | null | undefined
+	): boolean {
 		const index = normalizeCitationIndex(indexOrIdentifier);
 		if (index === null || index < 1) {
 			return false;

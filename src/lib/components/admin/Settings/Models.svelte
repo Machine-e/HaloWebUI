@@ -1335,7 +1335,7 @@
 										<button
 											class="px-2.5 py-1 text-xs rounded-lg transition {enabledFilter === opt.value
 												? 'bg-white dark:bg-gray-700 font-medium text-gray-900 dark:text-white shadow-sm'
-											: 'text-gray-500 dark:text-gray-400 hover:bg-white/60 dark:hover:bg-gray-800/60'}"
+												: 'text-gray-500 dark:text-gray-400 hover:bg-white/60 dark:hover:bg-gray-800/60'}"
 											type="button"
 											on:click={() => setEnabledFilter(opt.value)}
 										>
@@ -1353,8 +1353,8 @@
 									{#each [{ value: 'all', label: $i18n.t('All') }, { value: 'visible', label: $i18n.t('Visible') }, { value: 'hidden', label: $i18n.t('Hidden') }] as opt}
 										<button
 											class="px-2.5 py-1 text-xs rounded-lg transition {hiddenFilter === opt.value
-											? 'bg-white dark:bg-gray-700 font-medium text-gray-900 dark:text-white shadow-sm'
-											: 'text-gray-500 dark:text-gray-400 hover:bg-white/60 dark:hover:bg-gray-800/60'}"
+												? 'bg-white dark:bg-gray-700 font-medium text-gray-900 dark:text-white shadow-sm'
+												: 'text-gray-500 dark:text-gray-400 hover:bg-white/60 dark:hover:bg-gray-800/60'}"
 											type="button"
 											on:click={() => setHiddenFilter(opt.value)}
 										>
@@ -1373,8 +1373,8 @@
 										<button
 											class="px-2.5 py-1 text-xs rounded-lg transition {visibilityFilter ===
 											opt.value
-											? 'bg-white dark:bg-gray-700 font-medium text-gray-900 dark:text-white shadow-sm'
-											: 'text-gray-500 dark:text-gray-400 hover:bg-white/60 dark:hover:bg-gray-800/60'}"
+												? 'bg-white dark:bg-gray-700 font-medium text-gray-900 dark:text-white shadow-sm'
+												: 'text-gray-500 dark:text-gray-400 hover:bg-white/60 dark:hover:bg-gray-800/60'}"
 											type="button"
 											on:click={() => setVisibilityFilter(opt.value)}
 										>

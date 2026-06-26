@@ -407,7 +407,7 @@ class Pipe:
 						</div>
 
 						<InlineDirtyActions
-							dirty={dirty}
+							{dirty}
 							saving={loading}
 							saveAsSubmit={true}
 							align="start"

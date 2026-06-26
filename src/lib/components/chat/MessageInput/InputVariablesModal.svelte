@@ -79,8 +79,13 @@
 {#if show}
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<!-- svelte-ignore a11y-no-static-element-interactions -->
-	<div class="fixed inset-0 z-[999] flex items-center justify-center bg-black/50" on:click|self={() => (show = false)}>
-		<div class="w-full max-w-lg mx-4 rounded-2xl bg-white shadow-xl dark:bg-gray-900 dark:text-gray-200">
+	<div
+		class="fixed inset-0 z-[999] flex items-center justify-center bg-black/50"
+		on:click|self={() => (show = false)}
+	>
+		<div
+			class="w-full max-w-lg mx-4 rounded-2xl bg-white shadow-xl dark:bg-gray-900 dark:text-gray-200"
+		>
 			<div class="flex items-center justify-between px-5 pt-4 pb-2">
 				<div class="text-lg font-medium">{$i18n.t('Input Variables')}</div>
 				<button
@@ -127,7 +132,9 @@
 										{/each}
 									</select>
 								{:else if variables[variable]?.type === 'checkbox'}
-									<label class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+									<label
+										class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700"
+									>
 										<input
 											id="input-variable-{idx}"
 											type="checkbox"
@@ -137,7 +144,9 @@
 										<span>{variables[variable]?.label ?? variable}</span>
 									</label>
 								{:else if variables[variable]?.type === 'color'}
-									<div class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700">
+									<div
+										class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700"
+									>
 										<input
 											id="input-variable-{idx}"
 											type="color"
@@ -157,7 +166,9 @@
 										/>
 									</div>
 								{:else if variables[variable]?.type === 'range'}
-									<div class="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700">
+									<div
+										class="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700"
+									>
 										<input
 											id="input-variable-{idx}"
 											type="range"
@@ -181,7 +192,8 @@
 										type="text"
 										class="w-full rounded-lg border border-gray-200 bg-transparent px-3 py-2 text-sm outline-hidden dark:border-gray-700"
 										bind:value={variableValues[variable]}
-										placeholder={variables[variable]?.placeholder ?? $i18n.t('Enter coordinates (e.g. 51.505, -0.09)')}
+										placeholder={variables[variable]?.placeholder ??
+											$i18n.t('Enter coordinates (e.g. 51.505, -0.09)')}
 										required={variables[variable]?.required ?? false}
 									/>
 								{:else if variables[variable]?.type === 'textarea'}

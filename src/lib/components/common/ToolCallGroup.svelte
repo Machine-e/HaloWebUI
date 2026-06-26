@@ -179,7 +179,10 @@
 				</span>
 			</span>
 
-			<span class="flex size-5 items-center justify-center text-gray-400 transition-transform duration-200" class:rotate-180={expanded}>
+			<span
+				class="flex size-5 items-center justify-center text-gray-400 transition-transform duration-200"
+				class:rotate-180={expanded}
+			>
 				<ChevronDown strokeWidth="3.5" className="size-3.5" />
 			</span>
 		</div>
@@ -355,15 +358,15 @@
 						/>
 					{/if}
 
-						{#if selectedDone && !isImageGenerationTool(toolName) && typeof files === 'object'}
-							{#each files ?? [] as file}
-								{#if typeof file === 'string' && file.startsWith('data:image/')}
-									<Image src={file} alt="Image" />
-								{:else if file?.type === 'image' && file?.url}
-									<Image src={file.url} alt="Image" />
-								{/if}
-							{/each}
-						{/if}
+					{#if selectedDone && !isImageGenerationTool(toolName) && typeof files === 'object'}
+						{#each files ?? [] as file}
+							{#if typeof file === 'string' && file.startsWith('data:image/')}
+								<Image src={file} alt="Image" />
+							{:else if file?.type === 'image' && file?.url}
+								<Image src={file.url} alt="Image" />
+							{/if}
+						{/each}
+					{/if}
 				</div>
 			{/if}
 		</div>

@@ -142,4 +142,3 @@ Operational precautions:
 - Keep the app running only if a short maintenance window is not possible.
   The hardlink replacement is path-preserving, but a quiet window reduces race
   risk.
-

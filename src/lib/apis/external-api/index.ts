@@ -114,13 +114,16 @@ export const deleteExternalApiClient = async (token: string, clientId: string) =
 
 export const getExternalApiClientLogs = async (token: string, clientId: string, limit = 100) => {
 	let error = null;
-	const res = await fetch(`${EXTERNAL_API_ADMIN_BASE_URL}/clients/${clientId}/logs?limit=${limit}`, {
-		method: 'GET',
-		headers: {
-			'Content-Type': 'application/json',
-			Authorization: `Bearer ${token}`
+	const res = await fetch(
+		`${EXTERNAL_API_ADMIN_BASE_URL}/clients/${clientId}/logs?limit=${limit}`,
+		{
+			method: 'GET',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${token}`
+			}
 		}
-	})
+	)
 		.then(parseJsonResponse)
 		.catch((err) => {
 			error = err.detail;

@@ -39,9 +39,10 @@
 			query = token.includes('\\#') ? token.slice(2) : token.slice(1);
 		} else {
 			triggerChar = token?.charAt(0) ?? '';
-			query = token.startsWith('/') || token.startsWith('@') || token.startsWith('$')
-				? token.slice(1)
-				: token;
+			query =
+				token.startsWith('/') || token.startsWith('@') || token.startsWith('$')
+					? token.slice(1)
+					: token;
 		}
 	}
 
@@ -57,14 +58,19 @@
 </script>
 
 {#if show}
-	<div id="commands-container" class="px-2 mb-2 text-left w-full absolute bottom-0 left-0 right-0 z-10">
+	<div
+		id="commands-container"
+		class="px-2 mb-2 text-left w-full absolute bottom-0 left-0 right-0 z-10"
+	>
 		<div class="flex w-full rounded-xl border border-gray-100 dark:border-gray-850">
-			<div class="max-h-60 flex flex-col w-full rounded-xl bg-white dark:bg-gray-900 dark:text-gray-100">
+			<div
+				class="max-h-60 flex flex-col w-full rounded-xl bg-white dark:bg-gray-900 dark:text-gray-100"
+			>
 				<div class="m-1 overflow-y-auto p-1 rounded-r-xl space-y-0.5 scrollbar-hidden">
 					{#if triggerChar === '/'}
 						<Prompts
 							bind:this={commandElement}
-							query={query}
+							{query}
 							onSelect={async (event) => {
 								const { type, data } = event;
 								if (type === 'prompt') {
@@ -75,7 +81,7 @@
 					{:else if triggerChar === '#'}
 						<Knowledge
 							bind:this={commandElement}
-							query={query}
+							{query}
 							onSelect={(event) => {
 								const { type, data } = event;
 								if (type === 'knowledge') {
@@ -93,7 +99,7 @@
 					{:else if triggerChar === '@'}
 						<Models
 							bind:this={commandElement}
-							query={query}
+							{query}
 							onSelect={(event) => {
 								const { type, data } = event;
 								if (type === 'model') {
@@ -105,7 +111,7 @@
 					{:else if triggerChar === '$'}
 						<SkillsPanel
 							bind:this={commandElement}
-							query={query}
+							{query}
 							onSelect={(event) => {
 								const { type, data } = event;
 								if (type === 'skill') {

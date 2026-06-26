@@ -52,14 +52,20 @@
 	}}
 >
 	<div class="shrink-0 self-start mt-0.5">
-		<div class="flex items-center justify-center w-8 h-8 bg-blue-50/80 dark:bg-blue-950/40 backdrop-blur-sm rounded-xl border border-blue-200/30 dark:border-blue-700/25">
+		<div
+			class="flex items-center justify-center w-8 h-8 bg-blue-50/80 dark:bg-blue-950/40 backdrop-blur-sm rounded-xl border border-blue-200/30 dark:border-blue-700/25"
+		>
 			<img src={'/static/favicon.png'} alt="favicon" class="size-5 rounded-lg" />
 		</div>
 	</div>
 
 	<div class="flex-1 min-w-0">
 		{#if title}
-			<div class="text-[13px] font-medium mb-0.5 line-clamp-1 capitalize text-gray-900 dark:text-gray-100">{title}</div>
+			<div
+				class="text-[13px] font-medium mb-0.5 line-clamp-1 capitalize text-gray-900 dark:text-gray-100"
+			>
+				{title}
+			</div>
 		{/if}
 
 		<div class="line-clamp-2 text-xs text-gray-500 dark:text-gray-400 font-normal leading-relaxed">

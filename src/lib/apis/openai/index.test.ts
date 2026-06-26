@@ -18,9 +18,14 @@ describe('generateOpenAIChatCompletion', () => {
 		});
 		vi.stubGlobal('fetch', fetchMock);
 
-		const request = generateOpenAIChatCompletion('token', { model: 'gpt-test' }, 'http://test/api', {
-			timeoutMs: 25
-		});
+		const request = generateOpenAIChatCompletion(
+			'token',
+			{ model: 'gpt-test' },
+			'http://test/api',
+			{
+				timeoutMs: 25
+			}
+		);
 		const timeoutExpectation = expect(request).rejects.toMatchObject({
 			type: 'request_timeout',
 			detail: 'Chat request did not start in time.'

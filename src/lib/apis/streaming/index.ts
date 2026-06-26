@@ -85,10 +85,7 @@ const consumeImageDelta = (
 	return { id, markdown, mimeType: pending.mimeType };
 };
 
-const consumeImageUrlDelta = (
-	imageUrlDelta: any,
-	sequence: number
-): StreamedImageUpdate | null => {
+const consumeImageUrlDelta = (imageUrlDelta: any, sequence: number): StreamedImageUpdate | null => {
 	const imageUrl =
 		typeof imageUrlDelta === 'string'
 			? imageUrlDelta
@@ -226,7 +223,11 @@ async function* openAIStreamToIterator(
 				continue;
 			}
 
-			if (parsedData.type === 'discussion' || parsedData.type === 'discussion_delta' || parsedData.discussion) {
+			if (
+				parsedData.type === 'discussion' ||
+				parsedData.type === 'discussion_delta' ||
+				parsedData.discussion
+			) {
 				yield {
 					done: false,
 					value: '',

@@ -247,7 +247,7 @@
 				</Tooltip>
 
 				<InlineDirtyActions
-					dirty={dirty}
+					{dirty}
 					saving={loading}
 					saveAsSubmit={true}
 					align="start"

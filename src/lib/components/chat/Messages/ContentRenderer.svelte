@@ -103,8 +103,7 @@
 		selectionThreadManager?.selectionThreadsStore ?? fallbackSelectionThreadsStore;
 	const expandedSelectionThreadId =
 		selectionThreadManager?.expandedSelectionThreadId ?? fallbackExpandedSelectionThreadId;
-	const updateSelectionThreadsState =
-		selectionThreadManager?.updateSelectionThreads ?? (() => {});
+	const updateSelectionThreadsState = selectionThreadManager?.updateSelectionThreads ?? (() => {});
 
 	let contentContainerElement: HTMLElement | null = null;
 	let currentTransitionMode: ChatTransitionMode = 'none';
@@ -313,7 +312,7 @@
 	$: currentTransitionMode = resolveChatTransitionMode($settings);
 	$: renderedMessageContent =
 		!streaming && ($settings?.responseHtmlFormat ?? false)
-			? renderResponseHtmlFormat(content || '') || (content || '')
+			? renderResponseHtmlFormat(content || '') || content || ''
 			: content || '';
 
 	const highlightHeading = (headingElement: HTMLElement) => {
@@ -346,12 +345,8 @@
 		options?: { persist?: boolean; immediate?: boolean }
 	) => {
 		updateSelectionThreadsState((currentState) => {
-			const otherThreads = currentState.items.filter(
-				(thread) => thread.sourceMessageId !== id
-			);
-			const messageThreads = currentState.items.filter(
-				(thread) => thread.sourceMessageId === id
-			);
+			const otherThreads = currentState.items.filter((thread) => thread.sourceMessageId !== id);
+			const messageThreads = currentState.items.filter((thread) => thread.sourceMessageId === id);
 
 			return {
 				version: 1,
@@ -657,14 +652,16 @@
 			}
 
 			const selection = window.getSelection();
-			const hasSelection = Boolean(selection && selection.rangeCount > 0 && selection.toString().trim() !== '');
+			const hasSelection = Boolean(
+				selection && selection.rangeCount > 0 && selection.toString().trim() !== ''
+			);
 			const selectionRange = hasSelection && selection ? selection.getRangeAt(0) : null;
 			const selectionTouchesThisMessage = Boolean(
 				selectionRange &&
-				contentContainerElement &&
-				(contentContainerElement.contains(selectionRange.commonAncestorContainer) ||
-					contentContainerElement.contains(selectionRange.startContainer) ||
-					contentContainerElement.contains(selectionRange.endContainer))
+					contentContainerElement &&
+					(contentContainerElement.contains(selectionRange.commonAncestorContainer) ||
+						contentContainerElement.contains(selectionRange.startContainer) ||
+						contentContainerElement.contains(selectionRange.endContainer))
 			);
 			const expandedThread = currentMessageThreads.find(
 				(thread) => thread.id === $expandedSelectionThreadId
@@ -690,7 +687,6 @@
 			}
 		}, 0);
 	};
-
 
 	const keydownHandler = (event: KeyboardEvent) => {
 		if (event.key !== 'Escape') {
@@ -772,7 +768,7 @@
 					normalizedLang === 'svg' || (normalizedLang === 'xml' && code.includes('<svg'));
 				const isHtmlArtifact = normalizedLang === 'html';
 				const shouldAutoOpenSvgPreview =
-					$settings?.svgPreviewAutoOpen ?? ($settings?.detectArtifacts ?? true);
+					$settings?.svgPreviewAutoOpen ?? $settings?.detectArtifacts ?? true;
 				const autoOpenDismissed = $artifactAutoOpenDismissedMessageId === id;
 
 				if (

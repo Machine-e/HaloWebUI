@@ -35,9 +35,13 @@ describe('selection thread helpers', () => {
 	});
 
 	it('builds a quoted first-turn prompt from the selected content', () => {
-		expect(buildSelectionThreadPrompt('{{SELECTED_CONTENT}}\n\n{{INPUT_CONTENT}}', '第一行\n第二行', '帮我解释')).toBe(
-			'> 第一行\n> 第二行\n\n帮我解释'
-		);
+		expect(
+			buildSelectionThreadPrompt(
+				'{{SELECTED_CONTENT}}\n\n{{INPUT_CONTENT}}',
+				'第一行\n第二行',
+				'帮我解释'
+			)
+		).toBe('> 第一行\n> 第二行\n\n帮我解释');
 	});
 
 	it('materializes persisted turns into chat messages', () => {

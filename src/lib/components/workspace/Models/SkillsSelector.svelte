@@ -32,7 +32,9 @@
 	{#if skills.length > 0}
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
 			{#each Object.keys(_skills) as skill}
-				<label class="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-gray-50/50 dark:hover:bg-gray-800/30 cursor-pointer transition-colors">
+				<label
+					class="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-gray-50/50 dark:hover:bg-gray-800/30 cursor-pointer transition-colors"
+				>
 					<Checkbox
 						state={_skills[skill].selected ? 'checked' : 'unchecked'}
 						on:change={(e) => {

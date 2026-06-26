@@ -110,10 +110,7 @@ describe('file upload errors', () => {
 	});
 
 	it('builds a single warning message for ignored failed files', () => {
-		const message = buildIgnoredFailedFilesMessage(
-			[{ name: 'a.rar' }, { name: 'b.html' }],
-			t
-		);
+		const message = buildIgnoredFailedFilesMessage([{ name: 'a.rar' }, { name: 'b.html' }], t);
 
 		expect(message).toBe('Ignored failed file(s) for this message: a.rar, b.html');
 	});
@@ -133,7 +130,7 @@ describe('file upload errors', () => {
 			const localized = getLocalizedFileUploadDiagnostic(buildChunkTooLargeError(), t);
 
 			expect(localized.title).toBe('Chunk exceeds embedding model limit');
-			expect(localized.message).toContain("input token limit");
+			expect(localized.message).toContain('input token limit');
 		});
 
 		it('returns an admin-specific hint pointing at Chunk Size', () => {

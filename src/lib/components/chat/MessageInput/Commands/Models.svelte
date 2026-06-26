@@ -15,13 +15,13 @@
 	let selectedIdx = 0;
 	let fuse = new Fuse(
 		$models
-				.filter((model) => !model?.info?.meta?.hidden)
-				.map((model) => ({
-					...model,
-					modelName: getModelChatDisplayName(model),
-					tags: model?.info?.meta?.tags?.map((tag) => tag.name).join(' '),
-					desc: model?.info?.meta?.description
-				})),
+			.filter((model) => !model?.info?.meta?.hidden)
+			.map((model) => ({
+				...model,
+				modelName: getModelChatDisplayName(model),
+				tags: model?.info?.meta?.tags?.map((tag) => tag.name).join(' '),
+				desc: model?.info?.meta?.description
+			})),
 		{
 			keys: ['value', 'tags', 'modelName'],
 			threshold: 0.5
@@ -69,18 +69,18 @@
 				on:mousemove={() => {
 					selectedIdx = modelIdx;
 				}}
-				>
-					<div class="flex text-black dark:text-gray-100 line-clamp-1">
-						<ModelIcon
-							src={model?.info?.meta?.profile_image_url ??
-								model?.meta?.profile_image_url ??
-								'/static/favicon.png'}
-							alt={model?.name ?? model.id}
-							className="rounded-lg size-6 mr-2 shrink-0"
-						/>
-						<div class="truncate">{getModelChatDisplayName(model)}</div>
-					</div>
-				</button>
-			</Tooltip>
+			>
+				<div class="flex text-black dark:text-gray-100 line-clamp-1">
+					<ModelIcon
+						src={model?.info?.meta?.profile_image_url ??
+							model?.meta?.profile_image_url ??
+							'/static/favicon.png'}
+						alt={model?.name ?? model.id}
+						className="rounded-lg size-6 mr-2 shrink-0"
+					/>
+					<div class="truncate">{getModelChatDisplayName(model)}</div>
+				</div>
+			</button>
+		</Tooltip>
 	{/each}
 {/if}

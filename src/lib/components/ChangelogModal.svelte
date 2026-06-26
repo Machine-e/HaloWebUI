@@ -100,15 +100,15 @@
 											? 'text-white bg-blue-600'
 											: section === 'highlights'
 												? 'text-white bg-blue-600'
-											: section === 'fixed'
-												? 'text-white bg-green-600'
-												: section === 'experience'
+												: section === 'fixed'
 													? 'text-white bg-green-600'
-												: section === 'changed'
-													? 'text-white bg-yellow-600'
-													: section === 'removed'
-														? 'text-white bg-red-600'
-														: ''}  w-fit px-3 rounded-full my-2.5"
+													: section === 'experience'
+														? 'text-white bg-green-600'
+														: section === 'changed'
+															? 'text-white bg-yellow-600'
+															: section === 'removed'
+																? 'text-white bg-red-600'
+																: ''}  w-fit px-3 rounded-full my-2.5"
 									>
 										{$i18n.t(section.charAt(0).toUpperCase() + section.slice(1))}
 									</div>

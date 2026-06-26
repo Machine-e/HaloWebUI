@@ -145,9 +145,7 @@
 
 	.model-icon--bare {
 		background-color: transparent;
-		box-shadow:
-			var(--tw-ring-offset-shadow, 0 0 #0000),
-			var(--tw-ring-shadow, 0 0 #0000),
+		box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
 			var(--tw-shadow, 0 0 #0000);
 	}
 
@@ -177,9 +175,7 @@
 
 	:global(html.dark) .model-icon--bare {
 		background-color: transparent;
-		box-shadow:
-			var(--tw-ring-offset-shadow, 0 0 #0000),
-			var(--tw-ring-shadow, 0 0 #0000),
+		box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
 			var(--tw-shadow, 0 0 #0000);
 	}
 

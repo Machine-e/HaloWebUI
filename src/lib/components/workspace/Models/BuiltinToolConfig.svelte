@@ -52,7 +52,9 @@
 
 	<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
 		{#each toolItems as item}
-			<div class="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-gray-50/50 dark:bg-gray-800/30">
+			<div
+				class="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-gray-50/50 dark:bg-gray-800/30"
+			>
 				<Tooltip content={$i18n.t(item.tip)}>
 					<span class="text-sm cursor-help">{$i18n.t(item.label)}</span>
 				</Tooltip>

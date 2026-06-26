@@ -11,4 +11,3 @@ export const countStreamCharacters = (text: string) => {
 export const getStreamNow = () => {
 	return typeof performance === 'undefined' ? Date.now() : performance.now();
 };
-

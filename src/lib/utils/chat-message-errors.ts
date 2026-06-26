@@ -14,12 +14,14 @@ export const hasVisibleMessageFiles = (files: unknown): boolean => {
 		const type = `${candidate.type ?? ''}`.trim().toLowerCase();
 		const source = `${candidate.source ?? ''}`.trim().toLowerCase();
 		const status = `${candidate.status ?? ''}`.trim().toLowerCase();
-		if (type === 'image_generation_error' || (source === 'image_generation' && status === 'failed')) {
+		if (
+			type === 'image_generation_error' ||
+			(source === 'image_generation' && status === 'failed')
+		) {
 			return true;
 		}
 
-		const generated =
-			candidate.generated === true || source === 'code_interpreter';
+		const generated = candidate.generated === true || source === 'code_interpreter';
 
 		return (
 			(type === 'image' || generated) &&

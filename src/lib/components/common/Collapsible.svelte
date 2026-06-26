@@ -130,12 +130,7 @@
 		return $i18n.t('Thinking deeply...');
 	}
 
-	function getActivityTitle(
-		type: string,
-		done: boolean,
-		duration: unknown,
-		name: string
-	): string {
+	function getActivityTitle(type: string, done: boolean, duration: unknown, name: string): string {
 		if (type === 'reasoning') {
 			return formatReasoningTitle(done, duration);
 		}
@@ -167,12 +162,7 @@
 		return done ? 'success' : 'running';
 	}
 
-	$: activityTitle = getActivityTitle(
-		activityType,
-		activityDone,
-		activityDuration,
-		activityName
-	);
+	$: activityTitle = getActivityTitle(activityType, activityDone, activityDuration, activityName);
 	$: activityStatus = getActivityStatus(activityType, activityDone);
 	$: activityStatusTone = getActivityStatusTone(activityDone);
 </script>

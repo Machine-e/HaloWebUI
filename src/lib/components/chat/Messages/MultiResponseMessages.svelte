@@ -288,207 +288,212 @@
 		/>
 	{:else}
 		<div>
-		<div
-			class="flex snap-x snap-mandatory overflow-x-auto scrollbar-hidden"
-			id="responses-container-{chatId}-{parentMessage.id}"
-			on:wheel|passive={(event) => {
-				const container = event.currentTarget;
-				if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
-					container.scrollLeft += event.deltaY;
-				}
-			}}
-		>
-			{#if $settings?.displayMultiModelResponsesInTabs ?? false}
-				<div class="w-full">
-					<div class="flex w-full mb-4 border-b border-gray-200 dark:border-gray-850">
-						<div
-							class="flex gap-2 overflow-x-auto scrollbar-none text-sm font-medium pt-1"
-							role="tablist"
-							aria-label="Model responses"
-							on:keydown={handleTabKeydown}
-							on:wheel|passive={handleTabWheel}
-						>
-							{#each Object.keys(groupedMessageIds) as modelIdx}
-								{#if groupedMessageIdsIdx[modelIdx] !== undefined && groupedMessageIds[modelIdx].messageIds.length > 0}
-									{@const _messageId =
-										groupedMessageIds[modelIdx].messageIds[groupedMessageIdsIdx[modelIdx]]}
-									{@const tabModel = findModelByIdentity($models, history.messages[_messageId]?.model)}
-									<button
-										role="tab"
-										aria-selected={selectedModelIdx == modelIdx}
-										tabindex={selectedModelIdx == modelIdx ? 0 : -1}
-										class="min-w-fit pb-1.5 px-2.5 border-b-2 transition {selectedModelIdx ==
-										modelIdx
-											? 'border-gray-400 dark:border-gray-300'
-											: 'border-transparent opacity-50'}"
-										on:click={() => {
-											selectedModelIdx = modelIdx;
-											onGroupClick(_messageId, modelIdx);
-										}}
-									>
-										{tabModel
-											? getModelChatDisplayName(tabModel) || tabModel.name
-											: history.messages[_messageId]?.modelName || history.messages[_messageId]?.model}
-									</button>
-								{/if}
-							{/each}
-						</div>
-					</div>
-
-					{#if selectedModelIdx !== null}
-						{@const _messageId =
-							groupedMessageIds[selectedModelIdx].messageIds[
-								groupedMessageIdsIdx[selectedModelIdx]
-							]}
-						<div role="tabpanel">
-							{#key history.currentId}
-								{#if message}
-									<ResponseMessage
-										{chatId}
-										{history}
-										messageId={_messageId}
-										isLastMessage={true}
-										siblings={groupedMessageIds[selectedModelIdx].messageIds}
-										gotoMessage={(message, messageIdx) => gotoMessage(selectedModelIdx, messageIdx)}
-										showPreviousMessage={() => showPreviousMessage(selectedModelIdx)}
-										showNextMessage={() => showNextMessage(selectedModelIdx)}
-										{updateChat}
-										{editMessage}
-										{saveMessage}
-										{deleteMessage}
-										{actionMessage}
-										{submitMessage}
-										{continueResponse}
-										regenerateResponse={async (message) => {
-											regenerateResponse(message);
-											await tick();
-											groupedMessageIdsIdx[selectedModelIdx] =
-												groupedMessageIds[selectedModelIdx].messageIds.length - 1;
-										}}
-										{addMessages}
-										{onBranchMessage}
-										{branchingMessageId}
-										{branchSupported}
-										{readOnly}
-									/>
-								{/if}
-							{/key}
-						</div>
-					{/if}
-				</div>
-			{:else}
-				{#each Object.keys(groupedMessageIds) as modelIdx}
-					{#if groupedMessageIdsIdx[modelIdx] !== undefined && groupedMessageIds[modelIdx].messageIds.length > 0}
-						{@const _messageId =
-							groupedMessageIds[modelIdx].messageIds[groupedMessageIdsIdx[modelIdx]]}
-
-						<div
-							class="snap-center w-full max-w-full m-1 rounded-2xl p-5 transition-all duration-200 {history.messages[messageId]
-								?.modelIdx == modelIdx
-								? `border-[1.5px] border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-md ${
-										$mobile ? 'min-w-full' : 'min-w-80'
-									}`
-								: `border border-dashed border-gray-200 dark:border-gray-800 opacity-75 hover:opacity-90 ${
-										$mobile ? 'min-w-full' : 'min-w-80'
-									}`}"
-							on:click={() => {
-								onGroupClick(_messageId, modelIdx);
-							}}
-						>
-							{#key history.currentId}
-								{#if message}
-									<ResponseMessage
-										{chatId}
-										{history}
-										messageId={_messageId}
-										isLastMessage={true}
-										siblings={groupedMessageIds[modelIdx].messageIds}
-										gotoMessage={(message, messageIdx) => gotoMessage(modelIdx, messageIdx)}
-										showPreviousMessage={() => showPreviousMessage(modelIdx)}
-										showNextMessage={() => showNextMessage(modelIdx)}
-										{updateChat}
-										{editMessage}
-										{saveMessage}
-										{deleteMessage}
-										{actionMessage}
-										{submitMessage}
-										{continueResponse}
-										regenerateResponse={async (message) => {
-											regenerateResponse(message);
-											await tick();
-											groupedMessageIdsIdx[modelIdx] =
-												groupedMessageIds[modelIdx].messageIds.length - 1;
-										}}
-										{addMessages}
-										{onBranchMessage}
-										{branchingMessageId}
-										{branchSupported}
-										{readOnly}
-									/>
-								{/if}
-							{/key}
-						</div>
-					{/if}
-				{/each}
-			{/if}
-		</div>
-
-		{#if !readOnly}
-			{#if !Object.keys(groupedMessageIds).find((modelIdx) => {
-				const { messageIds } = groupedMessageIds[modelIdx];
-				const _messageId = messageIds[groupedMessageIdsIdx[modelIdx]];
-				return !history.messages[_messageId]?.done ?? false;
-			})}
-				<div class="flex justify-end">
+			<div
+				class="flex snap-x snap-mandatory overflow-x-auto scrollbar-hidden"
+				id="responses-container-{chatId}-{parentMessage.id}"
+				on:wheel|passive={(event) => {
+					const container = event.currentTarget;
+					if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+						container.scrollLeft += event.deltaY;
+					}
+				}}
+			>
+				{#if $settings?.displayMultiModelResponsesInTabs ?? false}
 					<div class="w-full">
-						{#if history.messages[messageId]?.merged?.status}
-							{@const message = history.messages[messageId]?.merged}
-
-							<div class="w-full rounded-xl pl-5 pr-2 py-2">
-								<Name>
-									Merged Response
-
-									{#if message.timestamp}
-										<span
-											class=" self-center invisible group-hover:visible text-gray-400 text-xs font-medium uppercase ml-0.5 -mt-0.5"
+						<div class="flex w-full mb-4 border-b border-gray-200 dark:border-gray-850">
+							<div
+								class="flex gap-2 overflow-x-auto scrollbar-none text-sm font-medium pt-1"
+								role="tablist"
+								aria-label="Model responses"
+								on:keydown={handleTabKeydown}
+								on:wheel|passive={handleTabWheel}
+							>
+								{#each Object.keys(groupedMessageIds) as modelIdx}
+									{#if groupedMessageIdsIdx[modelIdx] !== undefined && groupedMessageIds[modelIdx].messageIds.length > 0}
+										{@const _messageId =
+											groupedMessageIds[modelIdx].messageIds[groupedMessageIdsIdx[modelIdx]]}
+										{@const tabModel = findModelByIdentity(
+											$models,
+											history.messages[_messageId]?.model
+										)}
+										<button
+											role="tab"
+											aria-selected={selectedModelIdx == modelIdx}
+											tabindex={selectedModelIdx == modelIdx ? 0 : -1}
+											class="min-w-fit pb-1.5 px-2.5 border-b-2 transition {selectedModelIdx ==
+											modelIdx
+												? 'border-gray-400 dark:border-gray-300'
+												: 'border-transparent opacity-50'}"
+											on:click={() => {
+												selectedModelIdx = modelIdx;
+												onGroupClick(_messageId, modelIdx);
+											}}
 										>
-											{dayjs(message.timestamp * 1000).format('LT')}
-										</span>
+											{tabModel
+												? getModelChatDisplayName(tabModel) || tabModel.name
+												: history.messages[_messageId]?.modelName ||
+													history.messages[_messageId]?.model}
+										</button>
 									{/if}
-								</Name>
+								{/each}
+							</div>
+						</div>
 
-								<div class="mt-1 markdown-prose w-full min-w-full">
-									{#if (message?.content ?? '') === ''}
-										<Skeleton />
-									{:else}
-										<Markdown id={`merged`} content={message.content ?? ''} />
+						{#if selectedModelIdx !== null}
+							{@const _messageId =
+								groupedMessageIds[selectedModelIdx].messageIds[
+									groupedMessageIdsIdx[selectedModelIdx]
+								]}
+							<div role="tabpanel">
+								{#key history.currentId}
+									{#if message}
+										<ResponseMessage
+											{chatId}
+											{history}
+											messageId={_messageId}
+											isLastMessage={true}
+											siblings={groupedMessageIds[selectedModelIdx].messageIds}
+											gotoMessage={(message, messageIdx) =>
+												gotoMessage(selectedModelIdx, messageIdx)}
+											showPreviousMessage={() => showPreviousMessage(selectedModelIdx)}
+											showNextMessage={() => showNextMessage(selectedModelIdx)}
+											{updateChat}
+											{editMessage}
+											{saveMessage}
+											{deleteMessage}
+											{actionMessage}
+											{submitMessage}
+											{continueResponse}
+											regenerateResponse={async (message) => {
+												regenerateResponse(message);
+												await tick();
+												groupedMessageIdsIdx[selectedModelIdx] =
+													groupedMessageIds[selectedModelIdx].messageIds.length - 1;
+											}}
+											{addMessages}
+											{onBranchMessage}
+											{branchingMessageId}
+											{branchSupported}
+											{readOnly}
+										/>
 									{/if}
-								</div>
+								{/key}
 							</div>
 						{/if}
 					</div>
+				{:else}
+					{#each Object.keys(groupedMessageIds) as modelIdx}
+						{#if groupedMessageIdsIdx[modelIdx] !== undefined && groupedMessageIds[modelIdx].messageIds.length > 0}
+							{@const _messageId =
+								groupedMessageIds[modelIdx].messageIds[groupedMessageIdsIdx[modelIdx]]}
 
-					{#if isLastMessage}
-						<div class=" shrink-0 text-gray-600 dark:text-gray-500 mt-1">
-							<Tooltip content={$i18n.t('Merge Responses')} placement="bottom">
-								<button
-									type="button"
-									id="merge-response-button"
-									class="{true
-										? 'visible'
-										: 'invisible group-hover:visible'} p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition regenerate-response-button"
-									on:click={() => {
-										mergeResponsesHandler();
-									}}
-								>
-									<Merge className=" size-5 " />
-								</button>
-							</Tooltip>
+							<div
+								class="snap-center w-full max-w-full m-1 rounded-2xl p-5 transition-all duration-200 {history
+									.messages[messageId]?.modelIdx == modelIdx
+									? `border-[1.5px] border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-md ${
+											$mobile ? 'min-w-full' : 'min-w-80'
+										}`
+									: `border border-dashed border-gray-200 dark:border-gray-800 opacity-75 hover:opacity-90 ${
+											$mobile ? 'min-w-full' : 'min-w-80'
+										}`}"
+								on:click={() => {
+									onGroupClick(_messageId, modelIdx);
+								}}
+							>
+								{#key history.currentId}
+									{#if message}
+										<ResponseMessage
+											{chatId}
+											{history}
+											messageId={_messageId}
+											isLastMessage={true}
+											siblings={groupedMessageIds[modelIdx].messageIds}
+											gotoMessage={(message, messageIdx) => gotoMessage(modelIdx, messageIdx)}
+											showPreviousMessage={() => showPreviousMessage(modelIdx)}
+											showNextMessage={() => showNextMessage(modelIdx)}
+											{updateChat}
+											{editMessage}
+											{saveMessage}
+											{deleteMessage}
+											{actionMessage}
+											{submitMessage}
+											{continueResponse}
+											regenerateResponse={async (message) => {
+												regenerateResponse(message);
+												await tick();
+												groupedMessageIdsIdx[modelIdx] =
+													groupedMessageIds[modelIdx].messageIds.length - 1;
+											}}
+											{addMessages}
+											{onBranchMessage}
+											{branchingMessageId}
+											{branchSupported}
+											{readOnly}
+										/>
+									{/if}
+								{/key}
+							</div>
+						{/if}
+					{/each}
+				{/if}
+			</div>
+
+			{#if !readOnly}
+				{#if !Object.keys(groupedMessageIds).find((modelIdx) => {
+					const { messageIds } = groupedMessageIds[modelIdx];
+					const _messageId = messageIds[groupedMessageIdsIdx[modelIdx]];
+					return !history.messages[_messageId]?.done ?? false;
+				})}
+					<div class="flex justify-end">
+						<div class="w-full">
+							{#if history.messages[messageId]?.merged?.status}
+								{@const message = history.messages[messageId]?.merged}
+
+								<div class="w-full rounded-xl pl-5 pr-2 py-2">
+									<Name>
+										Merged Response
+
+										{#if message.timestamp}
+											<span
+												class=" self-center invisible group-hover:visible text-gray-400 text-xs font-medium uppercase ml-0.5 -mt-0.5"
+											>
+												{dayjs(message.timestamp * 1000).format('LT')}
+											</span>
+										{/if}
+									</Name>
+
+									<div class="mt-1 markdown-prose w-full min-w-full">
+										{#if (message?.content ?? '') === ''}
+											<Skeleton />
+										{:else}
+											<Markdown id={`merged`} content={message.content ?? ''} />
+										{/if}
+									</div>
+								</div>
+							{/if}
 						</div>
-					{/if}
-				</div>
+
+						{#if isLastMessage}
+							<div class=" shrink-0 text-gray-600 dark:text-gray-500 mt-1">
+								<Tooltip content={$i18n.t('Merge Responses')} placement="bottom">
+									<button
+										type="button"
+										id="merge-response-button"
+										class="{true
+											? 'visible'
+											: 'invisible group-hover:visible'} p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition regenerate-response-button"
+										on:click={() => {
+											mergeResponsesHandler();
+										}}
+									>
+										<Merge className=" size-5 " />
+									</button>
+								</Tooltip>
+							</div>
+						{/if}
+					</div>
+				{/if}
 			{/if}
-		{/if}
 		</div>
 	{/if}
 {/if}

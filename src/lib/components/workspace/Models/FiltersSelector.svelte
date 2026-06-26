@@ -32,7 +32,13 @@
 	{#if filters.length > 0}
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
 			{#each Object.keys(_filters) as filter}
-				<label class="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-gray-50/50 dark:hover:bg-gray-800/30 cursor-pointer transition-colors {_filters[filter].is_global ? 'opacity-60 cursor-default' : ''}">
+				<label
+					class="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-gray-50/50 dark:hover:bg-gray-800/30 cursor-pointer transition-colors {_filters[
+						filter
+					].is_global
+						? 'opacity-60 cursor-default'
+						: ''}"
+				>
 					<Checkbox
 						state={_filters[filter].is_global
 							? 'checked'

@@ -58,7 +58,9 @@
 				class="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition group"
 				id="model-item-{modelId}"
 			>
-				<div class="item-handle cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 group-hover:text-gray-400 dark:group-hover:text-gray-500 transition shrink-0">
+				<div
+					class="item-handle cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 group-hover:text-gray-400 dark:group-hover:text-gray-500 transition shrink-0"
+				>
 					<EllipsisVertical className="size-4" />
 				</div>
 

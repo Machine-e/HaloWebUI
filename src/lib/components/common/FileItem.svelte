@@ -65,7 +65,12 @@
 			return;
 		}
 
-		if (edit || item?.file?.data?.content || item?.processing_mode || item?.file?.meta?.processing_mode) {
+		if (
+			edit ||
+			item?.file?.data?.content ||
+			item?.processing_mode ||
+			item?.file?.meta?.processing_mode
+		) {
 			showModal = !showModal;
 		} else {
 			if (url) {

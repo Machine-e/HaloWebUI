@@ -98,7 +98,9 @@
 		status === 'summarizing' ||
 		allTurns.some((turn) => turn?.status === 'running');
 	$: runningTurn = allTurns.find((turn) => turn?.status === 'running');
-	$: latestTurn = [...allTurns].reverse().find((turn) => turn?.content || turn?.error || turn?.status);
+	$: latestTurn = [...allTurns]
+		.reverse()
+		.find((turn) => turn?.content || turn?.error || turn?.status);
 	$: summaryTurn = runningTurn ?? latestTurn;
 	$: activeParticipant = participants.find((participant) =>
 		summaryTurn ? sameModelEntity(participant, summaryTurn) : false
@@ -315,14 +317,18 @@
 					</div>
 				</div>
 
-				<div class="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+				<div
+					class="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400"
+				>
 					{#if participants.length > 0}
 						<span class="rounded-full bg-gray-100 px-2 py-0.5 dark:bg-gray-800/80">
 							{$i18n.t('共 {{count}} 个模型', { count: participants.length })}
 						</span>
 					{/if}
 					{#if activeParticipant}
-						<span class="rounded-full bg-primary-50 px-2 py-0.5 text-primary-700 dark:bg-primary-900/20 dark:text-primary-200">
+						<span
+							class="rounded-full bg-primary-50 px-2 py-0.5 text-primary-700 dark:bg-primary-900/20 dark:text-primary-200"
+						>
 							{$i18n.t('当前：{{model}}', { model: activeParticipant.label })}
 						</span>
 					{/if}
@@ -356,7 +362,9 @@
 				{@const stats = turnStats(summaryTurn)}
 				<button
 					type="button"
-					class="w-full rounded-xl border px-3 py-2.5 text-left transition-colors {turnAccentClass(summaryTurn)} hover:border-primary-200 hover:bg-primary-50/40 dark:hover:border-primary-800 dark:hover:bg-primary-950/20"
+					class="w-full rounded-xl border px-3 py-2.5 text-left transition-colors {turnAccentClass(
+						summaryTurn
+					)} hover:border-primary-200 hover:bg-primary-50/40 dark:hover:border-primary-800 dark:hover:bg-primary-950/20"
 					on:click={() => {
 						if (activeParticipant) {
 							selectParticipant(activeParticipant);
@@ -366,12 +374,19 @@
 					}}
 				>
 					<div class="flex min-w-0 items-center gap-2">
-						<span class="size-2 shrink-0 rounded-full {statusDotClass(summaryTurn?.status ?? status)}" />
+						<span
+							class="size-2 shrink-0 rounded-full {statusDotClass(summaryTurn?.status ?? status)}"
+						/>
 						<span class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100">
-							{summaryTurn?.modelLabel ?? summaryTurn?.modelName ?? summaryTurn?.model ?? $i18n.t('模型')}
+							{summaryTurn?.modelLabel ??
+								summaryTurn?.modelName ??
+								summaryTurn?.model ??
+								$i18n.t('模型')}
 						</span>
 						{#if summaryTurn?.status === 'running'}
-							<Loader2 class="size-3.5 shrink-0 animate-spin text-primary-500 dark:text-primary-300" />
+							<Loader2
+								class="size-3.5 shrink-0 animate-spin text-primary-500 dark:text-primary-300"
+							/>
 						{/if}
 					</div>
 
@@ -389,7 +404,9 @@
 					</div>
 
 					{#if turnText(summaryTurn)}
-						<div class="mt-2 line-clamp-2 whitespace-pre-wrap text-xs leading-5 text-gray-600 dark:text-gray-300">
+						<div
+							class="mt-2 line-clamp-2 whitespace-pre-wrap text-xs leading-5 text-gray-600 dark:text-gray-300"
+						>
 							{turnText(summaryTurn)}
 						</div>
 					{:else if summaryTurn?.status === 'running'}
@@ -400,7 +417,9 @@
 					{/if}
 				</button>
 			{:else}
-				<div class="flex items-center gap-2 rounded-xl border border-dashed border-gray-200 px-3 py-3 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+				<div
+					class="flex items-center gap-2 rounded-xl border border-dashed border-gray-200 px-3 py-3 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400"
+				>
 					<Loader2 class="size-3 animate-spin" />
 					{$i18n.t('正在等待第一条讨论发言...')}
 				</div>
@@ -414,7 +433,9 @@
 						{#each participants as participant}
 							<button
 								type="button"
-								class="inline-flex max-w-[190px] items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-medium transition-colors {modelTabClass(participant)}"
+								class="inline-flex max-w-[190px] items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-medium transition-colors {modelTabClass(
+									participant
+								)}"
 								on:click={() => selectParticipant(participant)}
 							>
 								<span class="truncate">{participant.label}</span>
@@ -455,12 +476,20 @@
 										: 'border-gray-200 bg-white/70 dark:border-gray-800 dark:bg-gray-950/20'}"
 								>
 									<div class="flex min-w-0 items-center gap-2">
-										<span class="size-2 shrink-0 rounded-full {statusDotClass(turn?.status ?? 'waiting')}" />
-										<div class="min-w-0 truncate text-xs font-semibold text-gray-700 dark:text-gray-200">
+										<span
+											class="size-2 shrink-0 rounded-full {statusDotClass(
+												turn?.status ?? 'waiting'
+											)}"
+										/>
+										<div
+											class="min-w-0 truncate text-xs font-semibold text-gray-700 dark:text-gray-200"
+										>
 											{$i18n.t('第 {{round}} 轮', { round: item.roundIndex })}
 										</div>
 										{#if turn?.status === 'running'}
-											<Loader2 class="size-3.5 shrink-0 animate-spin text-primary-500 dark:text-primary-300" />
+											<Loader2
+												class="size-3.5 shrink-0 animate-spin text-primary-500 dark:text-primary-300"
+											/>
 										{/if}
 									</div>
 
@@ -478,11 +507,15 @@
 									</div>
 
 									{#if turn && turnText(turn)}
-										<div class="mt-1.5 whitespace-pre-wrap text-xs leading-5 text-gray-600 dark:text-gray-300">
+										<div
+											class="mt-1.5 whitespace-pre-wrap text-xs leading-5 text-gray-600 dark:text-gray-300"
+										>
 											{turnText(turn)}
 										</div>
 									{:else if turn?.status === 'running'}
-										<div class="mt-1.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+										<div
+											class="mt-1.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"
+										>
 											<Loader2 class="size-3 animate-spin" />
 											{$i18n.t('该模型正在思考当前轮次...')}
 										</div>
@@ -494,7 +527,9 @@
 								</div>
 							{/each}
 						{:else}
-							<div class="rounded-xl border border-dashed border-gray-200 px-3 py-4 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+							<div
+								class="rounded-xl border border-dashed border-gray-200 px-3 py-4 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400"
+							>
 								{$i18n.t('该模型还没有产生发言。')}
 							</div>
 						{/if}
@@ -512,11 +547,15 @@
 										<div class="rounded-xl border px-3 py-2.5 {turnAccentClass(turn)}">
 											<div class="flex min-w-0 items-center gap-2">
 												<span class="size-2 shrink-0 rounded-full {statusDotClass(turn?.status)}" />
-												<span class="min-w-0 truncate text-xs font-semibold text-gray-700 dark:text-gray-200">
+												<span
+													class="min-w-0 truncate text-xs font-semibold text-gray-700 dark:text-gray-200"
+												>
 													{turn?.modelLabel ?? turn?.modelName ?? turn?.model ?? $i18n.t('模型')}
 												</span>
 												{#if turn?.status === 'running'}
-													<Loader2 class="size-3.5 shrink-0 animate-spin text-primary-500 dark:text-primary-300" />
+													<Loader2
+														class="size-3.5 shrink-0 animate-spin text-primary-500 dark:text-primary-300"
+													/>
 												{/if}
 											</div>
 
@@ -533,7 +572,9 @@
 												{/each}
 											</div>
 
-											<div class="mt-2 whitespace-pre-wrap text-xs leading-5 text-gray-600 dark:text-gray-300">
+											<div
+												class="mt-2 whitespace-pre-wrap text-xs leading-5 text-gray-600 dark:text-gray-300"
+											>
 												{turnText(turn) || $i18n.t('暂无内容。')}
 											</div>
 										</div>

@@ -74,12 +74,16 @@ const LEGACY_SIZE_TO_ASPECT_RATIO: Record<string, string> = {
 
 export const normalizeGeminiImageSize = (value: unknown): string | null => {
 	const normalized = `${value ?? ''}`.trim().toUpperCase();
-	return GEMINI_IMAGE_SIZE_OPTIONS.some((option) => option.value === normalized) ? normalized : null;
+	return GEMINI_IMAGE_SIZE_OPTIONS.some((option) => option.value === normalized)
+		? normalized
+		: null;
 };
 
 export const normalizeAspectRatio = (value: unknown): string | null => {
 	const normalized = `${value ?? ''}`.trim();
-	return IMAGE_ASPECT_RATIO_OPTIONS.some((option) => option.value === normalized) ? normalized : null;
+	return IMAGE_ASPECT_RATIO_OPTIONS.some((option) => option.value === normalized)
+		? normalized
+		: null;
 };
 
 export const normalizeGrokAspectRatio = (value: unknown): string | null => {
@@ -96,7 +100,9 @@ export const normalizeGrokResolution = (value: unknown): string | null => {
 		: null;
 };
 
-export const mapLegacySizeToGeminiParams = (size: unknown): {
+export const mapLegacySizeToGeminiParams = (
+	size: unknown
+): {
 	imageSize: string | null;
 	aspectRatio: string | null;
 } => {
@@ -150,8 +156,7 @@ export const looksLikeImageValveSpec = (schema: any): boolean => {
 export const getImageValveProperty = (
 	schema: any,
 	key: 'image_size' | 'aspect_ratio' | 'resolution'
-) =>
-	schema?.properties?.[key] ?? null;
+) => schema?.properties?.[key] ?? null;
 
 export const getPropertyEnumOptions = (
 	property: any,

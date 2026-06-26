@@ -1,9 +1,5 @@
 const escapeHtml = (value: string) =>
-	value
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;');
+	value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const splitMentionId = (id: string) => {
 	const [baseId, ...labelParts] = String(id ?? '').split('|');

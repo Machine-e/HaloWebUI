@@ -6,15 +6,18 @@ type TemporaryChatOptions = {
 	allowed?: boolean;
 };
 
-type TemporaryChatUser = {
-	role?: string | null;
-	permissions?: {
-		chat?: {
-			temporary?: unknown;
-			temporary_enforced?: unknown;
-		} | null;
-	} | null;
-} | null | undefined;
+type TemporaryChatUser =
+	| {
+			role?: string | null;
+			permissions?: {
+				chat?: {
+					temporary?: unknown;
+					temporary_enforced?: unknown;
+				} | null;
+			} | null;
+	  }
+	| null
+	| undefined;
 
 type TemporaryChatAccess = {
 	allowed: boolean;
@@ -61,9 +64,7 @@ export const getTemporaryChatAccess = (user: TemporaryChatUser): TemporaryChatAc
 	}
 
 	const allowed =
-		user?.role === 'user'
-			? (parseBooleanLike(user?.permissions?.chat?.temporary) ?? true)
-			: true;
+		user?.role === 'user' ? (parseBooleanLike(user?.permissions?.chat?.temporary) ?? true) : true;
 
 	return {
 		allowed,

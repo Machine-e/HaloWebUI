@@ -85,8 +85,9 @@ function normalizeModelLookupValue(value?: string | null): string {
 }
 
 function getProviderRules(provider?: string | null): NativeWebSearchProviderRules {
-	const providers = (nativeWebSearchRules as { providers?: Record<string, NativeWebSearchProviderRules> })
-		.providers;
+	const providers = (
+		nativeWebSearchRules as { providers?: Record<string, NativeWebSearchProviderRules> }
+	).providers;
 	if (!providers || typeof providers !== 'object') {
 		return {};
 	}
@@ -121,7 +122,11 @@ function resolveFallbackModelRule(
 ): NativeWebSearchSupport {
 	const normalizedProvider = normalizeRuleProvider(provider);
 	const providerRules = getProviderRules(normalizedProvider);
-	if (!providerRules.default_status && normalizedProvider !== 'openai' && normalizedProvider !== 'gemini') {
+	if (
+		!providerRules.default_status &&
+		normalizedProvider !== 'openai' &&
+		normalizedProvider !== 'gemini'
+	) {
 		return {
 			status: 'unsupported',
 			reason: normalizedProvider ? 'provider_not_supported' : 'unknown_model',
@@ -200,8 +205,14 @@ export function getNativeWebSearchSupport(model?: ModelLike | null): NativeWebSe
 		return {
 			...fallbackRuleSupport,
 			status: 'unsupported',
-			reason: fallbackRuleSupport.reason === 'model_rule_unknown' ? 'legacy_unsupported' : fallbackRuleSupport.reason,
-			source: fallbackRuleSupport.source === 'model_rules_fallback' ? 'legacy+model_rules_fallback' : 'legacy'
+			reason:
+				fallbackRuleSupport.reason === 'model_rule_unknown'
+					? 'legacy_unsupported'
+					: fallbackRuleSupport.reason,
+			source:
+				fallbackRuleSupport.source === 'model_rules_fallback'
+					? 'legacy+model_rules_fallback'
+					: 'legacy'
 		};
 	}
 
@@ -216,7 +227,9 @@ export function getNativeWebSearchSupport(model?: ModelLike | null): NativeWebSe
 	};
 }
 
-export function summarizeNativeWebSearchSupport(models: Array<ModelLike | null | undefined>): NativeWebSearchSummary {
+export function summarizeNativeWebSearchSupport(
+	models: Array<ModelLike | null | undefined>
+): NativeWebSearchSummary {
 	const validModels = models.filter(Boolean) as ModelLike[];
 	const summary: NativeWebSearchSummary = {
 		total: validModels.length,
@@ -297,8 +310,7 @@ export function getNativeWebSearchAvailabilityNote(
 		return '';
 	}
 
-	const prefix =
-		scope === 'selection' ? t('Current selection') : t('Currently loaded models');
+	const prefix = scope === 'selection' ? t('Current selection') : t('Currently loaded models');
 
 	if (summary.allSupported) {
 		return t('{{scope}}: all {{count}} models support native web search.', {
@@ -313,12 +325,15 @@ export function getNativeWebSearchAvailabilityNote(
 		});
 	}
 
-	return t('{{scope}}: {{supported}} native, {{unknown}} unverified, {{unsupported}} unavailable.', {
-		scope: prefix,
-		supported: summary.supportedCount,
-		unknown: summary.unknownCount,
-		unsupported: summary.unsupportedCount
-	});
+	return t(
+		'{{scope}}: {{supported}} native, {{unknown}} unverified, {{unsupported}} unavailable.',
+		{
+			scope: prefix,
+			supported: summary.supportedCount,
+			unknown: summary.unknownCount,
+			unsupported: summary.unsupportedCount
+		}
+	);
 }
 
 function buildNativeModeDescription(t: Translator, summary: NativeWebSearchSummary): string {

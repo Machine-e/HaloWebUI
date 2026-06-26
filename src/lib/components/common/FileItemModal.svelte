@@ -6,8 +6,7 @@
 	import { translateWithDefault } from '$lib/i18n';
 
 	const i18n = getContext('i18n');
-	const tr = (key: string, defaultValue: string) =>
-		translateWithDefault($i18n, key, defaultValue);
+	const tr = (key: string, defaultValue: string) => translateWithDefault($i18n, key, defaultValue);
 
 	import Modal from './Modal.svelte';
 	import XMark from '../icons/XMark.svelte';
@@ -91,7 +90,8 @@
 
 						{#if item?.file?.data?.content}
 							<div class="capitalize shrink-0">
-								{getLineCount(item?.file?.data?.content ?? '')} {$i18n.t('extracted lines')}
+								{getLineCount(item?.file?.data?.content ?? '')}
+								{$i18n.t('extracted lines')}
 							</div>
 
 							<div class="flex items-center gap-1 shrink-0">
@@ -108,20 +108,18 @@
 								{tr('文件处理模式', 'File Processing Mode')}
 							</div>
 							<Tooltip
-								content={
-									selectedProcessingMode === 'full_context'
-										? $i18n.t(
-												'Inject the entire content as context for comprehensive processing, this is recommended for complex queries.'
+								content={selectedProcessingMode === 'full_context'
+									? $i18n.t(
+											'Inject the entire content as context for comprehensive processing, this is recommended for complex queries.'
+										)
+									: selectedProcessingMode === 'native_file'
+										? tr(
+												'直接把原文件交给支持原生文件输入的模型。',
+												'Send the original file directly to models that support native file input.'
 											)
-										: selectedProcessingMode === 'native_file'
-											? tr(
-													'直接把原文件交给支持原生文件输入的模型。',
-													'Send the original file directly to models that support native file input.'
-												)
-											: $i18n.t(
-													'Default to segmented retrieval for focused and relevant content extraction, this is recommended for most cases.'
-												)
-								}
+										: $i18n.t(
+												'Default to segmented retrieval for focused and relevant content extraction, this is recommended for most cases.'
+											)}
 							>
 								<HaloSelect
 									value={selectedProcessingMode}

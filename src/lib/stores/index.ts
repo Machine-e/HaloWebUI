@@ -128,9 +128,11 @@ export const overviewFocusedMessageId: Writable<string | null> = writable(null);
 export const showArtifacts = writable(false);
 export const showCallOverlay = writable(false);
 export const artifactAutoOpenDismissedMessageId: Writable<string | null> = writable(null);
-export const artifactPreviewTarget: Writable<
-	{ messageId?: string; type?: 'svg' | 'iframe'; content?: string } | null
-> = writable(null);
+export const artifactPreviewTarget: Writable<{
+	messageId?: string;
+	type?: 'svg' | 'iframe';
+	content?: string;
+} | null> = writable(null);
 
 export const temporaryChatEnabled = writable(false);
 export const scrollPaginationEnabled = writable(false);

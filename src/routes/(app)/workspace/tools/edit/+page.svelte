@@ -13,7 +13,8 @@
 	import { localizeCommonError } from '$lib/utils/common-errors';
 
 	const i18n = getContext('i18n');
-	const formatError = (error) => localizeCommonError(error, (key, options) => $i18n.t(key, options));
+	const formatError = (error) =>
+		localizeCommonError(error, (key, options) => $i18n.t(key, options));
 
 	let tool = null;
 
@@ -81,13 +82,13 @@
 			descKey="Update tool logic, manifest details, and access settings without leaving the workspace."
 		/>
 
-			<ToolkitEditor
-				edit={true}
-				id={tool.id}
-				ownerId={tool.user_id}
-				name={tool.name}
-				meta={tool.meta}
-				content={tool.content}
+		<ToolkitEditor
+			edit={true}
+			id={tool.id}
+			ownerId={tool.user_id}
+			name={tool.name}
+			meta={tool.meta}
+			content={tool.content}
 			accessControl={tool.access_control}
 			showBackButton={false}
 			onSave={(value) => {

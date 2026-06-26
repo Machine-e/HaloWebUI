@@ -22,8 +22,7 @@
 	import { getErrorDetail } from '$lib/apis/response';
 	import { translateWithDefault } from '$lib/i18n';
 
-	const tr = (key: string, defaultValue: string) =>
-		translateWithDefault($i18n, key, defaultValue);
+	const tr = (key: string, defaultValue: string) => translateWithDefault($i18n, key, defaultValue);
 
 	type TransportType = 'http' | 'stdio';
 
@@ -103,7 +102,10 @@
 		{
 			id: 'composio',
 			name: 'Composio',
-			description: tr('200+ 应用集成 (GitHub, Slack, Gmail, Jira 等)', '200+ app integrations (GitHub, Slack, Gmail, Jira, etc.)'),
+			description: tr(
+				'200+ 应用集成 (GitHub, Slack, Gmail, Jira 等)',
+				'200+ app integrations (GitHub, Slack, Gmail, Jira, etc.)'
+			),
 			category: 'hosted',
 			transport_type: 'http',
 			icon: '🔗',
@@ -111,20 +113,29 @@
 			headers: { 'x-consumer-api-key': '' },
 			auth_type: 'none',
 			requires_key: true,
-			setup_hint: tr('把 composio 提供的 API Key 填到 x-consumer-api-key 的值里即可', 'Paste the Composio API key into x-consumer-api-key.'),
+			setup_hint: tr(
+				'把 composio 提供的 API Key 填到 x-consumer-api-key 的值里即可',
+				'Paste the Composio API key into x-consumer-api-key.'
+			),
 			doc_url: 'https://docs.composio.dev'
 		},
 		{
 			id: 'smithery',
 			name: 'Smithery',
-			description: tr('MCP 服务器托管平台，支持 fetch/memory/search 等', 'Hosted MCP platform with fetch, memory, search, and more.'),
+			description: tr(
+				'MCP 服务器托管平台，支持 fetch/memory/search 等',
+				'Hosted MCP platform with fetch, memory, search, and more.'
+			),
 			category: 'hosted',
 			transport_type: 'http',
 			icon: '🛠️',
 			url: 'https://server.smithery.ai/{server-name}/mcp',
 			auth_type: 'bearer',
 			requires_key: true,
-			setup_hint: tr('在 smithery.ai 注册，选择 MCP 服务器获取端点和 Key', 'Register on smithery.ai and choose an MCP server to get the endpoint and key.'),
+			setup_hint: tr(
+				'在 smithery.ai 注册，选择 MCP 服务器获取端点和 Key',
+				'Register on smithery.ai and choose an MCP server to get the endpoint and key.'
+			),
 			doc_url: 'https://smithery.ai'
 		},
 		{
@@ -137,7 +148,10 @@
 			url: 'https://actions.zapier.com/mcp/actions',
 			auth_type: 'bearer',
 			requires_key: true,
-			setup_hint: tr('在 Zapier 设置中启用 MCP 并获取 Access Token', 'Enable MCP in Zapier settings and copy the access token.'),
+			setup_hint: tr(
+				'在 Zapier 设置中启用 MCP 并获取 Access Token',
+				'Enable MCP in Zapier settings and copy the access token.'
+			),
 			doc_url: 'https://actions.zapier.com'
 		},
 		{
@@ -149,7 +163,10 @@
 			icon: '🧠',
 			command: 'npx',
 			args: ['-y', '@modelcontextprotocol/server-memory'],
-			setup_hint: tr('无需额外配置，首次启动可能会下载 npm 包。', 'No extra setup is required. The first launch may download npm packages.'),
+			setup_hint: tr(
+				'无需额外配置，首次启动可能会下载 npm 包。',
+				'No extra setup is required. The first launch may download npm packages.'
+			),
 			runtime_hint: tr('需要 Node.js 与 npx', 'Requires Node.js and npx')
 		},
 		{
@@ -185,7 +202,10 @@
 			icon: '🌐',
 			command: 'uvx',
 			args: ['mcp-server-fetch'],
-			setup_hint: tr('请确保当前运行环境已安装 uv。', 'Make sure uv is installed in the current runtime.'),
+			setup_hint: tr(
+				'请确保当前运行环境已安装 uv。',
+				'Make sure uv is installed in the current runtime.'
+			),
 			runtime_hint: tr('需要 Python 与 uv/uvx', 'Requires Python and uv/uvx')
 		},
 		{
@@ -197,7 +217,10 @@
 			icon: '⏰',
 			command: 'uvx',
 			args: ['mcp-server-time'],
-			setup_hint: tr('请确保当前运行环境已安装 uv。', 'Make sure uv is installed in the current runtime.'),
+			setup_hint: tr(
+				'请确保当前运行环境已安装 uv。',
+				'Make sure uv is installed in the current runtime.'
+			),
 			runtime_hint: tr('需要 Python 与 uv/uvx', 'Requires Python and uv/uvx')
 		}
 	];
@@ -258,7 +281,10 @@
 		}
 
 		if (runtimeProfile === 'slim') {
-			return tr('推荐切换到 main 镜像获得开箱体验', 'Switch to the main image for the best out-of-the-box experience.');
+			return tr(
+				'推荐切换到 main 镜像获得开箱体验',
+				'Switch to the main image for the best out-of-the-box experience.'
+			);
 		}
 
 		return getPresetRuntimeCapability(preset)?.message || preset.runtime_hint;
@@ -280,12 +306,15 @@
 
 	const normalizeArgs = () => argsItems.map((item) => item.trim()).filter(Boolean);
 	const normalizeEnv = () =>
-		envItems.reduce((acc, item) => {
-			const envKey = item.key.trim();
-			if (!envKey) return acc;
-			acc[envKey] = item.value;
-			return acc;
-		}, {} as Record<string, string>);
+		envItems.reduce(
+			(acc, item) => {
+				const envKey = item.key.trim();
+				if (!envKey) return acc;
+				acc[envKey] = item.value;
+				return acc;
+			},
+			{} as Record<string, string>
+		);
 	$: normalizedArgs = normalizeArgs();
 	$: normalizedEnvMap = normalizeEnv();
 	$: preparedHeaders = prepareMCPHeaderItems(headerItems);
@@ -319,9 +348,7 @@
 			auth_type: transport_type === 'http' ? auth_type : 'none',
 			headers: transport_type === 'http' ? preparedHeaders.signature : [],
 			key:
-				transport_type === 'http' && (auth_type === 'bearer' || auth_type === 'oauth21')
-					? key
-					: ''
+				transport_type === 'http' && (auth_type === 'bearer' || auth_type === 'oauth21') ? key : ''
 		});
 
 	const clearVerifyCache = () => {
@@ -452,7 +479,11 @@
 		lastTransportType = transport_type;
 	}
 
-	$: if (!hydrating && lastVerifiedSignature && buildVerificationSignature() !== lastVerifiedSignature) {
+	$: if (
+		!hydrating &&
+		lastVerifiedSignature &&
+		buildVerificationSignature() !== lastVerifiedSignature
+	) {
 		clearVerifyCache();
 	}
 
@@ -609,7 +640,12 @@
 				}}
 				type="button"
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="w-5 h-5"
+				>
 					<path
 						d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"
 					/>
@@ -698,7 +734,12 @@
 											type="button"
 											disabled={loading || isFormInvalid}
 										>
-											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 {verifyStatus === 'loading' ? 'animate-spin' : ''}">
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 20 20"
+												fill="currentColor"
+												class="h-4 w-4 {verifyStatus === 'loading' ? 'animate-spin' : ''}"
+											>
 												<path
 													fill-rule="evenodd"
 													d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0V5.36l-.31-.31A7 7 0 003.239 8.188a.75.75 0 101.448.389A5.5 5.5 0 0113.89 6.11l.311.31h-2.432a.75.75 0 000 1.5h4.243a.75.75 0 00.53-.219z"
@@ -736,7 +777,12 @@
 											type="button"
 											disabled={loading || isFormInvalid}
 										>
-											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 {verifyStatus === 'loading' ? 'animate-spin' : ''}">
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 20 20"
+												fill="currentColor"
+												class="h-4 w-4 {verifyStatus === 'loading' ? 'animate-spin' : ''}"
+											>
 												<path
 													fill-rule="evenodd"
 													d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0V5.36l-.31-.31A7 7 0 003.239 8.188a.75.75 0 101.448.389A5.5 5.5 0 0113.89 6.11l.311.31h-2.432a.75.75 0 000 1.5h4.243a.75.75 0 00.53-.219z"
@@ -769,8 +815,7 @@
 													class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden border-b border-gray-200 dark:border-gray-700 pb-1"
 													type="text"
 													value={arg}
-													on:input={(event) =>
-														updateArgRow(idx, event.currentTarget.value)}
+													on:input={(event) => updateArgRow(idx, event.currentTarget.value)}
 													placeholder={$i18n.t('参数')}
 													autocomplete="off"
 												/>
@@ -807,8 +852,7 @@
 													class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden border-b border-gray-200 dark:border-gray-700 pb-1"
 													type="text"
 													value={item.key}
-													on:input={(event) =>
-														updateEnvRow(idx, 'key', event.currentTarget.value)}
+													on:input={(event) => updateEnvRow(idx, 'key', event.currentTarget.value)}
 													placeholder="KEY"
 													autocomplete="off"
 												/>
@@ -834,14 +878,18 @@
 								</div>
 
 								{#if missingGitForCurrentStdio}
-									<div class="text-xs text-amber-700 dark:text-amber-300 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 p-2 leading-relaxed">
+									<div
+										class="text-xs text-amber-700 dark:text-amber-300 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 p-2 leading-relaxed"
+									>
 										{$i18n.t(
 											'This stdio MCP uses a Git source. The current runtime has uv/uvx, but is missing git. Switch to the official main image with git included, or install git in the container and verify again.'
 										)}
 									</div>
 								{/if}
 
-								<div class="text-xs text-amber-700 dark:text-amber-300 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 p-2 leading-relaxed">
+								<div
+									class="text-xs text-amber-700 dark:text-amber-300 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 p-2 leading-relaxed"
+								>
 									{manualStdioHint}
 								</div>
 							</div>
@@ -865,7 +913,9 @@
 								className="mt-1"
 							>
 								<div class="space-y-3">
-									<div class="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/50 p-3 space-y-3">
+									<div
+										class="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/50 p-3 space-y-3"
+									>
 										<div>
 											<div class="text-sm font-medium text-gray-800 dark:text-gray-200">
 												{$i18n.t('常用认证')}
@@ -896,7 +946,9 @@
 										{/if}
 									</div>
 
-									<div class="rounded-xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/40 p-3 space-y-3">
+									<div
+										class="rounded-xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/40 p-3 space-y-3"
+									>
 										<div class="flex items-start justify-between gap-3">
 											<div class="min-w-0">
 												<div class="text-sm font-medium text-gray-800 dark:text-gray-200">
@@ -919,16 +971,25 @@
 
 										<div class="space-y-2">
 											{#if headerItems.length === 0}
-												<div class="rounded-lg border border-dashed border-gray-200 dark:border-gray-800 px-3 py-4 text-xs text-gray-400 dark:text-gray-500">
+												<div
+													class="rounded-lg border border-dashed border-gray-200 dark:border-gray-800 px-3 py-4 text-xs text-gray-400 dark:text-gray-500"
+												>
 													{$i18n.t('暂无自定义请求头')}
 												</div>
 											{/if}
 
 											{#each headerItems as item, idx}
-												<div class="space-y-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/50 p-2.5">
-													<div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-start">
+												<div
+													class="space-y-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/50 p-2.5"
+												>
+													<div
+														class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-start"
+													>
 														<input
-															class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden border-b pb-1 {hasHeaderFieldIssue(idx, 'key')
+															class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden border-b pb-1 {hasHeaderFieldIssue(
+																idx,
+																'key'
+															)
 																? 'border-red-300 dark:border-red-700'
 																: 'border-gray-200 dark:border-gray-700'}"
 															type="text"
@@ -975,17 +1036,42 @@
 						{/if}
 
 						{#if verifyStatus === 'loading'}
-							<div class="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg">
-								<svg class="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							<div
+								class="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg"
+							>
+								<svg
+									class="animate-spin h-4 w-4 text-blue-500"
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+								>
+									<circle
+										class="opacity-25"
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										stroke-width="4"
+									></circle>
+									<path
+										class="opacity-75"
+										fill="currentColor"
+										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+									></path>
 								</svg>
 								<span class="text-sm text-blue-700 dark:text-blue-300">{$i18n.t('验证中...')}</span>
 							</div>
 						{:else if verifyStatus === 'success' && verifyResult}
-							<div class="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-lg space-y-2">
+							<div
+								class="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-lg space-y-2"
+							>
 								<div class="flex items-center gap-2">
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-green-600 dark:text-green-400">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 20 20"
+										fill="currentColor"
+										class="w-4 h-4 text-green-600 dark:text-green-400"
+									>
 										<path
 											fill-rule="evenodd"
 											d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
@@ -995,10 +1081,14 @@
 									<span class="text-sm font-medium text-green-800 dark:text-green-300">
 										{verifyResult.server_info?.name || 'MCP Server'}
 										{#if verifyResult.server_info?.version}
-											<span class="text-xs font-normal opacity-70">v{verifyResult.server_info.version}</span>
+											<span class="text-xs font-normal opacity-70"
+												>v{verifyResult.server_info.version}</span
+											>
 										{/if}
 									</span>
-									<span class="ml-auto px-2 py-0.5 text-xs rounded-full bg-green-100 dark:bg-green-800/40 text-green-700 dark:text-green-300">
+									<span
+										class="ml-auto px-2 py-0.5 text-xs rounded-full bg-green-100 dark:bg-green-800/40 text-green-700 dark:text-green-300"
+									>
 										{verifyResult.tool_count}
 										{$i18n.t('个工具')}
 									</span>
@@ -1006,7 +1096,8 @@
 
 								{#if verifyResult.verified_at}
 									<div class="text-xs text-green-700 dark:text-green-300/80">
-										{$i18n.t('上次验证于')} {formatVerifiedAt(verifyResult.verified_at)}
+										{$i18n.t('上次验证于')}
+										{formatVerifiedAt(verifyResult.verified_at)}
 									</div>
 								{/if}
 
@@ -1014,7 +1105,9 @@
 									<div class="space-y-1 mt-2">
 										{#each showAllTools ? verifyResult.tools : verifyResult.tools.slice(0, 5) as tool}
 											<div class="flex items-start gap-2 text-xs">
-												<span class="font-mono text-green-700 dark:text-green-400 shrink-0">{tool.name}</span>
+												<span class="font-mono text-green-700 dark:text-green-400 shrink-0"
+													>{tool.name}</span
+												>
 												{#if tool.description}
 													<span class="text-gray-500 truncate">{tool.description}</span>
 												{/if}
@@ -1032,18 +1125,28 @@
 									</div>
 								{/if}
 							</div>
-							{:else if verifyStatus === 'error'}
-								<div class="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg">
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-red-500 shrink-0">
-										<path
-											fill-rule="evenodd"
-											d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z"
-											clip-rule="evenodd"
-										/>
-									</svg>
-									<span class="min-w-0 whitespace-pre-wrap break-words text-sm text-red-700 dark:text-red-300">{verifyError || $i18n.t('Connection failed')}</span>
-								</div>
-							{/if}
+						{:else if verifyStatus === 'error'}
+							<div
+								class="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg"
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 20 20"
+									fill="currentColor"
+									class="w-4 h-4 text-red-500 shrink-0"
+								>
+									<path
+										fill-rule="evenodd"
+										d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z"
+										clip-rule="evenodd"
+									/>
+								</svg>
+								<span
+									class="min-w-0 whitespace-pre-wrap break-words text-sm text-red-700 dark:text-red-300"
+									>{verifyError || $i18n.t('Connection failed')}</span
+								>
+							</div>
+						{/if}
 					</div>
 
 					<div class="flex justify-end pt-4 text-sm font-medium">
@@ -1056,20 +1159,24 @@
 						</button>
 					</div>
 				</form>
-				{:else if activeTab === 'presets'}
-					<div class="space-y-4 mt-3">
-						{#if isAdmin && runtimeProfile === 'slim'}
-							<div class="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-700 dark:border-sky-800/50 dark:bg-sky-950/30 dark:text-sky-300">
-								{tr(
-									'当前运行的是官方 slim 轻量版。它不会预装 stdio MCP 常用运行时；想直接体验 Memory、Context7、Fetch、Time 等预设，推荐切换到官方 main 镜像。',
-									'You are using the official slim image. It does not include common stdio MCP runtimes by default. Switch to the official main image to use presets like Memory, Context7, Fetch, and Time immediately.'
-								)}
-							</div>
-						{/if}
+			{:else if activeTab === 'presets'}
+				<div class="space-y-4 mt-3">
+					{#if isAdmin && runtimeProfile === 'slim'}
+						<div
+							class="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-700 dark:border-sky-800/50 dark:bg-sky-950/30 dark:text-sky-300"
+						>
+							{tr(
+								'当前运行的是官方 slim 轻量版。它不会预装 stdio MCP 常用运行时；想直接体验 Memory、Context7、Fetch、Time 等预设，推荐切换到官方 main 镜像。',
+								'You are using the official slim image. It does not include common stdio MCP runtimes by default. Switch to the official main image to use presets like Memory, Context7, Fetch, and Time immediately.'
+							)}
+						</div>
+					{/if}
 
-						<div>
-							<div class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
-								{$i18n.t('HTTP 托管服务')}
+					<div>
+						<div
+							class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2"
+						>
+							{$i18n.t('HTTP 托管服务')}
 						</div>
 						<div class="space-y-2">
 							{#each hostedPresets as preset}
@@ -1083,7 +1190,10 @@
 										<div class="min-w-0 flex-1">
 											<div class="flex items-center gap-2">
 												<div class="text-sm font-medium">{preset.name}</div>
-												<span class="px-1.5 py-0.5 text-[10px] rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">HTTP</span>
+												<span
+													class="px-1.5 py-0.5 text-[10px] rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+													>HTTP</span
+												>
 											</div>
 											<div class="text-xs text-gray-500 mt-0.5">{preset.description}</div>
 											<div class="text-xs text-gray-400 mt-1">{preset.setup_hint}</div>
@@ -1094,47 +1204,61 @@
 						</div>
 					</div>
 
-						{#if isAdmin && stdioPresets.length > 0}
-							<div>
-								<div class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
-									{$i18n.t('stdio 本地服务')}
-								</div>
-								<div class="space-y-2">
-									{#each stdioPresets as preset}
-										<button
-											type="button"
-											class="w-full text-left p-3 rounded-xl border transition {isPresetRuntimeUnavailable(preset)
-												? 'border-amber-200 bg-amber-50/80 hover:border-amber-300 dark:border-amber-800/40 dark:bg-amber-950/20 dark:hover:border-amber-700'
-												: 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-900/60'}"
-											on:click={() => applyPreset(preset)}
-										>
-											<div class="flex items-start gap-3">
-												<div class="text-lg">{preset.icon}</div>
-												<div class="min-w-0 flex-1">
-													<div class="flex items-center gap-2">
-														<div class="text-sm font-medium">{preset.name}</div>
-														<span class="px-1.5 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">stdio</span>
-														{#if isPresetRuntimeUnavailable(preset) && runtimeProfile === 'slim'}
-															<span class="px-1.5 py-0.5 text-[10px] rounded bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
-																{tr('推荐 main', 'Main recommended')}
-															</span>
-														{/if}
-													</div>
-													<div class="text-xs text-gray-500 mt-0.5">{preset.description}</div>
-													{#if preset.command}
-														<div class="text-xs font-mono text-gray-500 mt-1 break-all">
-															{preset.command} {(preset.args ?? []).join(' ')}
-														</div>
-													{/if}
-													<div class="text-xs mt-1 {isPresetRuntimeUnavailable(preset) ? 'text-amber-700 dark:text-amber-300' : 'text-gray-400'}">
-														{getPresetSetupHint(preset)}
-													</div>
-													{#if getPresetRuntimeHint(preset)}
-														<div class="text-xs text-amber-700 dark:text-amber-300 mt-1">
-															{getPresetRuntimeHint(preset)}
-														</div>
+					{#if isAdmin && stdioPresets.length > 0}
+						<div>
+							<div
+								class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2"
+							>
+								{$i18n.t('stdio 本地服务')}
+							</div>
+							<div class="space-y-2">
+								{#each stdioPresets as preset}
+									<button
+										type="button"
+										class="w-full text-left p-3 rounded-xl border transition {isPresetRuntimeUnavailable(
+											preset
+										)
+											? 'border-amber-200 bg-amber-50/80 hover:border-amber-300 dark:border-amber-800/40 dark:bg-amber-950/20 dark:hover:border-amber-700'
+											: 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-900/60'}"
+										on:click={() => applyPreset(preset)}
+									>
+										<div class="flex items-start gap-3">
+											<div class="text-lg">{preset.icon}</div>
+											<div class="min-w-0 flex-1">
+												<div class="flex items-center gap-2">
+													<div class="text-sm font-medium">{preset.name}</div>
+													<span
+														class="px-1.5 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+														>stdio</span
+													>
+													{#if isPresetRuntimeUnavailable(preset) && runtimeProfile === 'slim'}
+														<span
+															class="px-1.5 py-0.5 text-[10px] rounded bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300"
+														>
+															{tr('推荐 main', 'Main recommended')}
+														</span>
 													{/if}
 												</div>
+												<div class="text-xs text-gray-500 mt-0.5">{preset.description}</div>
+												{#if preset.command}
+													<div class="text-xs font-mono text-gray-500 mt-1 break-all">
+														{preset.command}
+														{(preset.args ?? []).join(' ')}
+													</div>
+												{/if}
+												<div
+													class="text-xs mt-1 {isPresetRuntimeUnavailable(preset)
+														? 'text-amber-700 dark:text-amber-300'
+														: 'text-gray-400'}"
+												>
+													{getPresetSetupHint(preset)}
+												</div>
+												{#if getPresetRuntimeHint(preset)}
+													<div class="text-xs text-amber-700 dark:text-amber-300 mt-1">
+														{getPresetRuntimeHint(preset)}
+													</div>
+												{/if}
+											</div>
 										</div>
 									</button>
 								{/each}

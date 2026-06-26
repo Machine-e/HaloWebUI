@@ -18,10 +18,7 @@
 	import { PASTED_TEXT_CHARACTER_LIMIT } from '$lib/constants';
 	import { AIAutocompletion } from './RichTextInput/AutoCompletion.js';
 	import Mention from './RichTextInput/MultiTriggerMention';
-	import {
-		hydrateMentionTagsInHtml,
-		serializeMentionTag
-	} from './RichTextInput/mentions';
+	import { hydrateMentionTagsInHtml, serializeMentionTag } from './RichTextInput/mentions';
 
 	const turndownService = new TurndownService({
 		codeBlockStyle: 'fenced',
@@ -79,10 +76,7 @@
 	};
 
 	const escapeHtml = (text: string) =>
-		text
-			.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;');
+		text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 	const toMentionHtml = (text: string) =>
 		text
@@ -343,12 +337,15 @@
 				return;
 			}
 
-			const replacedText = node.text.replace(/{{\s*([^|}]+)(?:\|[^}]*)?\s*}}/g, (match, varName) => {
-				const trimmedVarName = varName.trim();
-				return Object.prototype.hasOwnProperty.call(variables, trimmedVarName)
-					? String(variables[trimmedVarName])
-					: match;
-			});
+			const replacedText = node.text.replace(
+				/{{\s*([^|}]+)(?:\|[^}]*)?\s*}}/g,
+				(match, varName) => {
+					const trimmedVarName = varName.trim();
+					return Object.prototype.hasOwnProperty.call(variables, trimmedVarName)
+						? String(variables[trimmedVarName])
+						: match;
+				}
+			);
 
 			if (replacedText !== node.text) {
 				replacements.push({
@@ -548,7 +545,13 @@
 								}
 							}
 
-							if (shiftEnter && event.key === 'Enter' && event.shiftKey && !event.ctrlKey && !event.metaKey) {
+							if (
+								shiftEnter &&
+								event.key === 'Enter' &&
+								event.shiftKey &&
+								!event.ctrlKey &&
+								!event.metaKey
+							) {
 								editor?.commands.setHardBreak();
 								view.dispatch(view.state.tr.scrollIntoView());
 								event.preventDefault();

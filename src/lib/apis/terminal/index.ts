@@ -1,9 +1,5 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
-import {
-	parseArrayBufferResponse,
-	parseBlobResponse,
-	parseJsonResponse
-} from '../response';
+import { parseArrayBufferResponse, parseBlobResponse, parseJsonResponse } from '../response';
 
 export const getTerminalConfig = async (token: string) => {
 	const res = await fetch(`${WEBUI_API_BASE_URL}/terminal/config`, {

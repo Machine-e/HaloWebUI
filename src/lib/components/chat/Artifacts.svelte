@@ -125,7 +125,10 @@
                         </body>
                         </html>
                     `;
-					contents = [...contents, { type: 'iframe', content: renderedContent, messageId: message.id }];
+					contents = [
+						...contents,
+						{ type: 'iframe', content: renderedContent, messageId: message.id }
+					];
 				}
 
 				for (const block of codeBlocks) {

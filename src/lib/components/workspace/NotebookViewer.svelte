@@ -80,7 +80,10 @@
 	let pyodideConsentPackages: string[] = [];
 	let pendingPyodideAction: { type: 'runAll' } | { type: 'runCell'; idx: number } | null = null;
 
-	function requestPyodideConsent(action: { type: 'runAll' } | { type: 'runCell'; idx: number }, code: string) {
+	function requestPyodideConsent(
+		action: { type: 'runAll' } | { type: 'runCell'; idx: number },
+		code: string
+	) {
 		if (!usesRemotePyodideRuntime() || hasPyodideConsent()) {
 			return false;
 		}

@@ -45,7 +45,8 @@
 >
 	<button
 		type="button"
-		class="flex min-h-10 w-full items-center gap-2.5 px-3 py-2 text-left transition-colors {expandable && !disabled
+		class="flex min-h-10 w-full items-center gap-2.5 px-3 py-2 text-left transition-colors {expandable &&
+		!disabled
 			? 'cursor-pointer hover:bg-gray-50/80 dark:hover:bg-gray-800/45'
 			: 'cursor-default'} {headerClassName}"
 		aria-expanded={expandable ? open : undefined}
@@ -92,7 +93,10 @@
 			</slot>
 
 			{#if expandable}
-				<span class="flex size-5 items-center justify-center text-gray-400 transition-transform duration-200" class:rotate-180={open}>
+				<span
+					class="flex size-5 items-center justify-center text-gray-400 transition-transform duration-200"
+					class:rotate-180={open}
+				>
 					<ChevronDown strokeWidth="3.5" className="size-3.5" />
 				</span>
 			{/if}

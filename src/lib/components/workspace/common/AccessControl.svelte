@@ -71,7 +71,7 @@
 
 	$: visibilityOptions = [
 		{ value: 'private', label: $i18n.t('Private') },
-		...((allowPublic || accessControl === null)
+		...(allowPublic || accessControl === null
 			? [{ value: 'public', label: $i18n.t('Public') }]
 			: [])
 	];
@@ -255,7 +255,12 @@
 									</div>
 
 									<div class="w-full flex justify-end items-center gap-0.5">
-										<button class="" type="button" disabled={readOnly} on:click={() => toggleGroupWrite(group.id)}>
+										<button
+											class=""
+											type="button"
+											disabled={readOnly}
+											on:click={() => toggleGroupWrite(group.id)}
+										>
 											{#if accessControl.write.group_ids.includes(group.id)}
 												<Badge type={'success'} content={$i18n.t('Write')} />
 											{:else}
@@ -334,7 +339,12 @@
 									</div>
 
 									<div class="w-full flex justify-end items-center gap-0.5">
-										<button class="" type="button" disabled={readOnly} on:click={() => toggleUserWrite(user.id)}>
+										<button
+											class=""
+											type="button"
+											disabled={readOnly}
+											on:click={() => toggleUserWrite(user.id)}
+										>
 											{#if accessControl.write.user_ids.includes(user.id)}
 												<Badge type={'success'} content={$i18n.t('Write')} />
 											{:else}

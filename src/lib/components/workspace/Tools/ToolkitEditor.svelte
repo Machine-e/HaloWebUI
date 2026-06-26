@@ -287,33 +287,33 @@ class Tools:
 				<div class="w-full mb-2 flex flex-col gap-0.5">
 					<div class="flex w-full flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
 						<div class="flex w-full items-center">
-						{#if showBackButton}
-							<div class=" shrink-0 mr-2">
-								<Tooltip content={$i18n.t('Back')}>
-									<button
-										class="w-full text-left text-sm py-1.5 px-1 rounded-lg dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-gray-850"
-										on:click={() => {
-											goto('/workspace/tools');
-										}}
-										type="button"
-									>
-										<ChevronLeft strokeWidth="2.5" />
-									</button>
+							{#if showBackButton}
+								<div class=" shrink-0 mr-2">
+									<Tooltip content={$i18n.t('Back')}>
+										<button
+											class="w-full text-left text-sm py-1.5 px-1 rounded-lg dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-gray-850"
+											on:click={() => {
+												goto('/workspace/tools');
+											}}
+											type="button"
+										>
+											<ChevronLeft strokeWidth="2.5" />
+										</button>
+									</Tooltip>
+								</div>
+							{/if}
+
+							<div class="flex-1">
+								<Tooltip content={$i18n.t('e.g. My Tools')} placement="top-start">
+									<input
+										class="w-full text-2xl font-medium bg-transparent outline-hidden font-primary"
+										type="text"
+										placeholder={$i18n.t('Tool Name')}
+										bind:value={name}
+										required
+									/>
 								</Tooltip>
 							</div>
-						{/if}
-
-						<div class="flex-1">
-							<Tooltip content={$i18n.t('e.g. My Tools')} placement="top-start">
-								<input
-									class="w-full text-2xl font-medium bg-transparent outline-hidden font-primary"
-									type="text"
-									placeholder={$i18n.t('Tool Name')}
-									bind:value={name}
-									required
-								/>
-							</Tooltip>
-						</div>
 
 							<div class="self-center shrink-0">
 								<button
@@ -335,7 +335,7 @@ class Tools:
 						</div>
 
 						<InlineDirtyActions
-							dirty={dirty}
+							{dirty}
 							saving={loading}
 							saveAsSubmit={true}
 							align="start"

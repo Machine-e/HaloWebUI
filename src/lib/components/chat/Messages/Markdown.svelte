@@ -123,11 +123,7 @@
 	};
 
 	$: processedContent = content
-		? replaceTokens(
-				processResponseContent(content),
-				getModelChatDisplayName(model),
-				$user?.name
-			)
+		? replaceTokens(processResponseContent(content), getModelChatDisplayName(model), $user?.name)
 		: '';
 
 	const hasStreamingReasoningDetails = (value: string) =>
@@ -167,8 +163,7 @@
 	}
 
 	$: {
-		const nextLexedContent =
-			renderTransitionMode !== 'none' ? renderedContent : processedContent;
+		const nextLexedContent = renderTransitionMode !== 'none' ? renderedContent : processedContent;
 
 		if (nextLexedContent !== lastLexedContent) {
 			lastLexedContent = nextLexedContent;

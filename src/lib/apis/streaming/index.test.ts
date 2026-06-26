@@ -111,9 +111,7 @@ describe('createOpenAITextStream', () => {
 		const imageUpdate = updates.find((update) => update.image);
 
 		expect(imageUpdate?.image?.id).toBe('image_url_0');
-		expect(imageUpdate?.image?.markdown).toBe(
-			'\n![Generated Image](data:image/png;base64,abcd)\n'
-		);
+		expect(imageUpdate?.image?.markdown).toBe('\n![Generated Image](data:image/png;base64,abcd)\n');
 		expect(updates.filter((update) => update.image)).toHaveLength(1);
 	});
 

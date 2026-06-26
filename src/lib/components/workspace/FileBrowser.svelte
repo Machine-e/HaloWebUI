@@ -329,9 +329,7 @@
 				code: content,
 				isDark: document.documentElement.classList.contains('dark'),
 				language: EXT_TO_HLJS_LANG[ext] ?? ext ?? 'plaintext',
-				themeId: normalizeHighlighterTheme(
-					$settings?.highlighterTheme ?? DEFAULT_HIGHLIGHTER_THEME
-				)
+				themeId: normalizeHighlighterTheme($settings?.highlighterTheme ?? DEFAULT_HIGHLIGHTER_THEME)
 			});
 		} catch {
 			return `<pre class="m-0 overflow-x-auto whitespace-pre-wrap"><code>${escapeHtml(content)}</code></pre>`;
@@ -1356,7 +1354,9 @@
 					<!-- Syntax-highlighted code view -->
 					<div class="flex-1 overflow-auto bg-white dark:bg-gray-900">
 						{#if highlightedHtml}
-							<div class="p-3 text-sm font-mono leading-relaxed [&_.shiki]:!m-0 [&_.shiki]:!min-h-full [&_.shiki]:!overflow-x-auto [&_.shiki]:!rounded-xl [&_.shiki]:!p-4">
+							<div
+								class="p-3 text-sm font-mono leading-relaxed [&_.shiki]:!m-0 [&_.shiki]:!min-h-full [&_.shiki]:!overflow-x-auto [&_.shiki]:!rounded-xl [&_.shiki]:!p-4"
+							>
 								{@html highlightedHtml}
 							</div>
 						{:else}

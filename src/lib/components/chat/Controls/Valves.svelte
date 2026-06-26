@@ -218,15 +218,17 @@
 					</div>
 
 					<div class="flex-1">
-							<HaloSelect
-								bind:value={selectedId}
-								on:change={async () => {
-									await tick();
-								}}
-								options={tab === 'tools' ? availableToolOptions : availableFunctionOptions}
-								placeholder={tab === 'tools' ? $i18n.t('Select a tool') : $i18n.t('Select a function')}
-								className="w-full text-xs"
-							/>
+						<HaloSelect
+							bind:value={selectedId}
+							on:change={async () => {
+								await tick();
+							}}
+							options={tab === 'tools' ? availableToolOptions : availableFunctionOptions}
+							placeholder={tab === 'tools'
+								? $i18n.t('Select a tool')
+								: $i18n.t('Select a function')}
+							className="w-full text-xs"
+						/>
 					</div>
 				</div>
 			</div>

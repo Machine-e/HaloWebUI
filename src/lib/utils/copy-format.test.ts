@@ -13,8 +13,8 @@ describe('copy format preference', () => {
 		expect(
 			resolveCopyFormattedPreference({ copyFormatted: false, copyFormattedUserSet: true })
 		).toBe(false);
-		expect(resolveCopyFormattedPreference({ copyFormatted: true, copyFormattedUserSet: true })).toBe(
-			true
-		);
+		expect(
+			resolveCopyFormattedPreference({ copyFormatted: true, copyFormattedUserSet: true })
+		).toBe(true);
 	});
 });

@@ -50,14 +50,14 @@
 			const _prompt = JSON.parse(event.data);
 			console.log(_prompt);
 
-				prompt = {
-					name: _prompt.name || _prompt.title || '',
-					command: _prompt.command,
-					content: _prompt.content,
-					tags: _prompt.tags ?? [],
-					access_control: defaultAccessControl
-				};
-			});
+			prompt = {
+				name: _prompt.name || _prompt.title || '',
+				command: _prompt.command,
+				content: _prompt.content,
+				tags: _prompt.tags ?? [],
+				access_control: defaultAccessControl
+			};
+		});
 
 		if (window.opener ?? false) {
 			window.opener.postMessage('loaded', '*');
@@ -66,13 +66,13 @@
 		if (sessionStorage.prompt) {
 			const _prompt = JSON.parse(sessionStorage.prompt);
 
-				prompt = {
-					name: _prompt.name || _prompt.title || '',
-					command: _prompt.command,
-					content: _prompt.content,
-					tags: _prompt.tags ?? [],
-					access_control: defaultAccessControl
-				};
+			prompt = {
+				name: _prompt.name || _prompt.title || '',
+				command: _prompt.command,
+				content: _prompt.content,
+				tags: _prompt.tags ?? [],
+				access_control: defaultAccessControl
+			};
 			sessionStorage.removeItem('prompt');
 		}
 	});

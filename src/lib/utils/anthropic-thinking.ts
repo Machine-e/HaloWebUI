@@ -153,10 +153,7 @@ export const getAnthropicThinkingProfile = (
 const translateLabel = (t: Translator | undefined, key: string, defaultValue: string) =>
 	t ? t(key, { defaultValue }) : defaultValue;
 
-export const getAnthropicEffortSteps = (
-	model: ModelLike | null | undefined,
-	t?: Translator
-) => {
+export const getAnthropicEffortSteps = (model: ModelLike | null | undefined, t?: Translator) => {
 	const profile = getAnthropicThinkingProfile(model);
 	if (!profile.isAnthropic) {
 		return null;
@@ -184,10 +181,7 @@ const formatTokenLabel = (value: number) => {
 	return `${rounded}K`;
 };
 
-export const getAnthropicBudgetSteps = (
-	model: ModelLike | null | undefined,
-	t?: Translator
-) => {
+export const getAnthropicBudgetSteps = (model: ModelLike | null | undefined, t?: Translator) => {
 	const profile = getAnthropicThinkingProfile(model);
 	if (!profile.isAnthropic) {
 		return null;

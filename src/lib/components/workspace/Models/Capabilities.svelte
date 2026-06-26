@@ -40,7 +40,9 @@
 	<div class="text-sm font-medium mb-3">{$i18n.t('Capabilities')}</div>
 	<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
 		{#each Object.keys(capabilities) as capability}
-			<div class="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50/50 dark:bg-gray-800/30">
+			<div
+				class="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50/50 dark:bg-gray-800/30"
+			>
 				<Tooltip content={marked.parse(helpText[capability])}>
 					<span class="text-sm cursor-help">{$i18n.t(labelKeys[capability] ?? capability)}</span>
 				</Tooltip>

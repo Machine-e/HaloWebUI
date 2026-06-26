@@ -55,17 +55,13 @@
 		const keyword = modelSearch.trim().toLowerCase();
 		if (!keyword) return true;
 
-		return [
-			getModelChatDisplayName(model),
-			getModelSelectionId(model),
-			model?.name,
-			model?.id
-		]
+		return [getModelChatDisplayName(model), getModelSelectionId(model), model?.name, model?.id]
 			.filter(Boolean)
 			.some((value) => String(value).toLowerCase().includes(keyword));
 	});
 
-	const getModelValue = (model: any) => getModelSelectionId(model) || String(model?.id ?? '').trim();
+	const getModelValue = (model: any) =>
+		getModelSelectionId(model) || String(model?.id ?? '').trim();
 
 	const getModelAliases = (model: any) =>
 		getModelIdentityAliases(model).filter((value) => String(value).trim());
@@ -118,8 +114,15 @@
 		<div class="flex items-center justify-between pb-2">
 			<div class="text-lg font-medium">{client ? '编辑外部客户端' : '新增外部客户端'}</div>
 			<button type="button" on:click={() => (show = false)}>
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-					<path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="w-5 h-5"
+				>
+					<path
+						d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"
+					/>
 				</svg>
 			</button>
 		</div>
@@ -145,22 +148,30 @@
 			</div>
 
 			<div class="grid grid-cols-2 gap-3">
-				<label class="flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2">
+				<label
+					class="flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2"
+				>
 					<span>OpenAI 协议</span>
 					<input type="checkbox" bind:checked={protocolOpenAI} />
 				</label>
-				<label class="flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2">
+				<label
+					class="flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2"
+				>
 					<span>Anthropic 协议</span>
 					<input type="checkbox" bind:checked={protocolAnthropic} />
 				</label>
 			</div>
 
 			<div class="grid grid-cols-2 gap-3">
-				<label class="flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2">
+				<label
+					class="flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2"
+				>
 					<span>允许工具调用</span>
 					<input type="checkbox" bind:checked={allowTools} />
 				</label>
-				<label class="flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2">
+				<label
+					class="flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2"
+				>
 					<span>启用</span>
 					<input type="checkbox" bind:checked={enabled} />
 				</label>
@@ -173,19 +184,17 @@
 
 			<div>
 				<label class="mb-1 block text-sm font-medium">允许的模型</label>
-				<input
-					class="mb-2 w-full"
-					bind:value={modelSearch}
-					placeholder="搜索模型名称或 ID"
-				/>
-				<div class="max-h-48 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700 p-2 space-y-1">
+				<input class="mb-2 w-full" bind:value={modelSearch} placeholder="搜索模型名称或 ID" />
+				<div
+					class="max-h-48 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700 p-2 space-y-1"
+				>
 					{#if filteredModels.length === 0}
-						<div class="px-2 py-6 text-center text-xs text-gray-400">
-							没有找到匹配的模型
-						</div>
+						<div class="px-2 py-6 text-center text-xs text-gray-400">没有找到匹配的模型</div>
 					{:else}
 						{#each filteredModels as model}
-							<label class="flex items-start gap-2 rounded-lg px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+							<label
+								class="flex items-start gap-2 rounded-lg px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+							>
 								<input
 									type="checkbox"
 									checked={isModelSelected(model)}
@@ -211,11 +220,20 @@
 
 			<div>
 				<label class="mb-1 block text-sm font-medium">备注</label>
-				<textarea class="w-full" rows="3" bind:value={note} placeholder="可填写客户名、用途或接入说明"></textarea>
+				<textarea
+					class="w-full"
+					rows="3"
+					bind:value={note}
+					placeholder="可填写客户名、用途或接入说明"
+				></textarea>
 			</div>
 
 			<div class="flex justify-end gap-2 pt-2">
-				<button type="button" class="px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800" on:click={() => (show = false)}>
+				<button
+					type="button"
+					class="px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800"
+					on:click={() => (show = false)}
+				>
 					取消
 				</button>
 				<button

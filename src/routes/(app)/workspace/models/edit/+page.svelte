@@ -32,10 +32,12 @@
 	});
 
 	const onSubmit = async (modelInfo) => {
-		const res = await updateModelById(localStorage.token, modelInfo.id, modelInfo).catch((error) => {
-			toast.error(`${error}`);
-			return null;
-		});
+		const res = await updateModelById(localStorage.token, modelInfo.id, modelInfo).catch(
+			(error) => {
+				toast.error(`${error}`);
+				return null;
+			}
+		);
 
 		if (res) {
 			await refreshModels(localStorage.token, { force: true, reason: 'workspace-models' });

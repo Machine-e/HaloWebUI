@@ -421,9 +421,7 @@
 		(inputUrl || '').trim().replace(/\/+$/, '').endsWith(OPENAI_CHAT_COMPLETIONS_SUFFIX);
 
 	const describeConnectionErrorToast = (error: unknown) =>
-		formatConnectionErrorToast(error, (key, options) =>
-			$i18n.t(key, options)
-		);
+		formatConnectionErrorToast(error, (key, options) => $i18n.t(key, options));
 
 	const showConnectionErrorToast = (error: unknown) => {
 		const { title, description } = describeConnectionErrorToast(error);
@@ -453,7 +451,10 @@
 		return label && !/^(Key|密钥|金鑰)\s*\d+$/i.test(label) ? label : defaultApiKeyPoolLabel(index);
 	};
 
-	const normalizeApiKeyPool = (poolValue?: Partial<ApiKeyPool> | null, fallbackKey = ''): ApiKeyPool => {
+	const normalizeApiKeyPool = (
+		poolValue?: Partial<ApiKeyPool> | null,
+		fallbackKey = ''
+	): ApiKeyPool => {
 		const rawKeys = Array.isArray(poolValue?.keys) ? poolValue.keys : [];
 		const keys = rawKeys.map((entry: any, idx: number) => ({
 			id: (entry?.id || '').toString().trim() || newApiKeyPoolId(),
@@ -490,7 +491,9 @@
 	};
 
 	const getPrimaryKeyFromPool = (poolValue = keyPool) => {
-		const firstEnabled = poolValue.keys.find((entry) => entry.enabled !== false && entry.key.trim());
+		const firstEnabled = poolValue.keys.find(
+			(entry) => entry.enabled !== false && entry.key.trim()
+		);
 		return firstEnabled?.key.trim() ?? '';
 	};
 
@@ -591,7 +594,9 @@
 		const trimmed = (inputUrl || '').trim().replace(/#$/, '');
 		if (!trimmed) return '';
 
-		const candidates = trimmed.match(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//) ? [trimmed] : [`https://${trimmed}`];
+		const candidates = trimmed.match(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//)
+			? [trimmed]
+			: [`https://${trimmed}`];
 		for (const candidate of candidates) {
 			try {
 				return new URL(candidate).hostname.toLowerCase();
@@ -638,13 +643,13 @@
 		? normalizeUrl(url, '/v1beta')
 		: grok
 			? normalizeUrl(url.replace(/#$/, ''), '/v1')
-		: ollama
-			? url.trim().endsWith('#')
-				? url.trim().slice(0, -1).replace(/\/+$/, '')
-				: url.replace(/\/+$/, '')
-			: azure
-				? normalizeAzureUrl(url)
-				: normalizeOpenAIUrl(url);
+			: ollama
+				? url.trim().endsWith('#')
+					? url.trim().slice(0, -1).replace(/\/+$/, '')
+					: url.replace(/\/+$/, '')
+				: azure
+					? normalizeAzureUrl(url)
+					: normalizeOpenAIUrl(url);
 	$: if (azure) {
 		if (azureApiVersionMode === AZURE_API_VERSION_AUTO) {
 			if (apiVersion !== '') {
@@ -717,11 +722,19 @@
 		}
 	})();
 
-	$: isOfficialOpenAIConnection = !gemini && !grok && !anthropic && !ollama && !direct && !azure
-		? isOfficialOpenAIHostname(getHostname(url || 'https://api.openai.com/v1'))
-		: false;
+	$: isOfficialOpenAIConnection =
+		!gemini && !grok && !anthropic && !ollama && !direct && !azure
+			? isOfficialOpenAIHostname(getHostname(url || 'https://api.openai.com/v1'))
+			: false;
 	$: showNativeFileInputsToggle =
-		!ollama && !direct && !gemini && !grok && !anthropic && !azure && !isForceMode && useResponsesApi;
+		!ollama &&
+		!direct &&
+		!gemini &&
+		!grok &&
+		!anthropic &&
+		!azure &&
+		!isForceMode &&
+		useResponsesApi;
 	$: if (show && !nativeFileInputsTouched) {
 		nativeFileInputsEnabled = getDefaultNativeFileInputsEnabled();
 	}
@@ -880,9 +893,7 @@
 					files_auto_attach: filesAutoAttach,
 					files_cache_ttl: filesCacheTtl,
 					files_citations: filesCitations,
-					...(parsedAnthropicExtraBody
-						? { anthropic_extra_body: parsedAnthropicExtraBody }
-						: {}),
+					...(parsedAnthropicExtraBody ? { anthropic_extra_body: parsedAnthropicExtraBody } : {}),
 					...(parsedAnthropicHeaders ? { headers: parsedAnthropicHeaders } : {})
 				},
 				poolValue,
@@ -1059,9 +1070,12 @@
 		batchHealthProgress = { current: 0, total: modelIds.length };
 
 		if (modelIds.length > 5) {
-			toast.info($i18n.t('Selected model batch tests run sequentially to reduce rate-limit risk.'), {
-				duration: 4000
-			});
+			toast.info(
+				$i18n.t('Selected model batch tests run sequentially to reduce rate-limit risk.'),
+				{
+					duration: 4000
+				}
+			);
 		}
 
 		let passed = 0;
@@ -1138,9 +1152,9 @@
 			prefixId,
 			azure,
 			apiVersion,
-				headers,
-				keyPool,
-				isForceMode,
+			headers,
+			keyPool,
+			isForceMode,
 			useResponsesApi,
 			modelIds,
 			anthropicVersion,
@@ -1319,10 +1333,10 @@
 			return;
 		}
 
-			if (azure) {
-				if (!normalizedKey() && !['azure_ad', 'microsoft_entra_id'].includes(auth_type)) {
-					loading = false;
-					toast.error($i18n.t('Key is required'));
+		if (azure) {
+			if (!normalizedKey() && !['azure_ad', 'microsoft_entra_id'].includes(auth_type)) {
+				loading = false;
+				toast.error($i18n.t('Key is required'));
 				return;
 			}
 
@@ -1382,60 +1396,71 @@
 				}
 			}
 
-				const connection = {
-					url: submitUrl,
-					key: normalizedKey(),
-					config: withApiKeyPoolConfig({
-						enable: enable,
-						tags: tags,
-						...(direct && preserveEmptyPrefixId
-							? { prefix_id: '' }
-							: prefixId.trim()
-								? { prefix_id: prefixId.trim() }
-								: {}),
-						remark: remark,
-						icon: icon || undefined,
-						model_ids: modelIds,
-						connection_type: connectionType,
-						auth_type,
-						headers: headers ? JSON.parse(headers) : undefined,
-						...(!grok && isForceMode ? { force_mode: true } : {}),
-						...(anthropic
-							? {
-									anthropic_version: anthropicVersion,
-									anthropic_beta: anthropicBetas.map((b) => b.name).filter((b) => b.trim()),
-									use_files_api: useFilesApi,
-									files_auto_attach: filesAutoAttach,
-									files_cache_ttl: filesCacheTtl,
-									files_citations: filesCitations,
-									...(parsedAnthropicExtraBody
-										? { anthropic_extra_body: parsedAnthropicExtraBody }
-										: {})
-								}
+			const connection = {
+				url: submitUrl,
+				key: normalizedKey(),
+				config: withApiKeyPoolConfig({
+					enable: enable,
+					tags: tags,
+					...(direct && preserveEmptyPrefixId
+						? { prefix_id: '' }
+						: prefixId.trim()
+							? { prefix_id: prefixId.trim() }
 							: {}),
-						...(!ollama && azure
-							? { azure: true, ...(apiVersion ? { api_version: apiVersion } : {}) }
-							: {}),
-						...(!ollama && !gemini && !grok && !anthropic && !direct && !azure && !isForceMode && useResponsesApi
-							? {
-									native_file_inputs_enabled: nativeFileInputsEnabled
-								}
-							: {}),
-						...(!ollama && !gemini && !grok && !anthropic && !isForceMode && useResponsesApi
-							? {
-									use_responses_api: true,
-									responses_api_exclude_patterns: responsesApiExcludePatterns
-										.map((p) => p.name)
-										.filter((p) => p.trim())
-								}
-							: {})
-					})
-				};
+					remark: remark,
+					icon: icon || undefined,
+					model_ids: modelIds,
+					connection_type: connectionType,
+					auth_type,
+					headers: headers ? JSON.parse(headers) : undefined,
+					...(!grok && isForceMode ? { force_mode: true } : {}),
+					...(anthropic
+						? {
+								anthropic_version: anthropicVersion,
+								anthropic_beta: anthropicBetas.map((b) => b.name).filter((b) => b.trim()),
+								use_files_api: useFilesApi,
+								files_auto_attach: filesAutoAttach,
+								files_cache_ttl: filesCacheTtl,
+								files_citations: filesCitations,
+								...(parsedAnthropicExtraBody
+									? { anthropic_extra_body: parsedAnthropicExtraBody }
+									: {})
+							}
+						: {}),
+					...(!ollama && azure
+						? { azure: true, ...(apiVersion ? { api_version: apiVersion } : {}) }
+						: {}),
+					...(!ollama &&
+					!gemini &&
+					!grok &&
+					!anthropic &&
+					!direct &&
+					!azure &&
+					!isForceMode &&
+					useResponsesApi
+						? {
+								native_file_inputs_enabled: nativeFileInputsEnabled
+							}
+						: {}),
+					...(!ollama && !gemini && !grok && !anthropic && !isForceMode && useResponsesApi
+						? {
+								use_responses_api: true,
+								responses_api_exclude_patterns: responsesApiExcludePatterns
+									.map((p) => p.name)
+									.filter((p) => p.trim())
+							}
+						: {})
+				})
+			};
 
 			try {
 				await onSubmit(connection);
 			} catch (error) {
-				if (error && typeof error === 'object' && (error as { __toastShown?: boolean }).__toastShown) {
+				if (
+					error &&
+					typeof error === 'object' &&
+					(error as { __toastShown?: boolean }).__toastShown
+				) {
 					return;
 				}
 				const rawMessage =
@@ -1459,12 +1484,12 @@
 				return;
 			}
 
-				show = false;
+			show = false;
 
-				url = '';
-				key = '';
-				keyPool = normalizeApiKeyPool(null, '');
-				auth_type = gemini ? 'x-goog-api-key' : anthropic ? 'x-api-key' : 'bearer';
+			url = '';
+			key = '';
+			keyPool = normalizeApiKeyPool(null, '');
+			auth_type = gemini ? 'x-goog-api-key' : anthropic ? 'x-api-key' : 'bearer';
 			prefixId = '';
 			preserveEmptyPrefixId = false;
 			remark = '';
@@ -1510,8 +1535,7 @@
 		if (connection) {
 			savedAzureProviderType = connection.config?.azure ?? false;
 			const shouldRestoreForceMode =
-				(!grok && connection.config?.force_mode === true) ||
-				isLegacyForceModeUrl(connection.url);
+				(!grok && connection.config?.force_mode === true) || isLegacyForceModeUrl(connection.url);
 			url =
 				shouldRestoreForceMode && !connection.url.trim().endsWith('#')
 					? `${connection.url}#`
@@ -1522,7 +1546,9 @@
 			auth_type = gemini
 				? normalizeGeminiAuthType(connection.config.auth_type)
 				: (connection.config.auth_type ?? 'bearer');
-			headers = connection.config?.headers ? JSON.stringify(connection.config.headers, null, 2) : '';
+			headers = connection.config?.headers
+				? JSON.stringify(connection.config.headers, null, 2)
+				: '';
 
 			enable = connection.config?.enable ?? true;
 			tags = connection.config?.tags ?? [];
@@ -1640,43 +1666,43 @@
 	});
 </script>
 
-	<ModelSelectorModal
-		bind:show={showModelSelector}
-		bind:modelIds
-		url={normalizedUrl}
-		force_mode={isForceMode}
-		key={modelSelectorKey}
-		api_key_pool={modelSelectorApiKeyPool}
-		prefix_id={prefixId}
-		{azure}
-		api_version={apiVersion}
-		{auth_type}
-		headers={parsedHeaders}
-		anthropic_version={anthropicVersion}
-		anthropic_beta={modelSelectorAnthropicBeta}
-		{ollama}
-		{gemini}
-		{grok}
-		{anthropic}
+<ModelSelectorModal
+	bind:show={showModelSelector}
+	bind:modelIds
+	url={normalizedUrl}
+	force_mode={isForceMode}
+	key={modelSelectorKey}
+	api_key_pool={modelSelectorApiKeyPool}
+	prefix_id={prefixId}
+	{azure}
+	api_version={apiVersion}
+	{auth_type}
+	headers={parsedHeaders}
+	anthropic_version={anthropicVersion}
+	anthropic_beta={modelSelectorAnthropicBeta}
+	{ollama}
+	{gemini}
+	{grok}
+	{anthropic}
+/>
+
+<ConfirmDialog
+	bind:show={showNoModelsConfirm}
+	title={$i18n.t('No Models Added')}
+	message={$i18n.t('No models added yet. Are you sure you want to save?')}
+	confirmLabel={$i18n.t('Save Anyway')}
+	on:confirm={doSubmit}
+/>
+
+{#if isApiKeyPoolProvider()}
+	<ApiKeyPoolModal
+		bind:show={showApiKeyPoolModal}
+		bind:pool={keyPool}
+		onTestKey={testApiKeyPoolEntry}
 	/>
+{/if}
 
-	<ConfirmDialog
-		bind:show={showNoModelsConfirm}
-		title={$i18n.t('No Models Added')}
-		message={$i18n.t('No models added yet. Are you sure you want to save?')}
-		confirmLabel={$i18n.t('Save Anyway')}
-		on:confirm={doSubmit}
-	/>
-
-	{#if isApiKeyPoolProvider()}
-		<ApiKeyPoolModal
-			bind:show={showApiKeyPoolModal}
-			bind:pool={keyPool}
-			onTestKey={testApiKeyPoolEntry}
-		/>
-	{/if}
-
-	<Modal size="sm" bind:show dismissible={false}>
+<Modal size="sm" bind:show dismissible={false}>
 	<div class="select-text flex flex-col max-h-[calc(100dvh-4rem)] overflow-hidden">
 		<div class="flex items-center justify-between dark:text-gray-100 px-5 pt-4 pb-3">
 			<div class="flex items-center gap-3">
@@ -1888,62 +1914,61 @@
 								{/if}
 							</div>
 
-								<!-- API Key -->
-								{#if isApiKeyPoolProvider()}
-									<div class="flex flex-col">
-										<span class="text-xs text-gray-500 mb-1">{$i18n.t('API Keys')}</span>
-										<div
-											class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-900"
-										>
-											<div class="min-w-0">
-												<div class="flex flex-wrap items-center gap-1.5">
-													<span class="text-sm font-medium text-gray-800 dark:text-gray-100">
-														{$i18n.t('{{count}} keys', { count: apiKeyPoolSummary.total || 1 })}
-													</span>
+							<!-- API Key -->
+							{#if isApiKeyPoolProvider()}
+								<div class="flex flex-col">
+									<span class="text-xs text-gray-500 mb-1">{$i18n.t('API Keys')}</span>
+									<div
+										class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-900"
+									>
+										<div class="min-w-0">
+											<div class="flex flex-wrap items-center gap-1.5">
+												<span class="text-sm font-medium text-gray-800 dark:text-gray-100">
+													{$i18n.t('{{count}} keys', { count: apiKeyPoolSummary.total || 1 })}
+												</span>
+												<span
+													class="rounded-md bg-white px-1.5 py-0.5 text-xs text-gray-500 dark:bg-gray-950 dark:text-gray-400"
+												>
+													{apiKeyPoolSummary.mode}
+												</span>
+												{#if apiKeyPoolSummary.retry}
 													<span
-														class="rounded-md bg-white px-1.5 py-0.5 text-xs text-gray-500 dark:bg-gray-950 dark:text-gray-400"
+														class="rounded-md bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
 													>
-														{apiKeyPoolSummary.mode}
+														{$i18n.t('Auto retry')}
 													</span>
-													{#if apiKeyPoolSummary.retry}
-														<span
-															class="rounded-md bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
-														>
-															{$i18n.t('Auto retry')}
-														</span>
-													{/if}
-												</div>
-												<div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-													{$i18n.t('{{count}} enabled', { count: apiKeyPoolSummary.enabled || 0 })}
-												</div>
+												{/if}
 											</div>
-											<button
-												type="button"
-												class="shrink-0 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-												on:click={() => {
-													showApiKeyPoolModal = true;
-												}}
-											>
-												{$i18n.t('Manage keys')}
-											</button>
+											<div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+												{$i18n.t('{{count}} enabled', { count: apiKeyPoolSummary.enabled || 0 })}
+											</div>
 										</div>
+										<button
+											type="button"
+											class="shrink-0 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+											on:click={() => {
+												showApiKeyPoolModal = true;
+											}}
+										>
+											{$i18n.t('Manage keys')}
+										</button>
 									</div>
-								{:else}
-									<div class="flex flex-col">
-										<label for="api-key-input" class="text-xs text-gray-500 mb-1">
-											{$i18n.t('API Key')}
-										</label>
-										<SensitiveInput
-											bind:value={key}
-											placeholder={$i18n.t('Enter API key, usually starts with sk')}
-											required={false}
-											outerClassName="flex flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg"
-											inputClassName="w-full text-sm bg-transparent outline-none"
-										/>
-									</div>
-								{/if}
-
-							</div>
+								</div>
+							{:else}
+								<div class="flex flex-col">
+									<label for="api-key-input" class="text-xs text-gray-500 mb-1">
+										{$i18n.t('API Key')}
+									</label>
+									<SensitiveInput
+										bind:value={key}
+										placeholder={$i18n.t('Enter API key, usually starts with sk')}
+										required={false}
+										outerClassName="flex flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg"
+										inputClassName="w-full text-sm bg-transparent outline-none"
+									/>
+								</div>
+							{/if}
+						</div>
 					</CollapsibleSection>
 
 					<!-- 模型管理 -->
@@ -1977,7 +2002,10 @@
 												{#if batchHealthChecking}
 													<Spinner className="size-3.5" />
 													<span>
-														{$i18n.t('Testing selected models: {{current}}/{{total}}', batchHealthProgress)}
+														{$i18n.t(
+															'Testing selected models: {{current}}/{{total}}',
+															batchHealthProgress
+														)}
 													</span>
 												{:else}
 													<ArrowPath className="size-3.5" />
@@ -2001,7 +2029,8 @@
 									{#each modelIds as modelId}
 										{@const state = getModelHealthState(modelId)}
 										<div
-											class="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs max-w-44 {state.status === 'success'
+											class="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs max-w-44 {state.status ===
+											'success'
 												? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300'
 												: state.status === 'error'
 													? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-300'
@@ -2036,7 +2065,9 @@
 								</div>
 								{#if !direct}
 									<div class="text-xs text-gray-400">
-										{$i18n.t('Single model tests use the chip action. Batch tests run sequentially to reduce rate-limit risk.')}
+										{$i18n.t(
+											'Single model tests use the chip action. Batch tests run sequentially to reduce rate-limit risk.'
+										)}
 									</div>
 								{/if}
 							{:else if azure}
@@ -2156,7 +2187,28 @@
 												<HaloSelect
 													value=""
 													options={[
-														...['files-api-2025-04-14', 'extended-cache-ttl-2025-04-11', 'prompt-caching-2024-07-31', 'interleaved-thinking-2025-05-14', 'computer-use-2024-10-22', 'computer-use-2025-01-24', 'code-execution-2025-05-22', 'mcp-client-2025-04-04', 'mcp-client-2025-11-20', 'token-counting-2024-11-01', 'token-efficient-tools-2025-02-19', 'message-batches-2024-09-24', 'output-128k-2025-02-19', 'pdfs-2024-09-25', 'dev-full-thinking-2025-05-14', 'context-1m-2025-08-07', 'context-management-2025-06-27', 'model-context-window-exceeded-2025-08-26', 'skills-2025-10-02', 'fast-mode-2026-02-01'].map((preset) => ({
+														...[
+															'files-api-2025-04-14',
+															'extended-cache-ttl-2025-04-11',
+															'prompt-caching-2024-07-31',
+															'interleaved-thinking-2025-05-14',
+															'computer-use-2024-10-22',
+															'computer-use-2025-01-24',
+															'code-execution-2025-05-22',
+															'mcp-client-2025-04-04',
+															'mcp-client-2025-11-20',
+															'token-counting-2024-11-01',
+															'token-efficient-tools-2025-02-19',
+															'message-batches-2024-09-24',
+															'output-128k-2025-02-19',
+															'pdfs-2024-09-25',
+															'dev-full-thinking-2025-05-14',
+															'context-1m-2025-08-07',
+															'context-management-2025-06-27',
+															'model-context-window-exceeded-2025-08-26',
+															'skills-2025-10-02',
+															'fast-mode-2026-02-01'
+														].map((preset) => ({
 															value: preset,
 															label: `${anthropicBetas.some((b) => b.name === preset) ? '✓ ' : ''}${preset}`
 														})),
@@ -2361,14 +2413,11 @@
 											options={[
 												{
 													value: AZURE_API_VERSION_AUTO,
-													label: `${$i18n.t('Auto')} (${ $i18n.t('Recommended') })`
+													label: `${$i18n.t('Auto')} (${$i18n.t('Recommended')})`
 												},
 												...AZURE_API_VERSION_PRESETS.map((version, idx) => ({
 													value: version,
-													label:
-														idx === 0
-															? `${version} (${ $i18n.t('Latest') })`
-															: version
+													label: idx === 0 ? `${version} (${$i18n.t('Latest')})` : version
 												})),
 												{
 													value: AZURE_API_VERSION_CUSTOM,

@@ -23,8 +23,7 @@
 	import { saveUserSettingsPatch } from '$lib/utils/user-settings';
 
 	const i18n: Writable<any> = getContext('i18n');
-	const tr = (key: string, defaultValue: string) =>
-		translateWithDefault($i18n, key, defaultValue);
+	const tr = (key: string, defaultValue: string) => translateWithDefault($i18n, key, defaultValue);
 	const trWithDefaultOption = (key: string, options: Record<string, any> = {}) =>
 		tr(
 			key,
@@ -275,7 +274,7 @@
 					class="flex-1 text-xs py-1 rounded-md transition-all duration-200 cursor-pointer
 						{activeMode === 'effort'
 						? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400 font-medium'
-							: 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100'}"
+						: 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100'}"
 					on:click={() => switchMode('effort')}
 				>
 					{tr('强度模式', 'Effort Mode')}
@@ -285,7 +284,7 @@
 					class="flex-1 text-xs py-1 rounded-md transition-all duration-200 cursor-pointer
 						{activeMode === 'budget'
 						? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400 font-medium'
-							: 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100'}"
+						: 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100'}"
 					on:click={() => switchMode('budget')}
 				>
 					{tr('预算模式', 'Budget Mode')}
@@ -404,12 +403,10 @@
 					class="text-[10px] transition-colors duration-150 cursor-pointer
 						{customMode
 						? 'text-blue-500 dark:text-blue-400'
-							: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}"
+						: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}"
 					on:click={toggleCustom}
 				>
-					{customMode
-						? tr('返回预设', 'Back to presets')
-						: tr('自定义', 'Custom')}
+					{customMode ? tr('返回预设', 'Back to presets') : tr('自定义', 'Custom')}
 				</button>
 			</div>
 		</DropdownMenu.Content>

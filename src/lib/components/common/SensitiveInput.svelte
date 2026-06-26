@@ -7,7 +7,8 @@
 	export let placeholder = '';
 	export let required = true;
 	export let readOnly = false;
-	export let outerClassName = 'flex flex-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2';
+	export let outerClassName =
+		'flex flex-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2';
 	export let inputClassName =
 		'w-full text-sm placeholder:text-gray-400 dark:placeholder:text-gray-600 bg-transparent outline-none';
 	export let showButtonClassName = 'pl-1.5  transition bg-transparent';

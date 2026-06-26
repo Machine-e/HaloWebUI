@@ -86,10 +86,7 @@
 </script>
 
 <div class="message-outline-root">
-	<div
-		class="message-outline-shell"
-		style="--outline-count:{headings.length}"
-	>
+	<div class="message-outline-shell" style="--outline-count:{headings.length}">
 		<div
 			class="message-outline-hitbox"
 			bind:this={wakeHitboxElement}

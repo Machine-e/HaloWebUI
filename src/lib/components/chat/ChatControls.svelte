@@ -101,9 +101,7 @@
 
 	const getDesktopDefaultWidth = (maxWidth: number, mode: DesktopPaneMode) =>
 		clamp(
-			mode === 'immersive'
-				? DESKTOP_IMMERSIVE_DEFAULT_WIDTH
-				: DESKTOP_STANDARD_DEFAULT_WIDTH,
+			mode === 'immersive' ? DESKTOP_IMMERSIVE_DEFAULT_WIDTH : DESKTOP_STANDARD_DEFAULT_WIDTH,
 			DESKTOP_MIN_WIDTH,
 			maxWidth
 		);
@@ -151,8 +149,8 @@
 	const getDesktopPaneTargetSize = (mode: DesktopPaneMode, fallbackSize: number | null = null) => {
 		const rememberedSize =
 			mode === 'immersive'
-				? immersivePaneSize ?? Math.max(fallbackSize ?? 0, desktopDefaultSize)
-				: getRememberedDesktopPaneSize(mode) ?? desktopDefaultSize;
+				? (immersivePaneSize ?? Math.max(fallbackSize ?? 0, desktopDefaultSize))
+				: (getRememberedDesktopPaneSize(mode) ?? desktopDefaultSize);
 
 		return clamp(rememberedSize, desktopMinSize, desktopMaxSize);
 	};

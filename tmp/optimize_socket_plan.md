@@ -120,7 +120,7 @@
 `generateOpenAIChatCompletion` 当前直接 `fetch`，没有 timeout。改为支持 options：
 
 ```ts
-generateOpenAIChatCompletion(token, body, url, { timeoutMs = 30000, signal } = {})
+generateOpenAIChatCompletion(token, body, url, ({ timeoutMs = 30000, signal } = {}));
 ```
 
 实现：
@@ -150,7 +150,7 @@ generateOpenAIChatCompletion(token, body, url, { timeoutMs = 30000, signal } = {
 新增通用 helper：
 
 ```ts
-withTimeout(promise, timeoutMs, label)
+withTimeout(promise, timeoutMs, label);
 ```
 
 应用：
@@ -194,10 +194,8 @@ withTimeout(promise, timeoutMs, label)
 
 ```json
 {
-  "task_ids": ["..."],
-  "tasks": [
-    { "id": "...", "created_at": 123, "updated_at": 456, "blocks_completion": true }
-  ]
+	"task_ids": ["..."],
+	"tasks": [{ "id": "...", "created_at": 123, "updated_at": 456, "blocks_completion": true }]
 }
 ```
 

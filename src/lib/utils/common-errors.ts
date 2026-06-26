@@ -77,7 +77,9 @@ export const localizeCommonError = (error: unknown, t: Translate): string => {
 	}
 
 	if (INVALID_CREDENTIAL_PATTERNS.some((pattern) => pattern.test(message))) {
-		return t('The email or password provided is incorrect. Please check for typos and try logging in again.');
+		return t(
+			'The email or password provided is incorrect. Please check for typos and try logging in again.'
+		);
 	}
 
 	if (INVALID_ID_UNDERSCORE_PATTERNS.some((pattern) => pattern.test(message))) {

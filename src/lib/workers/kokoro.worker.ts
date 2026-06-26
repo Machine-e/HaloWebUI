@@ -1,26 +1,20 @@
 let tts: any;
 let isInitialized = false; // Flag to track initialization status
 const DEFAULT_MODEL_ID = 'onnx-community/Kokoro-82M-v1.0-ONNX'; // Default model
-let runtimePromise:
-	| Promise<{
-			KokoroTTS: {
-				from_pretrained: (
-					modelId: string,
-					options: Record<string, unknown>
-				) => Promise<any>;
-			};
-		}>
-	| null = null;
+let runtimePromise: Promise<{
+	KokoroTTS: {
+		from_pretrained: (modelId: string, options: Record<string, unknown>) => Promise<any>;
+	};
+}> | null = null;
 
 const ensureRuntime = async () => {
 	if (!runtimePromise) {
-		runtimePromise = Promise.all([
-			import('@huggingface/transformers'),
-			import('kokoro-js')
-		]).then(([transformers, kokoro]) => {
-			transformers.env.backends.onnx.wasm.wasmPaths = '/wasm/';
-			return { KokoroTTS: kokoro.KokoroTTS };
-		});
+		runtimePromise = Promise.all([import('@huggingface/transformers'), import('kokoro-js')]).then(
+			([transformers, kokoro]) => {
+				transformers.env.backends.onnx.wasm.wasmPaths = '/wasm/';
+				return { KokoroTTS: kokoro.KokoroTTS };
+			}
+		);
 	}
 
 	return runtimePromise;

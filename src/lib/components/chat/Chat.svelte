@@ -227,7 +227,9 @@
 	const isImageGenerationMessageFile = (file: any) =>
 		file?.source === 'image_generation' ||
 		file?.type === 'image_generation_error' ||
-		(file?.type === 'image' && file?.status === 'success' && getImageGenerationSlotIndex(file) !== null);
+		(file?.type === 'image' &&
+			file?.status === 'success' &&
+			getImageGenerationSlotIndex(file) !== null);
 	const getMessageFileMergeKeys = (file: any) => {
 		const keys: string[] = [];
 		const id = typeof file?.id === 'string' ? file.id.trim() : '';
@@ -255,7 +257,9 @@
 		for (const field of ['id', 'url', 'content_url', 'source', 'status', 'slot_index'] as const) {
 			if (
 				(merged[field] === undefined || merged[field] === null || merged[field] === '') &&
-				(existing[field] !== undefined && existing[field] !== null && existing[field] !== '')
+				existing[field] !== undefined &&
+				existing[field] !== null &&
+				existing[field] !== ''
 			) {
 				merged[field] = existing[field];
 			}
@@ -319,16 +323,13 @@
 				name:
 					typeof file?.name === 'string' && file.name
 						? file.name
-						: file?.file?.meta?.name ?? undefined,
+						: (file?.file?.meta?.name ?? undefined),
 				url,
-				size:
-					typeof file?.size === 'number'
-						? file.size
-						: file?.file?.meta?.size ?? undefined,
+				size: typeof file?.size === 'number' ? file.size : (file?.file?.meta?.size ?? undefined),
 				content_type:
 					typeof file?.content_type === 'string' && file.content_type
 						? file.content_type
-						: file?.file?.meta?.content_type ?? undefined,
+						: (file?.file?.meta?.content_type ?? undefined),
 				content_url:
 					typeof file?.content_url === 'string' && file.content_url ? file.content_url : undefined,
 				source: typeof file?.source === 'string' && file.source ? file.source : undefined,
@@ -412,13 +413,15 @@
 
 		const requestHistory: any = structuredClone(historyState);
 		const message = requestHistory.messages[parentId];
-		const normalizedReferenceFiles = referenceFiles.map((file) => normalizeInputFileForMessage(file));
+		const normalizedReferenceFiles = referenceFiles.map((file) =>
+			normalizeInputFileForMessage(file)
+		);
 		message.files = mergeMessageFiles(message.files, normalizedReferenceFiles);
 		return requestHistory;
 	};
 	const formatError = (error: unknown, fallback = $i18n.t('Request failed')) =>
 		getErrorDetail(error, fallback);
-	const withTimeout = async <T>(
+	const withTimeout = async <T,>(
 		promise: Promise<T>,
 		timeoutMs: number,
 		label: string
@@ -500,7 +503,10 @@
 		let timedOut = false;
 
 		const deadlineAt = Date.now() + SOFT_INLINE_IMAGE_TOTAL_TIMEOUT_MS;
-		for (const [messageId, message] of Object.entries(normalizedHistory.messages ?? {}) as [string, any][]) {
+		for (const [messageId, message] of Object.entries(normalizedHistory.messages ?? {}) as [
+			string,
+			any
+		][]) {
 			if (Date.now() >= deadlineAt) {
 				timedOut = true;
 				break;
@@ -517,7 +523,9 @@
 				const remainingMs = deadlineAt - Date.now();
 				if (remainingMs <= 0) {
 					timedOut = true;
-					normalizedFiles.push(...message.files.slice(fileIndex).map((item) => structuredClone(item)));
+					normalizedFiles.push(
+						...message.files.slice(fileIndex).map((item) => structuredClone(item))
+					);
 					break;
 				}
 
@@ -605,7 +613,9 @@
 	let activeAssistant: ChatAssistantSnapshot | null = null;
 
 	const getMultiModelDiscussionRounds = () => {
-		const parsed = Number($settings?.multiModelDiscussionRounds ?? MULTI_MODEL_DISCUSSION_DEFAULT_ROUNDS);
+		const parsed = Number(
+			$settings?.multiModelDiscussionRounds ?? MULTI_MODEL_DISCUSSION_DEFAULT_ROUNDS
+		);
 		if (!Number.isFinite(parsed)) {
 			return MULTI_MODEL_DISCUSSION_DEFAULT_ROUNDS;
 		}
@@ -693,7 +703,9 @@
 		};
 	};
 	const openModelSelector = async (index = 0, searchValue = '') => {
-		const button = document.getElementById(`model-selector-${index}-button`) as HTMLButtonElement | null;
+		const button = document.getElementById(
+			`model-selector-${index}-button`
+		) as HTMLButtonElement | null;
 		if (!button) return;
 		button.click();
 		await tick();
@@ -742,10 +754,7 @@
 	};
 	const isBlockingModelResolution = (resolution: ChatModelResolution | null | undefined) =>
 		resolution?.status === 'stale' || resolution?.status === 'ambiguous';
-	const promptModelResolution = async (
-		resolution: ChatModelResolution,
-		index = 0
-	) => {
+	const promptModelResolution = async (resolution: ChatModelResolution, index = 0) => {
 		await promptModelReselection({
 			index,
 			rawModelId: resolution.searchValue || resolution.value,
@@ -778,7 +787,8 @@
 		}
 
 		message.model = resolution.value;
-		message.modelName = getModelChatDisplayName(resolution.model) || resolution.model.id || resolution.value;
+		message.modelName =
+			getModelChatDisplayName(resolution.model) || resolution.model.id || resolution.value;
 		const modelRef = getModelRef(resolution.model);
 		if (modelRef) {
 			message.model_ref = modelRef;
@@ -806,9 +816,7 @@
 		return messageResolution;
 	};
 	const getChatModelSelectionHints = (chatContent: any) =>
-		Array.isArray(chatContent?.model_selection_hints)
-			? chatContent.model_selection_hints
-			: [];
+		Array.isArray(chatContent?.model_selection_hints) ? chatContent.model_selection_hints : [];
 	const buildPersistedModelSelectionHints = (modelIds: string[] = selectedModels) =>
 		modelIds.map((modelId) => {
 			const model = getModelById(modelId);
@@ -827,7 +835,10 @@
 		const rawModels = Array.isArray(loadedModels) ? loadedModels : [loadedModels ?? ''];
 		const hints = getChatModelSelectionHints(chatContent);
 		const selectedResolutions = resolveChatModelSelections($models, rawModels, hints);
-		const latestResolvedByIndex = new Map<number, { resolution: ChatModelResolution; timestamp: number }>();
+		const latestResolvedByIndex = new Map<
+			number,
+			{ resolution: ChatModelResolution; timestamp: number }
+		>();
 
 		for (const message of Object.values(loadedHistory?.messages ?? {}) as any[]) {
 			if (!message || typeof message !== 'object') continue;
@@ -953,14 +964,14 @@
 		const participants = getDiscussionParticipantPayload(participantIds);
 		const finalModel = participants[0];
 
-	return {
-		enabled: true,
-		participants: participants.map((participant) => participant.id),
-		rounds: getMultiModelDiscussionRounds(),
-		final_model: finalModel?.id,
-		strategy: 'debate_then_summarize'
+		return {
+			enabled: true,
+			participants: participants.map((participant) => participant.id),
+			rounds: getMultiModelDiscussionRounds(),
+			final_model: finalModel?.id,
+			strategy: 'debate_then_summarize'
+		};
 	};
-};
 
 	const buildInitialDiscussionState = (participantIds: string[]) => {
 		const participants = getDiscussionParticipantPayload(participantIds);
@@ -1496,7 +1507,9 @@
 	let lastAutoImageGenerationSelectionKey = '';
 	const syncImageGenerationForDedicatedModel = ({ force = false } = {}) => {
 		const dedicatedImageModel = getSingleSelectedDedicatedImageModel();
-		const dedicatedImageSelectionKey = dedicatedImageModel ? getModelRequestId(dedicatedImageModel) : '';
+		const dedicatedImageSelectionKey = dedicatedImageModel
+			? getModelRequestId(dedicatedImageModel)
+			: '';
 
 		if (!dedicatedImageSelectionKey) {
 			lastAutoImageGenerationSelectionKey = '';
@@ -1695,8 +1708,7 @@
 			| undefined,
 		fallback: WebSearchMode = getPreferredDefaultWebSearchMode()
 	): { mode: WebSearchMode; source: WebSearchModeSource } => {
-		const hasLegacyState =
-			value?.webSearchMode !== undefined || value?.webSearchEnabled === true;
+		const hasLegacyState = value?.webSearchMode !== undefined || value?.webSearchEnabled === true;
 
 		if (value?.webSearchMode !== undefined) {
 			return {
@@ -1885,9 +1897,7 @@
 		}
 	};
 
-	const applyNewChatReasoningSelectionState = (
-		state: Record<string, any> | null | undefined
-	) => {
+	const applyNewChatReasoningSelectionState = (state: Record<string, any> | null | undefined) => {
 		if (getConfiguredDefaultReasoningEffort($settings) !== null) {
 			return false;
 		}
@@ -1960,34 +1970,23 @@
 		if (Array.isArray(restoredToolIds)) {
 			selectedToolIds = restoredToolIds.map((id) => String(id ?? '').trim()).filter(Boolean);
 		}
-		if (
-			state.tool_selection_touched !== undefined ||
-			state.toolSelectionTouched !== undefined
-		) {
-			toolSelectionTouched = Boolean(
-				state.tool_selection_touched ?? state.toolSelectionTouched
-			);
+		if (state.tool_selection_touched !== undefined || state.toolSelectionTouched !== undefined) {
+			toolSelectionTouched = Boolean(state.tool_selection_touched ?? state.toolSelectionTouched);
 		}
 
 		const restoredSkillIds = state.selected_skill_ids ?? state.selectedSkillIds;
 		if (Array.isArray(restoredSkillIds)) {
 			selectedSkillIds = restoredSkillIds.map((id) => String(id ?? '').trim()).filter(Boolean);
 		}
-		if (
-			state.skill_selection_touched !== undefined ||
-			state.skillSelectionTouched !== undefined
-		) {
-			skillSelectionTouched = Boolean(
-				state.skill_selection_touched ?? state.skillSelectionTouched
-			);
+		if (state.skill_selection_touched !== undefined || state.skillSelectionTouched !== undefined) {
+			skillSelectionTouched = Boolean(state.skill_selection_touched ?? state.skillSelectionTouched);
 		}
 
 		const restoredWebSearchState = resolveStoredWebSearchState({
 			webSearchMode: state.web_search_mode ?? state.webSearchMode,
 			webSearchModeSource: state.web_search_mode_source ?? state.webSearchModeSource,
 			webSearchModeTouched:
-				state.web_search_mode_source !== undefined ||
-				state.webSearchModeSource !== undefined
+				state.web_search_mode_source !== undefined || state.webSearchModeSource !== undefined
 					? normalizeWebSearchModeSource(
 							state.web_search_mode_source ?? state.webSearchModeSource,
 							'default'
@@ -2032,14 +2031,10 @@
 		}
 		if (state.reasoning_effort !== undefined || state.reasoningEffort !== undefined) {
 			reasoningEffort =
-				normalizeReasoningEffortValue(
-					state.reasoning_effort ?? state.reasoningEffort ?? null
-				) ?? null;
+				normalizeReasoningEffortValue(state.reasoning_effort ?? state.reasoningEffort ?? null) ??
+				null;
 		}
-		if (
-			state.max_thinking_tokens !== undefined ||
-			state.maxThinkingTokens !== undefined
-		) {
+		if (state.max_thinking_tokens !== undefined || state.maxThinkingTokens !== undefined) {
 			maxThinkingTokens = normalizeThinkingTokenValue(
 				state.max_thinking_tokens ?? state.maxThinkingTokens ?? null
 			);
@@ -3676,7 +3671,10 @@
 			const hadExplicitSelectedModels = selectedModels.some(
 				(modelId) => `${modelId ?? ''}`.trim() !== ''
 			);
-			const resolvedSelectedModels = resolveAvailableChatModelSelectionValues($models, selectedModels);
+			const resolvedSelectedModels = resolveAvailableChatModelSelectionValues(
+				$models,
+				selectedModels
+			);
 			selectedModels = resolvedSelectedModels.values;
 			if (resolvedSelectedModels.droppedUnavailable) {
 				removeSessionSelectedModels();
@@ -3849,7 +3847,10 @@
 
 		// Only validate model IDs when models are actually loaded
 		if (modelsMap.size > 0) {
-			const resolvedSelectedModels = resolveAvailableChatModelSelectionValues($models, selectedModels);
+			const resolvedSelectedModels = resolveAvailableChatModelSelectionValues(
+				$models,
+				selectedModels
+			);
 			selectedModels =
 				resolvedSelectedModels.values.length > 0 ? resolvedSelectedModels.values : [''];
 			if (resolvedSelectedModels.droppedUnavailable) {
@@ -3958,7 +3959,9 @@
 
 			if (chatContent) {
 				if ($models.length === 0) {
-					await ensureModels(localStorage.token, { reason: 'chat-history-model-recovery' }).catch(() => {});
+					await ensureModels(localStorage.token, { reason: 'chat-history-model-recovery' }).catch(
+						() => {}
+					);
 					await tick();
 				}
 
@@ -3987,7 +3990,9 @@
 
 				if (chat.assistant_id) {
 					if ($models.length === 0) {
-						await ensureModels(localStorage.token, { reason: 'chat-assistant-scene' }).catch(() => {});
+						await ensureModels(localStorage.token, { reason: 'chat-assistant-scene' }).catch(
+							() => {}
+						);
 						await tick();
 					}
 
@@ -4044,7 +4049,11 @@
 
 			if (pendingAssistantIds.size === 0) {
 				for (const [messageId, message] of Object.entries(history.messages)) {
-					if (message?.role === 'assistant' && message.done === false && !isResponseStopped(message)) {
+					if (
+						message?.role === 'assistant' &&
+						message.done === false &&
+						!isResponseStopped(message)
+					) {
 						pendingAssistantIds.add(messageId);
 					}
 				}
@@ -4052,7 +4061,11 @@
 
 			const currentMessage = history.currentId ? history.messages[history.currentId] : null;
 			const currentMessageStopped = isResponseStopped(currentMessage);
-			if (pendingAssistantIds.size === 0 && currentMessage?.role === 'assistant' && !currentMessageStopped) {
+			if (
+				pendingAssistantIds.size === 0 &&
+				currentMessage?.role === 'assistant' &&
+				!currentMessageStopped
+			) {
 				pendingAssistantIds.add(currentMessage.id);
 
 				const parentMessage = currentMessage.parentId
@@ -4060,7 +4073,11 @@
 					: null;
 				for (const siblingId of parentMessage?.childrenIds ?? []) {
 					const sibling = history.messages[siblingId];
-					if (sibling?.role === 'assistant' && sibling.done !== true && !isResponseStopped(sibling)) {
+					if (
+						sibling?.role === 'assistant' &&
+						sibling.done !== true &&
+						!isResponseStopped(sibling)
+					) {
 						pendingAssistantIds.add(siblingId);
 					}
 				}
@@ -4123,7 +4140,11 @@
 		};
 	};
 
-	const markResponseRecoveryFailed = async (messageId: string, taskId: string | null, reason: string) => {
+	const markResponseRecoveryFailed = async (
+		messageId: string,
+		taskId: string | null,
+		reason: string
+	) => {
 		const message = history.messages?.[messageId];
 		if (!message) {
 			clearTaskForCompletedResponse(messageId);
@@ -4162,13 +4183,7 @@
 	};
 
 	const recoverActiveChat = async (reason: string) => {
-		if (
-			recoveryInFlight ||
-			!$chatId ||
-			$chatId === 'local' ||
-			$temporaryChatEnabled ||
-			loading
-		) {
+		if (recoveryInFlight || !$chatId || $chatId === 'local' || $temporaryChatEnabled || loading) {
 			return false;
 		}
 
@@ -4198,7 +4213,10 @@
 			reconcileLoadedAssistantMessages(taskIds, nextTasks);
 
 			if (!taskIds || taskIds.length === 0) {
-				for (const [messageId, message] of Object.entries(history.messages ?? {}) as [string, any][]) {
+				for (const [messageId, message] of Object.entries(history.messages ?? {}) as [
+					string,
+					any
+				][]) {
 					if (message?.role !== 'assistant' || message.done === true) {
 						continue;
 					}
@@ -4611,7 +4629,10 @@
 	const chatCompletedHandler = async (chatId, modelId, responseMessageId, messages) => {
 		const responseMessage = history.messages[responseMessageId];
 		const responseModelIndex = getMessageModelIndex(responseMessage);
-		const responseModelResolution = resolveMessageModelForAction(responseMessage, responseModelIndex);
+		const responseModelResolution = resolveMessageModelForAction(
+			responseMessage,
+			responseModelIndex
+		);
 		if (
 			isBlockingModelResolution(responseModelResolution) ||
 			responseModelResolution.status !== 'resolved'
@@ -4619,9 +4640,10 @@
 			await promptModelResolution(responseModelResolution, responseModelIndex);
 			history.messages[responseMessageId].error = {
 				type: 'model_resolution_error',
-				content: responseModelResolution.status === 'ambiguous'
-					? $i18n.t('Model connection is ambiguous. Please select the model again.')
-					: $i18n.t('Model connection is unavailable. Please select the model again.')
+				content:
+					responseModelResolution.status === 'ambiguous'
+						? $i18n.t('Model connection is ambiguous. Please select the model again.')
+						: $i18n.t('Model connection is unavailable. Please select the model again.')
 			};
 			await saveChatHandler(chatId, history);
 			return;
@@ -4716,7 +4738,10 @@
 		const messages = createMessagesList(history, responseMessageId);
 		const responseMessage = history.messages[responseMessageId];
 		const responseModelIndex = getMessageModelIndex(responseMessage);
-		const responseModelResolution = resolveMessageModelForAction(responseMessage, responseModelIndex);
+		const responseModelResolution = resolveMessageModelForAction(
+			responseMessage,
+			responseModelIndex
+		);
 		if (
 			isBlockingModelResolution(responseModelResolution) ||
 			responseModelResolution.status !== 'resolved'
@@ -4724,9 +4749,10 @@
 			await promptModelResolution(responseModelResolution, responseModelIndex);
 			history.messages[responseMessageId].error = {
 				type: 'model_resolution_error',
-				content: responseModelResolution.status === 'ambiguous'
-					? $i18n.t('Model connection is ambiguous. Please select the model again.')
-					: $i18n.t('Model connection is unavailable. Please select the model again.')
+				content:
+					responseModelResolution.status === 'ambiguous'
+						? $i18n.t('Model connection is ambiguous. Please select the model again.')
+						: $i18n.t('Model connection is unavailable. Please select the model again.')
 			};
 			await saveChatHandler(chatId, history);
 			return;
@@ -4847,11 +4873,7 @@
 		branchingMessageId = sourceMessageId;
 
 		try {
-			const branchedChat = await branchChatById(
-				localStorage.token,
-				$chatId,
-				branchPointMessageId
-			);
+			const branchedChat = await branchChatById(localStorage.token, $chatId, branchPointMessageId);
 
 			if (!branchedChat?.id) {
 				throw new Error($i18n.t('Failed to create branch'));
@@ -5071,7 +5093,8 @@
 	const getHistoryMessage = (messageId: string | null | undefined) =>
 		messageId ? ((history.messages ?? {}) as Record<string, any>)?.[messageId] : null;
 
-	const isResponseStopped = (message: any) => message?.stopped === true || message?.stoppedByUser === true;
+	const isResponseStopped = (message: any) =>
+		message?.stopped === true || message?.stoppedByUser === true;
 
 	const isUnresolvedEmptyAssistantMessage = (message: any) => {
 		if (message?.role !== 'assistant' || isResponseStopped(message)) {
@@ -5092,7 +5115,9 @@
 				? [message.status]
 				: [];
 
-		return statuses.length === 0 || statuses.some((status) => status?.done === false && !status?.hidden);
+		return (
+			statuses.length === 0 || statuses.some((status) => status?.done === false && !status?.hidden)
+		);
 	};
 
 	const markUnresolvedEmptyAssistantMessage = (message: any) => {
@@ -5327,7 +5352,10 @@
 	// Chat functions
 	//////////////////////////
 
-	const submitPrompt = async (userPrompt, { _raw = false, referenceFiles: referenceFilesOverride = null } = {}) => {
+	const submitPrompt = async (
+		userPrompt,
+		{ _raw = false, referenceFiles: referenceFilesOverride = null } = {}
+	) => {
 		const messages = createMessagesList(history, history.currentId);
 		const blockingSelection = findBlockingSelectedModelResolution();
 		const _selectedModels = selectedModels.map((modelId, index) => {
@@ -5852,9 +5880,7 @@
 
 		// 自定义上下文条数：只保留最近 N 条非系统消息，系统提示词始终保留
 		const maxHistoryMessages =
-			params?.max_history_messages ??
-			$settings?.params?.max_history_messages ??
-			null;
+			params?.max_history_messages ?? $settings?.params?.max_history_messages ?? null;
 		if (typeof maxHistoryMessages === 'number' && maxHistoryMessages > 0) {
 			const hasSystem = messages[0]?.role === 'system';
 			const systemMsg = hasSystem ? messages[0] : null;
@@ -5869,17 +5895,16 @@
 			);
 			const truncated = historyOnly.slice(-maxHistoryMessages);
 			const fallbackUserMessage = historyOnly.findLast((message) => message?.role === 'user');
-			const limitedHistory =
-				truncated.some((message) => message?.role === 'user')
-					? truncated
-					: fallbackUserMessage
-						? [
-								...(truncated.some((message) => message?.id === fallbackUserMessage.id)
-									? []
-									: [fallbackUserMessage]),
-								...truncated
-							]
-						: truncated;
+			const limitedHistory = truncated.some((message) => message?.role === 'user')
+				? truncated
+				: fallbackUserMessage
+					? [
+							...(truncated.some((message) => message?.id === fallbackUserMessage.id)
+								? []
+								: [fallbackUserMessage]),
+							...truncated
+						]
+					: truncated;
 
 			messages = systemMsg ? [systemMsg, ...limitedHistory] : limitedHistory;
 		}
@@ -6021,9 +6046,7 @@
 										follow_up_generation: $settings?.autoFollowUps ?? true
 									}
 						}
-					: !$temporaryChatEnabled &&
-					  !imageGenerationActive &&
-					  ($settings?.autoFollowUps ?? true)
+					: !$temporaryChatEnabled && !imageGenerationActive && ($settings?.autoFollowUps ?? true)
 						? {
 								background_tasks: {
 									follow_up_generation: true
@@ -6067,7 +6090,10 @@
 		if (res) {
 			if (res.error) {
 				await handleOpenAIError(res.error, responseMessage);
-			} else if (stoppedResponseMessageIds.has(responseMessageId) || isResponseStopped(responseMessage)) {
+			} else if (
+				stoppedResponseMessageIds.has(responseMessageId) ||
+				isResponseStopped(responseMessage)
+			) {
 				if (res.task_id) {
 					await stopTask(localStorage.token, res.task_id).catch((error) => {
 						toast.error(`${error}`);
@@ -6697,14 +6723,19 @@
 		let _chatId = $chatId;
 
 		if (!$temporaryChatEnabled) {
-			chat = await createNewChat(localStorage.token, {
-				id: _chatId,
-				title: $i18n.t('New Chat'),
-				system: $settings.system ?? undefined,
-				tags: [],
-				timestamp: Date.now(),
-				...buildPersistedChatData(history)
-			}, null, $selectedAssistantScene?.id ?? null);
+			chat = await createNewChat(
+				localStorage.token,
+				{
+					id: _chatId,
+					title: $i18n.t('New Chat'),
+					system: $settings.system ?? undefined,
+					tags: [],
+					timestamp: Date.now(),
+					...buildPersistedChatData(history)
+				},
+				null,
+				$selectedAssistantScene?.id ?? null
+			);
 
 			_chatId = chat.id;
 			await chatId.set(_chatId);
@@ -6881,7 +6912,9 @@
 									{addMessages}
 									onBranchMessage={branchMessageToCurrentChat}
 									{branchingMessageId}
-									branchSupported={Boolean($chatId && $chatId !== 'local' && !$temporaryChatEnabled)}
+									branchSupported={Boolean(
+										$chatId && $chatId !== 'local' && !$temporaryChatEnabled
+									)}
 									initialMessagesCount={chatIdProp ? 6 : 20}
 									messagesLoadStep={chatIdProp ? 6 : 20}
 									deferOffscreenRendering={Boolean(chatIdProp)}
@@ -6950,7 +6983,11 @@
 									}
 								}}
 								on:submit={async (e) => {
-									if (e.detail || files.length > 0 || activeImageGenerationReferenceFiles.length > 0) {
+									if (
+										e.detail ||
+										files.length > 0 ||
+										activeImageGenerationReferenceFiles.length > 0
+									) {
 										await tick();
 										submitPrompt(
 											($settings?.richTextInput ?? true)

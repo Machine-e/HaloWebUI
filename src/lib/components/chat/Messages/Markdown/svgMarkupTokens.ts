@@ -143,7 +143,11 @@ export function extractSvgMarkupBlocks(content: string): string[] {
 	const blocks: string[] = [];
 
 	for (const segment of content.split(CODE_SPLIT_RE)) {
-		if (!segment || segment.startsWith('```') || (segment.startsWith('`') && segment.endsWith('`'))) {
+		if (
+			!segment ||
+			segment.startsWith('```') ||
+			(segment.startsWith('`') && segment.endsWith('`'))
+		) {
 			continue;
 		}
 

@@ -21,10 +21,9 @@
 		typeof renderableMessageError === 'object'
 			? (renderableMessageError as Record<string, unknown>)
 			: null;
-	$: renderableMessageErrorContent =
-		renderableMessageErrorRecord
-			? `${renderableMessageErrorRecord.content ?? ''}`
-			: '';
+	$: renderableMessageErrorContent = renderableMessageErrorRecord
+		? `${renderableMessageErrorRecord.content ?? ''}`
+		: '';
 </script>
 
 <div
@@ -66,7 +65,9 @@
 					</div>
 
 					{#if renderableMessageErrorContent}
-						<div class="text-red-500 line-clamp-2 text-xs mt-0.5">{renderableMessageErrorContent}</div>
+						<div class="text-red-500 line-clamp-2 text-xs mt-0.5">
+							{renderableMessageErrorContent}
+						</div>
 					{:else}
 						<div class="text-gray-500 line-clamp-2 text-xs mt-0.5">{data.message.content}</div>
 					{/if}

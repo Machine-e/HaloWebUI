@@ -14,11 +14,11 @@
 	export let onSubmit: (connection: any) => void = () => {};
 	export let onShare: (() => void) | null = null;
 
-export let connection: any = null;
-export let direct: boolean = false;
-export let shareActive: boolean = false;
-export let showShareAction: boolean = false;
-export let shareScopeLabel: string = '';
+	export let connection: any = null;
+	export let direct: boolean = false;
+	export let shareActive: boolean = false;
+	export let showShareAction: boolean = false;
+	export let shareScopeLabel: string = '';
 
 	let showConfigModal = false;
 	let showDeleteConfirmDialog = false;
@@ -94,17 +94,28 @@ export let shareScopeLabel: string = '';
 					}}
 					type="button"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
-						<path d="M15 8a3 3 0 1 0-2.83-4H12a3 3 0 0 0 .17 1l-4.6 2.3a3 3 0 0 0-2.4-1.2 3 3 0 1 0 0 6c.87 0 1.66-.37 2.2-.95l4.8 2.4A3 3 0 0 0 12 15a3 3 0 1 0 .17-1l-4.8-2.4A2.98 2.98 0 0 0 8 10c0-.35-.06-.68-.17-.99l4.6-2.3c.54.79 1.45 1.3 2.47 1.3Z" />
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 20 20"
+						fill="currentColor"
+						class="size-4"
+					>
+						<path
+							d="M15 8a3 3 0 1 0-2.83-4H12a3 3 0 0 0 .17 1l-4.6 2.3a3 3 0 0 0-2.4-1.2 3 3 0 1 0 0 6c.87 0 1.66-.37 2.2-.95l4.8 2.4A3 3 0 0 0 12 15a3 3 0 1 0 .17-1l-4.8-2.4A2.98 2.98 0 0 0 8 10c0-.35-.06-.68-.17-.99l4.6-2.3c.54.79 1.45 1.3 2.47 1.3Z"
+						/>
 					</svg>
 				</button>
 			</Tooltip>
 			{#if shareActive}
-				<span class="self-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+				<span
+					class="self-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+				>
 					共享中
 				</span>
 				{#if shareScopeLabel}
-					<span class="self-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-300">
+					<span
+						class="self-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-300"
+					>
 						{shareScopeLabel}
 					</span>
 				{/if}

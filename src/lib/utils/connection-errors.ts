@@ -57,10 +57,7 @@ const extractPayloadMessage = (text: string): string => {
 };
 
 const normalizeWhitespace = (text: string): string =>
-	text
-		.replaceAll('\\n', ' ')
-		.replace(/\s+/g, ' ')
-		.trim();
+	text.replaceAll('\\n', ' ').replace(/\s+/g, ' ').trim();
 
 const extractStatusCode = (text: string): number | null => {
 	for (const pattern of HTTP_STATUS_RES) {
@@ -117,7 +114,8 @@ export const formatConnectionErrorToast = (
 	if (RESPONSES_API_ERROR_RE.test(providerStripped)) {
 		const status = extractStatusCode(providerStripped) ?? extractStatusCode(simplifiedDetail);
 		const param = extractInvalidParam(providerStripped) ?? extractInvalidParam(simplifiedDetail);
-		const minValue = extractMinValueRange(providerStripped) ?? extractMinValueRange(simplifiedDetail);
+		const minValue =
+			extractMinValueRange(providerStripped) ?? extractMinValueRange(simplifiedDetail);
 
 		if (param) {
 			return {

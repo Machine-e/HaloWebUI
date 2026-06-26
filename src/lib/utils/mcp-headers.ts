@@ -90,7 +90,15 @@ export const prepareMCPHeaderItems = (items: MCPHeaderItem[]) => {
 	}
 
 	const signature = items
-		.map((item) => [String(item?.key ?? '').trim().toLowerCase(), String(item?.value ?? '')] as const)
+		.map(
+			(item) =>
+				[
+					String(item?.key ?? '')
+						.trim()
+						.toLowerCase(),
+					String(item?.value ?? '')
+				] as const
+		)
 		.filter(([key, value]) => Boolean(key) || Boolean(value))
 		.sort(([leftKey, leftValue], [rightKey, rightValue]) =>
 			leftKey === rightKey ? leftValue.localeCompare(rightValue) : leftKey.localeCompare(rightKey)

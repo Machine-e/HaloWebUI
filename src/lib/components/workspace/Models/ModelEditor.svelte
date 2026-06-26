@@ -41,8 +41,7 @@
 	import { translateWithDefault } from '$lib/i18n';
 
 	const i18n = getContext('i18n');
-	const tr = (key: string, defaultValue: string) =>
-		translateWithDefault($i18n, key, defaultValue);
+	const tr = (key: string, defaultValue: string) => translateWithDefault($i18n, key, defaultValue);
 
 	export let onSubmit: Function;
 	export let onBack: null | Function = null;
@@ -420,7 +419,11 @@
 		if (direct) return direct;
 
 		const baseModelRef = sourceModel?.meta?.base_model_ref ?? sourceModel?.meta?.model_ref ?? null;
-		return findModelByRef(candidates, baseModelRef, sourceModel?.meta?.base_selection_id ?? baseModelId);
+		return findModelByRef(
+			candidates,
+			baseModelRef,
+			sourceModel?.meta?.base_selection_id ?? baseModelId
+		);
 	};
 
 	const addUsage = (base_model_id) => {
@@ -715,16 +718,28 @@
 		>
 			<div class="h-full space-y-6 overflow-y-auto scrollbar-hidden">
 				<div class="max-w-6xl mx-auto space-y-6">
-
 					<!-- ==================== Hero Section ==================== -->
 					<section class="glass-section p-5 space-y-5">
 						<div class="@container flex flex-col gap-5">
 							<div class="flex flex-col gap-4">
 								<div class="min-w-0 @[64rem]:flex-1">
 									{#if onBack}
-										<button type="button" class="mb-3 inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" on:click={() => onBack()}>
-											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5">
-												<path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd" />
+										<button
+											type="button"
+											class="mb-3 inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+											on:click={() => onBack()}
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 20 20"
+												fill="currentColor"
+												class="size-3.5"
+											>
+												<path
+													fill-rule="evenodd"
+													d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z"
+													clip-rule="evenodd"
+												/>
 											</svg>
 											<span>{$i18n.t('Models')}</span>
 										</button>
@@ -734,7 +749,12 @@
 									{#if activeTab}
 										<div class="flex items-start gap-3">
 											<div class="glass-icon-badge {activeTab.badgeColor}">
-												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-[18px] {activeTab.iconColor}">
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													viewBox="0 0 24 24"
+													fill="currentColor"
+													class="size-[18px] {activeTab.iconColor}"
+												>
 													{#each activeTab.iconPaths as pathD}
 														<path fill-rule="evenodd" d={pathD} clip-rule="evenodd" />
 													{/each}
@@ -745,27 +765,42 @@
 													<div class="text-base font-semibold text-gray-800 dark:text-gray-100">
 														{activeTab.title}
 													</div>
-													<InlineDirtyActions dirty={dirty} {saving} saveAsSubmit={true} on:reset={handleReset} />
+													<InlineDirtyActions
+														{dirty}
+														{saving}
+														saveAsSubmit={true}
+														on:reset={handleReset}
+													/>
 												</div>
-												<p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{activeTab.description}</p>
+												<p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+													{activeTab.description}
+												</p>
 											</div>
 										</div>
 									{/if}
 								</div>
 
 								<!-- Tab bar -->
-								<div class="inline-flex max-w-full flex-wrap items-center gap-1.5 self-start rounded-xl bg-gray-100/70 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:bg-gray-850/80 dark:shadow-none @[64rem]:flex-nowrap @[64rem]:shrink-0">
+								<div
+									class="inline-flex max-w-full flex-wrap items-center gap-1.5 self-start rounded-xl bg-gray-100/70 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:bg-gray-850/80 dark:shadow-none @[64rem]:flex-nowrap @[64rem]:shrink-0"
+								>
 									{#each allTabs as tab (tab.key)}
 										<button
 											type="button"
-											class="flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all {selectedTab === tab.key
+											class="flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all {selectedTab ===
+											tab.key
 												? 'bg-white text-gray-900 shadow-[0_1px_3px_rgba(15,23,42,0.08)] dark:bg-gray-800 dark:text-white'
 												: 'text-gray-500 hover:bg-white/50 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'}"
 											on:click={() => {
 												selectedTab = tab.key;
 											}}
 										>
-											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-4">
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 24 24"
+												fill="currentColor"
+												class="size-4"
+											>
 												{#each tab.iconPaths as pathD}
 													<path fill-rule="evenodd" d={pathD} clip-rule="evenodd" />
 												{/each}
@@ -779,8 +814,11 @@
 					</section>
 
 					<!-- ==================== Content Section ==================== -->
-					<section class="glass-section p-5 space-y-3 transition-all duration-300 {dirty ? 'glass-section-dirty' : ''}">
-
+					<section
+						class="glass-section p-5 space-y-3 transition-all duration-300 {dirty
+							? 'glass-section-dirty'
+							: ''}"
+					>
 						<!-- ===== Profile Tab ===== -->
 						{#if selectedTab === 'profile'}
 							<!-- Profile Image -->
@@ -806,10 +844,21 @@
 												class="size-28 object-cover"
 											/>
 										{/if}
-										<div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
-											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6 text-white opacity-0 group-hover:opacity-100 transition-opacity">
+										<div
+											class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center"
+										>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 24 24"
+												fill="currentColor"
+												class="size-6 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+											>
 												<path d="M12 9a3.75 3.75 0 1 0 0 7.5A3.75 3.75 0 0 0 12 9Z" />
-												<path fill-rule="evenodd" d="M9.344 3.071a49.52 49.52 0 0 1 5.312 0c.967.052 1.83.585 2.332 1.39l.821 1.317c.2.32.58.532.996.532h.176c1.594 0 2.769 1.388 2.769 2.94v7.5c0 1.552-1.175 2.94-2.769 2.94H5.019c-1.594 0-2.769-1.388-2.769-2.94v-7.5c0-1.552 1.175-2.94 2.769-2.94h.176c.416 0 .796-.213.996-.532l.82-1.317a2.636 2.636 0 0 1 2.333-1.39ZM12 7.5a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5Z" clip-rule="evenodd" />
+												<path
+													fill-rule="evenodd"
+													d="M9.344 3.071a49.52 49.52 0 0 1 5.312 0c.967.052 1.83.585 2.332 1.39l.821 1.317c.2.32.58.532.996.532h.176c1.594 0 2.769 1.388 2.769 2.94v7.5c0 1.552-1.175 2.94-2.769 2.94H5.019c-1.594 0-2.769-1.388-2.769-2.94v-7.5c0-1.552 1.175-2.94 2.769-2.94h.176c.416 0 .796-.213.996-.532l.82-1.317a2.636 2.636 0 0 1 2.333-1.39ZM12 7.5a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5Z"
+													clip-rule="evenodd"
+												/>
 											</svg>
 										</div>
 									</button>
@@ -940,7 +989,8 @@
 								<AccessControl
 									bind:accessControl
 									accessRoles={['read', 'write']}
-									allowPublic={$user?.permissions?.sharing?.public_models || $user?.role === 'admin'}
+									allowPublic={$user?.permissions?.sharing?.public_models ||
+										$user?.role === 'admin'}
 									allowGroupSelection={canShareAssistantAccess}
 									allowUserSelection={$user?.role === 'admin'}
 									readOnly={!canManageAcl}
@@ -1005,20 +1055,23 @@
 										xmlns="http://www.w3.org/2000/svg"
 										viewBox="0 0 20 20"
 										fill="currentColor"
-										class="size-4 text-gray-400 transition-transform duration-200 {showAdvanced ? 'rotate-180' : ''}"
+										class="size-4 text-gray-400 transition-transform duration-200 {showAdvanced
+											? 'rotate-180'
+											: ''}"
 									>
-										<path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+										<path
+											fill-rule="evenodd"
+											d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
+											clip-rule="evenodd"
+										/>
 									</svg>
 								</button>
 
 								{#if showAdvanced}
-										<div class="mt-3 pt-3 border-t border-gray-200/40 dark:border-gray-700/30">
-											<AdvancedParams
-												admin={true}
-												bind:params
-											/>
-										</div>
-									{/if}
+									<div class="mt-3 pt-3 border-t border-gray-200/40 dark:border-gray-700/30">
+										<AdvancedParams admin={true} bind:params />
+									</div>
+								{/if}
 							</div>
 
 							<!-- Prompt Suggestions -->
@@ -1027,7 +1080,9 @@
 									<div class="text-sm font-medium">{$i18n.t('Prompt suggestions')}</div>
 									<div class="flex items-center gap-2">
 										<span class="text-xs text-gray-400 dark:text-gray-500">
-											{(info?.meta?.suggestion_prompts ?? null) !== null ? $i18n.t('Custom') : $i18n.t('Default')}
+											{(info?.meta?.suggestion_prompts ?? null) !== null
+												? $i18n.t('Custom')
+												: $i18n.t('Default')}
 										</span>
 										<Switch
 											state={(info?.meta?.suggestion_prompts ?? null) !== null}
@@ -1060,8 +1115,15 @@
 															info.meta.suggestion_prompts = info.meta.suggestion_prompts;
 														}}
 													>
-														<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
-															<path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															viewBox="0 0 20 20"
+															fill="currentColor"
+															class="size-4"
+														>
+															<path
+																d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"
+															/>
 														</svg>
 													</button>
 												</div>
@@ -1087,8 +1149,15 @@
 												}
 											}}
 										>
-											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5">
-												<path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 20 20"
+												fill="currentColor"
+												class="size-3.5"
+											>
+												<path
+													d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"
+												/>
 											</svg>
 											{$i18n.t('Add suggestion')}
 										</button>
@@ -1150,9 +1219,15 @@
 										xmlns="http://www.w3.org/2000/svg"
 										viewBox="0 0 20 20"
 										fill="currentColor"
-										class="size-4 text-gray-400 transition-transform duration-200 {showPreview ? 'rotate-180' : ''}"
+										class="size-4 text-gray-400 transition-transform duration-200 {showPreview
+											? 'rotate-180'
+											: ''}"
 									>
-										<path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+										<path
+											fill-rule="evenodd"
+											d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
+											clip-rule="evenodd"
+										/>
 									</svg>
 								</button>
 
@@ -1169,9 +1244,7 @@
 								{/if}
 							</div>
 						{/if}
-
 					</section>
-
 				</div>
 			</div>
 		</form>

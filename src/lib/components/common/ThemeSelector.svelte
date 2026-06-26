@@ -5,8 +5,7 @@
 	export let value: 'light' | 'dark' | 'system' = 'system';
 	export let onChange: (value: 'light' | 'dark' | 'system') => void = () => {};
 	const i18n = getContext('i18n');
-	const tr = (key: string, defaultValue: string) =>
-		translateWithDefault($i18n, key, defaultValue);
+	const tr = (key: string, defaultValue: string) => translateWithDefault($i18n, key, defaultValue);
 
 	let themes: ReadonlyArray<{ value: 'light' | 'dark' | 'system'; label: string }> = [];
 	$: themes = [

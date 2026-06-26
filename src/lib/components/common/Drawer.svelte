@@ -71,8 +71,7 @@
 	bind:this={modalElement}
 	class="modal fixed right-0 {$isApp
 		? ' ml-[4.5rem] max-w-[calc(100%-4.5rem)]'
-		: ''} left-0 top-0 bg-black/60 w-full h-screen max-h-[100dvh] flex {placement ===
-		'right'
+		: ''} left-0 top-0 bg-black/60 w-full h-screen max-h-[100dvh] flex {placement === 'right'
 		? 'items-stretch justify-end'
 		: 'justify-center'} z-999 overflow-hidden overscroll-contain {overlayClassName}"
 	in:fly={enterTransition}
@@ -81,7 +80,9 @@
 	}}
 >
 	<div
-		class="{placement === 'right' ? 'ml-auto h-full w-full' : 'mt-auto w-full'} bg-gray-50 dark:bg-gray-900 dark:text-gray-100 {className} max-h-[100dvh] overflow-y-auto scrollbar-hidden scrollbar-stable"
+		class="{placement === 'right'
+			? 'ml-auto h-full w-full'
+			: 'mt-auto w-full'} bg-gray-50 dark:bg-gray-900 dark:text-gray-100 {className} max-h-[100dvh] overflow-y-auto scrollbar-hidden scrollbar-stable"
 		on:mousedown={(e) => {
 			e.stopPropagation();
 		}}

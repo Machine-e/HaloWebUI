@@ -216,8 +216,9 @@
 				banner={{
 					type: 'error',
 					title: $i18n.t('License Error'),
-					content:
-						$i18n.t('Exceeded the number of seats in your license. Please contact support to increase the number of seats.'),
+					content: $i18n.t(
+						'Exceeded the number of seats in your license. Please contact support to increase the number of seats.'
+					),
 					dismissable: true
 				}}
 			/>
@@ -228,8 +229,19 @@
 	<section class="glass-section p-5 space-y-5">
 		<div class="flex items-center gap-3">
 			<div class="glass-icon-badge bg-pink-50 dark:bg-pink-950/30">
-				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-[18px] text-pink-500 dark:text-pink-400">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke-width="1.5"
+					stroke="currentColor"
+					class="size-[18px] text-pink-500 dark:text-pink-400"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"
+					/>
 				</svg>
 			</div>
 			<div class="text-base font-semibold text-gray-800 dark:text-gray-100">
@@ -271,7 +283,8 @@
 			<div class="flex flex-wrap items-center gap-2">
 				{#if search.trim()}
 					<div class="glass-item px-3 py-2 text-xs font-medium">
-						{filteredTotal} {$i18n.t('Users')}
+						{filteredTotal}
+						{$i18n.t('Users')}
 					</div>
 				{/if}
 
@@ -325,10 +338,16 @@
 	<section class="glass-section hidden max-w-full overflow-hidden p-0 xl:block">
 		<div class="max-w-full overflow-x-auto">
 			<table class="min-w-full table-auto text-left text-sm">
-				<thead class="bg-gray-50/70 dark:bg-gray-800/40 text-xs tracking-wide border-b border-gray-200/40 dark:border-gray-700/30">
+				<thead
+					class="bg-gray-50/70 dark:bg-gray-800/40 text-xs tracking-wide border-b border-gray-200/40 dark:border-gray-700/30"
+				>
 					<tr>
 						<th class="px-5 py-4">
-							<button type="button" class="inline-flex items-center gap-1.5 font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition" on:click={() => setSortKey('role')}>
+							<button
+								type="button"
+								class="inline-flex items-center gap-1.5 font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
+								on:click={() => setSortKey('role')}
+							>
 								<span>{$i18n.t('Role')}</span>
 								{#if sortKey === 'role'}
 									{#if sortOrder === 'asc'}
@@ -340,7 +359,11 @@
 							</button>
 						</th>
 						<th class="px-5 py-4">
-							<button type="button" class="inline-flex items-center gap-1.5 font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition" on:click={() => setSortKey('name')}>
+							<button
+								type="button"
+								class="inline-flex items-center gap-1.5 font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
+								on:click={() => setSortKey('name')}
+							>
 								<span>{$i18n.t('Name')}</span>
 								{#if sortKey === 'name'}
 									{#if sortOrder === 'asc'}
@@ -352,7 +375,11 @@
 							</button>
 						</th>
 						<th class="px-5 py-4">
-							<button type="button" class="inline-flex items-center gap-1.5 font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition" on:click={() => setSortKey('email')}>
+							<button
+								type="button"
+								class="inline-flex items-center gap-1.5 font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
+								on:click={() => setSortKey('email')}
+							>
 								<span>{$i18n.t('Email')}</span>
 								{#if sortKey === 'email'}
 									{#if sortOrder === 'asc'}
@@ -364,7 +391,11 @@
 							</button>
 						</th>
 						<th class="px-5 py-4">
-							<button type="button" class="inline-flex items-center gap-1.5 font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition" on:click={() => setSortKey('last_active_at')}>
+							<button
+								type="button"
+								class="inline-flex items-center gap-1.5 font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
+								on:click={() => setSortKey('last_active_at')}
+							>
 								<span>{$i18n.t('Last Active')}</span>
 								{#if sortKey === 'last_active_at'}
 									{#if sortOrder === 'asc'}
@@ -376,7 +407,11 @@
 							</button>
 						</th>
 						<th class="px-5 py-4">
-							<button type="button" class="inline-flex items-center gap-1.5 font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition" on:click={() => setSortKey('created_at')}>
+							<button
+								type="button"
+								class="inline-flex items-center gap-1.5 font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
+								on:click={() => setSortKey('created_at')}
+							>
 								<span>{$i18n.t('Created at')}</span>
 								{#if sortKey === 'created_at'}
 									{#if sortOrder === 'asc'}
@@ -388,7 +423,11 @@
 							</button>
 						</th>
 						<th class="px-5 py-4">
-							<button type="button" class="inline-flex items-center gap-1.5 font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition" on:click={() => setSortKey('oauth_sub')}>
+							<button
+								type="button"
+								class="inline-flex items-center gap-1.5 font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
+								on:click={() => setSortKey('oauth_sub')}
+							>
 								<span>{$i18n.t('OAuth ID')}</span>
 								{#if sortKey === 'oauth_sub'}
 									{#if sortOrder === 'asc'}
@@ -434,12 +473,22 @@
 
 								<td class="px-5 py-4 align-middle">
 									<div class="flex min-w-[14rem] items-center gap-3">
-										<LetterAvatar name={user.name} size="size-11" className="rounded-2xl" textClass="text-base" />
+										<LetterAvatar
+											name={user.name}
+											size="size-11"
+											className="rounded-2xl"
+											textClass="text-base"
+										/>
 										<div class="min-w-0">
 											<div class="flex min-w-0 items-center gap-1.5">
-												<span class="truncate font-semibold text-gray-900 dark:text-white">{user.name}</span>
+												<span class="truncate font-semibold text-gray-900 dark:text-white"
+													>{user.name}</span
+												>
 												{#if userNote}
-													<span class="inline-flex min-w-0 max-w-[16rem] shrink items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-700/40 dark:text-gray-400" title={userNote}>
+													<span
+														class="inline-flex min-w-0 max-w-[16rem] shrink items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-700/40 dark:text-gray-400"
+														title={userNote}
+													>
 														<span class="truncate">{userNote}</span>
 													</span>
 												{/if}
@@ -452,10 +501,16 @@
 								</td>
 
 								<td class="px-5 py-4 align-middle">
-									<div class="max-w-[16rem] truncate text-sm text-gray-600 dark:text-gray-300">{user.email}</div>
+									<div class="max-w-[16rem] truncate text-sm text-gray-600 dark:text-gray-300">
+										{user.email}
+									</div>
 								</td>
-								<td class="px-5 py-4 align-middle text-sm text-gray-600 dark:text-gray-300">{formatLastActive(user.last_active_at)}</td>
-								<td class="px-5 py-4 align-middle text-sm text-gray-600 dark:text-gray-300">{formatCreatedAt(user.created_at)}</td>
+								<td class="px-5 py-4 align-middle text-sm text-gray-600 dark:text-gray-300"
+									>{formatLastActive(user.last_active_at)}</td
+								>
+								<td class="px-5 py-4 align-middle text-sm text-gray-600 dark:text-gray-300"
+									>{formatCreatedAt(user.created_at)}</td
+								>
 								<td class="px-5 py-4 align-middle">
 									{#if user.oauth_sub}
 										<Tooltip content={user.oauth_sub}>
@@ -470,7 +525,9 @@
 
 								<td class="px-5 py-4 align-middle">
 									<div class="flex justify-end">
-										<div class="inline-flex items-center gap-1 rounded-xl border border-gray-200/40 dark:border-gray-700/30 bg-white/90 dark:bg-gray-900/50 p-1">
+										<div
+											class="inline-flex items-center gap-1 rounded-xl border border-gray-200/40 dark:border-gray-700/30 bg-white/90 dark:bg-gray-900/50 p-1"
+										>
 											{#if $config.features.enable_admin_chat_access && user.role !== 'admin'}
 												<Tooltip content={$i18n.t('Chats')}>
 													<button
@@ -549,7 +606,9 @@
 			</table>
 		</div>
 		<div class="px-5 py-3 text-xs text-gray-400 dark:text-gray-500">
-			ⓘ {$i18n.t("Click the button on the left side of the avatar to change a user's permission group.")}
+			ⓘ {$i18n.t(
+				"Click the button on the left side of the avatar to change a user's permission group."
+			)}
 		</div>
 	</section>
 
@@ -557,7 +616,9 @@
 	<section class="glass-section hidden overflow-hidden p-0 md:block xl:hidden">
 		<div class="max-w-full overflow-x-auto">
 			<table class="min-w-full table-fixed text-left text-sm">
-				<thead class="border-b border-gray-200/40 bg-gray-50/70 text-xs tracking-wide dark:border-gray-700/30 dark:bg-gray-800/40">
+				<thead
+					class="border-b border-gray-200/40 bg-gray-50/70 text-xs tracking-wide dark:border-gray-700/30 dark:bg-gray-800/40"
+				>
 					<tr>
 						<th class="w-[44%] px-5 py-4">
 							<button
@@ -631,12 +692,22 @@
 							<tr class="group transition-colors hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
 								<td class="px-5 py-4 align-middle">
 									<div class="flex min-w-0 items-center gap-3">
-										<LetterAvatar name={user.name} size="size-10" className="rounded-2xl" textClass="text-sm" />
+										<LetterAvatar
+											name={user.name}
+											size="size-10"
+											className="rounded-2xl"
+											textClass="text-sm"
+										/>
 										<div class="min-w-0">
 											<div class="flex min-w-0 items-center gap-1.5">
-												<span class="truncate font-semibold text-gray-900 dark:text-white">{user.name}</span>
+												<span class="truncate font-semibold text-gray-900 dark:text-white"
+													>{user.name}</span
+												>
 												{#if userNote}
-													<span class="inline-flex min-w-0 max-w-[14rem] shrink items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-700/40 dark:text-gray-400" title={userNote}>
+													<span
+														class="inline-flex min-w-0 max-w-[14rem] shrink items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-700/40 dark:text-gray-400"
+														title={userNote}
+													>
 														<span class="truncate">{userNote}</span>
 													</span>
 												{/if}
@@ -661,18 +732,23 @@
 
 								<td class="px-5 py-4 align-middle">
 									<div class="space-y-1">
-										<div class="whitespace-nowrap text-sm font-medium text-gray-700 dark:text-gray-200">
+										<div
+											class="whitespace-nowrap text-sm font-medium text-gray-700 dark:text-gray-200"
+										>
 											{formatLastActive(user.last_active_at)}
 										</div>
 										<div class="whitespace-nowrap text-xs text-gray-400 dark:text-gray-500">
-											{$i18n.t('Created at')} {formatCreatedAtCompact(user.created_at)}
+											{$i18n.t('Created at')}
+											{formatCreatedAtCompact(user.created_at)}
 										</div>
 									</div>
 								</td>
 
 								<td class="px-5 py-4 align-middle">
 									<div class="flex justify-end">
-										<div class="inline-flex items-center gap-1 rounded-xl border border-gray-200/40 bg-white/90 p-1 dark:border-gray-700/30 dark:bg-gray-900/50">
+										<div
+											class="inline-flex items-center gap-1 rounded-xl border border-gray-200/40 bg-white/90 p-1 dark:border-gray-700/30 dark:bg-gray-900/50"
+										>
 											{#if $config.features.enable_admin_chat_access && user.role !== 'admin'}
 												<Tooltip content={$i18n.t('Chats')}>
 													<button
@@ -751,7 +827,9 @@
 			</table>
 		</div>
 		<div class="px-5 py-3 text-xs text-gray-400 dark:text-gray-500">
-			ⓘ {$i18n.t("Click the button on the left side of the avatar to change a user's permission group.")}
+			ⓘ {$i18n.t(
+				"Click the button on the left side of the avatar to change a user's permission group."
+			)}
 		</div>
 	</section>
 
@@ -772,17 +850,29 @@
 				<article class="glass-item p-4">
 					<div class="flex items-start justify-between gap-3">
 						<div class="flex min-w-0 items-center gap-3">
-							<LetterAvatar name={user.name} size="size-12" className="rounded-2xl" textClass="text-lg" />
+							<LetterAvatar
+								name={user.name}
+								size="size-12"
+								className="rounded-2xl"
+								textClass="text-lg"
+							/>
 							<div class="min-w-0">
 								<div class="flex min-w-0 items-center gap-1.5">
-									<span class="truncate font-semibold text-gray-900 dark:text-white">{user.name}</span>
+									<span class="truncate font-semibold text-gray-900 dark:text-white"
+										>{user.name}</span
+									>
 									{#if userNote}
-										<span class="inline-flex min-w-0 max-w-[12rem] shrink items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-700/40 dark:text-gray-400" title={userNote}>
+										<span
+											class="inline-flex min-w-0 max-w-[12rem] shrink items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-700/40 dark:text-gray-400"
+											title={userNote}
+										>
 											<span class="truncate">{userNote}</span>
 										</span>
 									{/if}
 								</div>
-								<div class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
+								<div class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">
+									{user.email}
+								</div>
 							</div>
 						</div>
 

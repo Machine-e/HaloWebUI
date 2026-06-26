@@ -37,12 +37,12 @@
 				return null;
 			});
 
-				if (_prompt) {
-					prompt = {
-						user_id: _prompt.user_id,
-						name: _prompt.name,
-						command: _prompt.command,
-						content: _prompt.content,
+			if (_prompt) {
+				prompt = {
+					user_id: _prompt.user_id,
+					name: _prompt.name,
+					command: _prompt.command,
+					content: _prompt.content,
 					tags: _prompt.tags ?? [],
 					access_control: _prompt?.access_control ?? null
 				};

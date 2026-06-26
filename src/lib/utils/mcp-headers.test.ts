@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	getMCPHeaderItemsFromRecord,
-	prepareMCPHeaderItems
-} from './mcp-headers';
+import { getMCPHeaderItemsFromRecord, prepareMCPHeaderItems } from './mcp-headers';
 
 describe('mcp headers', () => {
 	it('normalizes valid header rows into a request header object', () => {
@@ -58,9 +55,7 @@ describe('mcp headers', () => {
 			'x-consumer-api-key': ''
 		});
 		const before = prepareMCPHeaderItems(presetItems);
-		const after = prepareMCPHeaderItems([
-			{ key: 'x-consumer-api-key', value: 'ck_abc' }
-		]);
+		const after = prepareMCPHeaderItems([{ key: 'x-consumer-api-key', value: 'ck_abc' }]);
 
 		expect(presetItems).toEqual([{ key: 'x-consumer-api-key', value: '' }]);
 		expect(before.signature).toEqual([['x-consumer-api-key', '']]);

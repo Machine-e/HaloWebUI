@@ -9,7 +9,9 @@
 
 	$: urls = Array.isArray(status?.urls) ? status.urls : [];
 	$: linkableUrls = urls.filter((url) => typeof url === 'string' && /^https?:\/\//i.test(url));
-	$: internalSources = urls.filter((url) => typeof url === 'string' && url && !/^https?:\/\//i.test(url));
+	$: internalSources = urls.filter(
+		(url) => typeof url === 'string' && url && !/^https?:\/\//i.test(url)
+	);
 </script>
 
 <Collapsible bind:open={state} className="w-full space-y-1">
@@ -32,7 +34,8 @@
 			<a
 				href="https://www.google.com/search?q={status.query}"
 				target="_blank"
-				class="flex w-full items-center p-3 px-4 {linkableUrls.length > 0 || internalSources.length > 0
+				class="flex w-full items-center p-3 px-4 {linkableUrls.length > 0 ||
+				internalSources.length > 0
 					? 'border-b border-gray-300/30 dark:border-gray-700/50'
 					: ''} group/item justify-between font-normal text-gray-800 dark:text-gray-300 no-underline"
 			>
@@ -68,7 +71,8 @@
 			<a
 				href={url}
 				target="_blank"
-				class="flex w-full items-center p-3 px-4 {urlIdx === linkableUrls.length - 1 && internalSources.length === 0
+				class="flex w-full items-center p-3 px-4 {urlIdx === linkableUrls.length - 1 &&
+				internalSources.length === 0
 					? ''
 					: 'border-b border-gray-300/30 dark:border-gray-700/50'} group/item justify-between font-normal text-gray-800 dark:text-gray-300"
 			>
@@ -105,9 +109,7 @@
 				<div class="line-clamp-1">
 					{source.startsWith('grok://search/') ? 'Grok 搜索摘要' : source}
 				</div>
-				<div class="ml-2 shrink-0 text-xs text-gray-400 dark:text-gray-500">
-					内部摘要
-				</div>
+				<div class="ml-2 shrink-0 text-xs text-gray-400 dark:text-gray-500">内部摘要</div>
 			</div>
 		{/each}
 

@@ -7,6 +7,7 @@ These instructions apply to the entire HaloWebUI repository. Codex sessions open
 HaloWebUI is a deeply customized fork of Open WebUI. Use local HaloWebUI code and docs as the source of truth, and use upstream Open WebUI contribution rules as the baseline when local guidance is silent.
 
 Sources to preserve when updating this file:
+
 - HaloWebUI contribution guide: https://github.com/ztx888/HaloWebUI/blob/main/docs/CONTRIBUTING.md
 - Open WebUI contribution guide: https://docs.openwebui.com/contributing/
 - Open WebUI development guide: https://docs.openwebui.com/getting-started/advanced-topics/development/
@@ -76,6 +77,7 @@ If a validation command cannot run because dependencies or services are missing,
 ## Hotspots And Integration Risks
 
 Expect conflicts or broad blast radius in:
+
 - Dependency and lock files: `package.json`, `package-lock.json`, `pyproject.toml`, `uv.lock`, `backend/requirements*.txt`
 - CI/build/deploy files: `.github/workflows/`, `Dockerfile`, `docker-compose*.yaml`, `kubernetes/`, `Makefile`
 - App bootstrap/config: `backend/open_webui/main.py`, `backend/open_webui/env.py`, `src/routes/+layout.*`, `vite.config.ts`, `svelte.config.js`

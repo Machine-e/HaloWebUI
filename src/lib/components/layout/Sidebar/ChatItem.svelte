@@ -57,21 +57,19 @@
 
 	$: isFolderVariant = variant === 'folder';
 
-	$: itemShellClass =
-		isFolderVariant
-			? 'w-full flex justify-between rounded-md border border-transparent px-2.5 py-1.5 text-[13px] transition-colors duration-150'
-			: uiStyle === 'card'
+	$: itemShellClass = isFolderVariant
+		? 'w-full flex justify-between rounded-md border border-transparent px-2.5 py-1.5 text-[13px] transition-colors duration-150'
+		: uiStyle === 'card'
 			? 'w-full flex justify-between rounded-xl border border-transparent px-3 py-2 transition-colors duration-150'
 			: 'w-full flex justify-between rounded-lg px-3 py-2 transition-colors duration-150';
 
-	$: itemStateClass =
-		isFolderVariant
-			? id === $chatId || confirmEdit
-				? 'bg-white text-gray-900 border-gray-200/80 shadow-sm font-medium dark:bg-gray-900/80 dark:text-gray-100 dark:border-gray-700/70'
-				: selected
-					? 'bg-white/70 text-gray-800 border-gray-200/60 dark:bg-gray-900/55 dark:text-gray-200 dark:border-gray-800/70'
-					: 'text-gray-600 group-hover:bg-white/70 group-hover:border-gray-200/70 dark:text-gray-300 dark:group-hover:bg-gray-900/55 dark:group-hover:border-gray-800/70'
-			: uiStyle === 'card'
+	$: itemStateClass = isFolderVariant
+		? id === $chatId || confirmEdit
+			? 'bg-white text-gray-900 border-gray-200/80 shadow-sm font-medium dark:bg-gray-900/80 dark:text-gray-100 dark:border-gray-700/70'
+			: selected
+				? 'bg-white/70 text-gray-800 border-gray-200/60 dark:bg-gray-900/55 dark:text-gray-200 dark:border-gray-800/70'
+				: 'text-gray-600 group-hover:bg-white/70 group-hover:border-gray-200/70 dark:text-gray-300 dark:group-hover:bg-gray-900/55 dark:group-hover:border-gray-800/70'
+		: uiStyle === 'card'
 			? id === $chatId || confirmEdit
 				? 'bg-white/85 dark:bg-gray-900/60 border-gray-200/70 dark:border-gray-800/70 shadow-sm font-medium'
 				: selected
@@ -83,14 +81,13 @@
 					? 'bg-gray-100 dark:bg-gray-850'
 					: 'group-hover:bg-gray-100 dark:group-hover:bg-gray-850';
 
-	$: menuFromClass =
-		isFolderVariant
-			? id === $chatId || confirmEdit
-				? 'from-white dark:from-gray-900'
-				: selected
-					? 'from-white/70 dark:from-gray-900/55'
-					: 'invisible group-hover:visible from-white/70 dark:from-gray-900/55'
-			: uiStyle === 'card'
+	$: menuFromClass = isFolderVariant
+		? id === $chatId || confirmEdit
+			? 'from-white dark:from-gray-900'
+			: selected
+				? 'from-white/70 dark:from-gray-900/55'
+				: 'invisible group-hover:visible from-white/70 dark:from-gray-900/55'
+		: uiStyle === 'card'
 			? id === $chatId || confirmEdit
 				? 'from-white/85 dark:from-gray-900/60'
 				: selected
@@ -138,11 +135,13 @@
 
 			title = nextTitle;
 
-			chats.update((list) =>
-				list?.map((chat) => (chat.id === id ? { ...chat, title: nextTitle } : chat)) ?? list
+			chats.update(
+				(list) =>
+					list?.map((chat) => (chat.id === id ? { ...chat, title: nextTitle } : chat)) ?? list
 			);
-			pinnedChats.update((list) =>
-				list?.map((chat) => (chat.id === id ? { ...chat, title: nextTitle } : chat)) ?? list
+			pinnedChats.update(
+				(list) =>
+					list?.map((chat) => (chat.id === id ? { ...chat, title: nextTitle } : chat)) ?? list
 			);
 
 			dispatch('title-change', { id, title: nextTitle, chat: updatedChat });

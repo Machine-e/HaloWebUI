@@ -164,7 +164,9 @@
 	);
 
 	const getLang = async () => {
-		const normalizedLang = String(lang ?? '').trim().toLowerCase();
+		const normalizedLang = String(lang ?? '')
+			.trim()
+			.toLowerCase();
 		const language = languages.find((l) => {
 			const aliases = l.alias?.map((alias) => alias.toLowerCase()) ?? [];
 			const extensions = l.extensions?.map((extension) => extension.toLowerCase()) ?? [];

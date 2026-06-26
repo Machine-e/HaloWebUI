@@ -116,7 +116,11 @@ function katexStart(src, displayMode: boolean) {
 
 		const { index, startDelimiter, endDelimiter } = nextDelimiter;
 
-		if (displayMode && INDENT_ONLY_REGEX.test(src.slice(cursor, index)) && src.slice(cursor).match(ruleReg)) {
+		if (
+			displayMode &&
+			INDENT_ONLY_REGEX.test(src.slice(cursor, index)) &&
+			src.slice(cursor).match(ruleReg)
+		) {
 			return cursor;
 		}
 
@@ -127,7 +131,8 @@ function katexStart(src, displayMode: boolean) {
 
 		const possibleKatex = src.slice(index);
 		const endIndex = possibleKatex.indexOf(endDelimiter, startDelimiter.length);
-		cursor = endIndex === -1 ? index + startDelimiter.length : index + endIndex + endDelimiter.length;
+		cursor =
+			endIndex === -1 ? index + startDelimiter.length : index + endIndex + endDelimiter.length;
 	}
 }
 

@@ -479,11 +479,7 @@
 			<div class="glass-item px-4 py-3">
 				<div class="flex items-center justify-between">
 					<div class="text-sm font-medium">{$i18n.t('STT Language')}</div>
-					<HaloSelect
-						className="w-fit"
-						bind:value={STTLanguage}
-						options={sttLanguageOptions}
-					/>
+					<HaloSelect className="w-fit" bind:value={STTLanguage} options={sttLanguageOptions} />
 				</div>
 			</div>
 
@@ -516,7 +512,9 @@
 			</div>
 
 			{#if TTSEngine === 'browser-kokoro' && !kokoroConsentAccepted}
-				<div class="glass-item px-4 py-3 border border-amber-200/70 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20">
+				<div
+					class="glass-item px-4 py-3 border border-amber-200/70 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20"
+				>
 					<div class="text-sm font-medium text-amber-800 dark:text-amber-200">
 						首次启用需要下载浏览器端语音模型
 					</div>
@@ -690,7 +688,8 @@
 							<div class="mb-0 text-sm font-medium flex items-center gap-2">
 								<span>{$i18n.t('STT Settings')}</span>
 								{#if showScopeBadges && scopeLabel}
-									<span class={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}
+									<span
+										class={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}
 										>{scopeLabel}</span
 									>
 								{/if}
@@ -708,7 +707,9 @@
 
 					{#if !isDocumentCard || expandedSections.stt}
 						<div
-							class={isDocumentCard ? 'px-4 pb-4 border-t border-gray-100 dark:border-gray-800' : ''}
+							class={isDocumentCard
+								? 'px-4 pb-4 border-t border-gray-100 dark:border-gray-800'
+								: ''}
 							transition:slide={{ duration: 180, easing: quintOut }}
 						>
 							{#if !isDocumentCard}
@@ -795,7 +796,8 @@
 							<div class="mb-0 text-sm font-medium flex items-center gap-2">
 								<span>{$i18n.t('TTS Settings')}</span>
 								{#if showScopeBadges && scopeLabel}
-									<span class={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}
+									<span
+										class={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}
 										>{scopeLabel}</span
 									>
 								{/if}
@@ -813,7 +815,9 @@
 
 					{#if !isDocumentCard || expandedSections.tts}
 						<div
-							class={isDocumentCard ? 'px-4 pb-4 border-t border-gray-100 dark:border-gray-800' : ''}
+							class={isDocumentCard
+								? 'px-4 pb-4 border-t border-gray-100 dark:border-gray-800'
+								: ''}
 							transition:slide={{ duration: 180, easing: quintOut }}
 						>
 							{#if !isDocumentCard}
@@ -829,7 +833,9 @@
 							{/if}
 
 							<div class="flex w-full items-center justify-between gap-3 py-1">
-								<div class="min-w-0 pr-3 text-xs font-medium">{$i18n.t('Text-to-Speech Engine')}</div>
+								<div class="min-w-0 pr-3 text-xs font-medium">
+									{$i18n.t('Text-to-Speech Engine')}
+								</div>
 
 								<div class="relative flex shrink-0 items-center max-w-full">
 									<HaloSelect
@@ -845,7 +851,9 @@
 							</div>
 
 							{#if TTSEngine === 'browser-kokoro' && !kokoroConsentAccepted}
-								<div class="rounded-xl border border-amber-200/70 bg-amber-50/80 px-3 py-3 text-xs leading-relaxed text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-300">
+								<div
+									class="rounded-xl border border-amber-200/70 bg-amber-50/80 px-3 py-3 text-xs leading-relaxed text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-300"
+								>
 									<div class="font-medium text-amber-800 dark:text-amber-200">
 										首次启用需要下载浏览器端语音模型
 									</div>
@@ -918,7 +926,9 @@
 							</div>
 
 							<div class="flex w-full items-center justify-between gap-3 py-1">
-								<div class="min-w-0 pr-3 text-xs font-medium">{$i18n.t('Speech Playback Speed')}</div>
+								<div class="min-w-0 pr-3 text-xs font-medium">
+									{$i18n.t('Speech Playback Speed')}
+								</div>
 
 								<div class="relative flex shrink-0 items-center max-w-full">
 									<HaloSelect
@@ -951,7 +961,8 @@
 							<div class="mb-0 text-sm font-medium flex items-center gap-2">
 								<span>{$i18n.t('Set Voice')}</span>
 								{#if showScopeBadges && scopeLabel}
-									<span class={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}
+									<span
+										class={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}
 										>{scopeLabel}</span
 									>
 								{/if}
@@ -969,7 +980,9 @@
 
 					{#if !isDocumentCard || expandedSections.voice}
 						<div
-							class={isDocumentCard ? 'px-4 pb-4 border-t border-gray-100 dark:border-gray-800' : ''}
+							class={isDocumentCard
+								? 'px-4 pb-4 border-t border-gray-100 dark:border-gray-800'
+								: ''}
 							transition:slide={{ duration: 180, easing: quintOut }}
 						>
 							{#if TTSEngine === 'browser-kokoro' && kokoroConsentAccepted}

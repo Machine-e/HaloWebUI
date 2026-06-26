@@ -298,7 +298,7 @@
 		autoTags = $settings.autoTags ?? true;
 
 		detectArtifacts = $settings.detectArtifacts ?? true;
-		svgPreviewAutoOpen = $settings.svgPreviewAutoOpen ?? ($settings.detectArtifacts ?? true);
+		svgPreviewAutoOpen = $settings.svgPreviewAutoOpen ?? $settings.detectArtifacts ?? true;
 		responseAutoCopy = $settings.responseAutoCopy ?? false;
 
 		showUsername = $settings.showUsername ?? false;

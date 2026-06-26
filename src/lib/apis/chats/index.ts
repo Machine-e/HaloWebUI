@@ -304,11 +304,7 @@ export const getChatsByFolderId = async (token: string, folderId: string) => {
 	return res;
 };
 
-export const getChatListByFolderId = async (
-	token: string,
-	folderId: string,
-	page: number = 1
-) => {
+export const getChatListByFolderId = async (token: string, folderId: string, page: number = 1) => {
 	let error = null;
 
 	const searchParams = new URLSearchParams();

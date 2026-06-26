@@ -270,7 +270,9 @@
 	const editMessage = async (messageId, content, submit = true, files = undefined) => {
 		if (history.messages[messageId].role === 'user') {
 			const hasEditedFiles = Array.isArray(files);
-			const messageFiles = hasEditedFiles ? structuredClone(files) : history.messages[messageId].files;
+			const messageFiles = hasEditedFiles
+				? structuredClone(files)
+				: history.messages[messageId].files;
 
 			if (submit) {
 				// New user message

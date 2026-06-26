@@ -25,7 +25,8 @@
 		},
 		groups: {
 			label: 'Groups',
-			description: 'Organize membership with reusable permission groups and a shared default access policy.'
+			description:
+				'Organize membership with reusable permission groups and a shared default access policy.'
 		}
 	};
 
@@ -60,7 +61,11 @@
 			: [
 					{ label: $i18n.t('Users'), value: totalUsers },
 					{ label: $i18n.t('Active in 30 days'), value: activeUsers },
-					{ label: $i18n.t('Seat usage'), value: seatLabel, attention: seatLimit !== null && totalUsers > seatLimit }
+					{
+						label: $i18n.t('Seat usage'),
+						value: seatLabel,
+						attention: seatLimit !== null && totalUsers > seatLimit
+					}
 				];
 
 	onMount(async () => {
@@ -105,10 +110,7 @@
 					<div
 						class="mt-5 inline-flex w-full max-w-full items-center gap-1.5 overflow-x-auto rounded-xl bg-gray-100/70 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:bg-gray-850/80 dark:shadow-none scrollbar-none sm:w-fit"
 					>
-						{#each [
-							{ id: 'overview', label: $i18n.t('Overview'), icon: UsersSolid },
-							{ id: 'groups', label: $i18n.t('Groups'), icon: WrenchSolid }
-						] as tab}
+						{#each [{ id: 'overview', label: $i18n.t('Overview'), icon: UsersSolid }, { id: 'groups', label: $i18n.t('Groups'), icon: WrenchSolid }] as tab}
 							<button
 								type="button"
 								class={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${

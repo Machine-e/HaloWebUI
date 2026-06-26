@@ -22,16 +22,43 @@
 			{#if phase === 'validating' || phase === 'running'}
 				<Spinner className="size-4" />
 			{:else if phase === 'success'}
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
-					<path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.312a1 1 0 0 1-1.42-.004L3.29 9.258a1 1 0 1 1 1.42-1.408l3.04 3.066 6.54-6.596a1 1 0 0 1 1.414-.03Z" clip-rule="evenodd" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="size-4"
+				>
+					<path
+						fill-rule="evenodd"
+						d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.312a1 1 0 0 1-1.42-.004L3.29 9.258a1 1 0 1 1 1.42-1.408l3.04 3.066 6.54-6.596a1 1 0 0 1 1.414-.03Z"
+						clip-rule="evenodd"
+					/>
 				</svg>
 			{:else if phase === 'warning'}
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
-					<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.485 0l5.58 9.92c.75 1.334-.213 2.981-1.742 2.981H4.42c-1.53 0-2.492-1.647-1.742-2.98l5.58-9.921ZM11 7a1 1 0 1 0-2 0v3a1 1 0 0 0 2 0V7Zm-1 7a1.25 1.25 0 1 0 0-2.5A1.25 1.25 0 0 0 10 14Z" clip-rule="evenodd" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="size-4"
+				>
+					<path
+						fill-rule="evenodd"
+						d="M8.257 3.099c.765-1.36 2.72-1.36 3.485 0l5.58 9.92c.75 1.334-.213 2.981-1.742 2.981H4.42c-1.53 0-2.492-1.647-1.742-2.98l5.58-9.921ZM11 7a1 1 0 1 0-2 0v3a1 1 0 0 0 2 0V7Zm-1 7a1.25 1.25 0 1 0 0-2.5A1.25 1.25 0 0 0 10 14Z"
+						clip-rule="evenodd"
+					/>
 				</svg>
 			{:else}
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
-					<path fill-rule="evenodd" d="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0ZM9 7a1 1 0 1 1 2 0v3a1 1 0 0 1-2 0V7Zm1 7a1.25 1.25 0 1 0 0-2.5A1.25 1.25 0 0 0 10 14Z" clip-rule="evenodd" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="size-4"
+				>
+					<path
+						fill-rule="evenodd"
+						d="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0ZM9 7a1 1 0 1 1 2 0v3a1 1 0 0 1-2 0V7Zm1 7a1.25 1.25 0 1 0 0-2.5A1.25 1.25 0 0 0 10 14Z"
+						clip-rule="evenodd"
+					/>
 				</svg>
 			{/if}
 		</div>

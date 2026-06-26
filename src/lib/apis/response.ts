@@ -54,10 +54,7 @@ export const parseResponsePayload = async (response: Response): Promise<unknown>
 	return parseResponseText(await response.text());
 };
 
-export const createResponseError = (
-	response: Response,
-	payload: unknown
-): ResponseErrorLike => {
+export const createResponseError = (response: Response, payload: unknown): ResponseErrorLike => {
 	const detail = getPayloadDetail(payload, getFallbackDetail(response));
 
 	if (payload && typeof payload === 'object' && !Array.isArray(payload)) {

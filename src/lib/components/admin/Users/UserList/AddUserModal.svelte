@@ -132,8 +132,15 @@
 					show = false;
 				}}
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
-					<path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="size-5"
+				>
+					<path
+						d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"
+					/>
 				</svg>
 			</button>
 		</div>
@@ -255,7 +262,9 @@
 					</div>
 
 					<div class="glass-item p-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-						<div class="mb-1 font-medium text-gray-700 dark:text-gray-300">ⓘ {$i18n.t('CSV Format')}</div>
+						<div class="mb-1 font-medium text-gray-700 dark:text-gray-300">
+							ⓘ {$i18n.t('CSV Format')}
+						</div>
 						{$i18n.t(
 							'Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.'
 						)}
@@ -279,7 +288,29 @@
 					{$i18n.t('Save')}
 
 					{#if loading}
-						<svg class="size-4" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><style>.spinner_ajPY{transform-origin:center;animation:spinner_AtaB .75s infinite linear}@keyframes spinner_AtaB{100%{transform:rotate(360deg)}}</style><path d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25"/><path d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z" class="spinner_ajPY"/></svg>
+						<svg
+							class="size-4"
+							viewBox="0 0 24 24"
+							fill="currentColor"
+							xmlns="http://www.w3.org/2000/svg"
+							><style>
+								.spinner_ajPY {
+									transform-origin: center;
+									animation: spinner_AtaB 0.75s infinite linear;
+								}
+								@keyframes spinner_AtaB {
+									100% {
+										transform: rotate(360deg);
+									}
+								}
+							</style><path
+								d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"
+								opacity=".25"
+							/><path
+								d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z"
+								class="spinner_ajPY"
+							/></svg
+						>
 					{/if}
 				</button>
 			</div>

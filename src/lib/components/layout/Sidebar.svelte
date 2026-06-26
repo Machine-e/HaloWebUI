@@ -460,10 +460,7 @@
 
 	$: if (typeof localStorage !== 'undefined') {
 		const refreshRevision = $chatListRefreshRevision;
-		if (
-			refreshRevision > 0 &&
-			refreshRevision !== lastHandledChatListRefreshRevision
-		) {
+		if (refreshRevision > 0 && refreshRevision !== lastHandledChatListRefreshRevision) {
 			lastHandledChatListRefreshRevision = refreshRevision;
 			if ($chatListRefreshTarget) {
 				chats.update((list) => promoteChatToTop($chatListRefreshTarget, list ?? []));
@@ -601,7 +598,6 @@
 		window.addEventListener('focus', onFocus);
 		window.addEventListener('blur', onBlur);
 		document.addEventListener('visibilitychange', onVisibilityChange);
-
 	});
 
 	onDestroy(() => {
@@ -614,7 +610,6 @@
 		window.removeEventListener('focus', onFocus);
 		window.removeEventListener('blur', onBlur);
 		document.removeEventListener('visibilitychange', onVisibilityChange);
-
 	});
 </script>
 
@@ -965,8 +960,8 @@
 								{#each assistantScenes as assistant}
 									<button
 										type="button"
-										class="mx-2 flex w-auto items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm transition {($selectedAssistantScene?.id ?? null) ===
-										assistant.id
+										class="mx-2 flex w-auto items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm transition {($selectedAssistantScene?.id ??
+											null) === assistant.id
 											? 'bg-gray-200 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
 											: 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-850'}"
 										on:click={() => {
@@ -978,8 +973,8 @@
 												assistant?.info?.meta?.profile_image_url ??
 												`${WEBUI_BASE_URL}/static/favicon.png`}
 											alt={getModelChatDisplayName(assistant)}
-											class="size-6 shrink-0 rounded-md object-cover {(assistant?.meta?.profile_image_url ??
-											assistant?.info?.meta?.profile_image_url)
+											class="size-6 shrink-0 rounded-md object-cover {(assistant?.meta
+												?.profile_image_url ?? assistant?.info?.meta?.profile_image_url)
 												? ''
 												: 'dark:invert'}"
 											draggable="false"
@@ -993,8 +988,12 @@
 								{/each}
 							</div>
 						{:else}
-							<div class="mx-2 mt-1 rounded-xl border border-dashed border-gray-200/80 px-3 py-3 text-xs text-gray-500 dark:border-gray-700/70 dark:text-gray-400">
-								<div>{$i18n.t('No assistants yet. Create your first assistant to get started.')}</div>
+							<div
+								class="mx-2 mt-1 rounded-xl border border-dashed border-gray-200/80 px-3 py-3 text-xs text-gray-500 dark:border-gray-700/70 dark:text-gray-400"
+							>
+								<div>
+									{$i18n.t('No assistants yet. Create your first assistant to get started.')}
+								</div>
 								<a
 									class="mt-2 inline-flex rounded-full px-2.5 py-1.5 text-xs font-medium transition hover:bg-gray-100 dark:hover:bg-gray-850"
 									href="/workspace/models/create"

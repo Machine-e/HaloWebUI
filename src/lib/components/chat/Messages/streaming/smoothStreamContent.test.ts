@@ -88,4 +88,3 @@ describe('createSmoothStreamContentController', () => {
 		expect(controller.getDisplayedContent()).toBe('Reset');
 	});
 });
-

@@ -37,7 +37,12 @@ export const getModelRef = (model?: AnyModel | null): Record<string, unknown> | 
 
 export const parseModelSelectionId = (
 	value?: string | null
-): { provider: string; source: string; modelId: string; modelRef: Record<string, unknown> } | null => {
+): {
+	provider: string;
+	source: string;
+	modelId: string;
+	modelRef: Record<string, unknown>;
+} | null => {
 	const raw = normalize(value);
 	if (!raw) return null;
 
@@ -135,7 +140,9 @@ export const findModelByRef = <T extends AnyModel>(
 			const candidateSource = cleanRefValue(candidateRef, 'source');
 			if (source && candidateSource && source !== candidateSource) return false;
 
-			return getModelCleanId(model) === cleanHint || getModelIdentityAliases(model).includes(cleanHint);
+			return (
+				getModelCleanId(model) === cleanHint || getModelIdentityAliases(model).includes(cleanHint)
+			);
 		});
 		const uniqueScopedMatches = new Map(
 			scopedCleanMatches.map((model) => [getModelSelectionId(model), model])
@@ -148,7 +155,9 @@ export const findModelByRef = <T extends AnyModel>(
 	const matches = models.filter((model) => {
 		if (!modelRefMatches(model, modelRef)) return false;
 		if (!cleanHint) return true;
-		return getModelCleanId(model) === cleanHint || getModelIdentityAliases(model).includes(cleanHint);
+		return (
+			getModelCleanId(model) === cleanHint || getModelIdentityAliases(model).includes(cleanHint)
+		);
 	});
 
 	return matches.length === 1 ? matches[0] : undefined;

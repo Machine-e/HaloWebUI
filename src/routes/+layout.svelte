@@ -283,7 +283,9 @@
 		const packages = getPyodidePackagesForCode(code);
 
 		if (usesRemotePyodideRuntime() && !hasPyodideConsent()) {
-			const shouldContinue = window.confirm(getPyodideDownloadSummary(packages, $i18n.t.bind($i18n)));
+			const shouldContinue = window.confirm(
+				getPyodideDownloadSummary(packages, $i18n.t.bind($i18n))
+			);
 			if (!shouldContinue) {
 				executing = false;
 				if (cb) {

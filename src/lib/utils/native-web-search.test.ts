@@ -9,12 +9,12 @@ import {
 const t = (key: string) => key;
 const zhT = (key: string) =>
 	(
-		{
+		({
 			'Smart Web Search': '智能联网搜索',
 			'Smart · Model Native': '智能 · 原生优先',
 			'Smart · HaloWebUI': '智能 · HaloWebUI',
 			Recommended: '推荐'
-		} as Record<string, string>
+		}) as Record<string, string>
 	)[key] ?? key;
 
 describe('native web search mode options', () => {

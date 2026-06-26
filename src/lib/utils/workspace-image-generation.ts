@@ -84,9 +84,7 @@ export const formatPixelCount = (value: number): string => {
 	return new Intl.NumberFormat('en-US').format(value);
 };
 
-export const extractImageConstraintFromError = (
-	error: unknown
-): LearnedImageConstraint | null => {
+export const extractImageConstraintFromError = (error: unknown): LearnedImageConstraint | null => {
 	const text = getErrorText(error).replace(/\s+/g, ' ').trim();
 	if (!text) {
 		return null;

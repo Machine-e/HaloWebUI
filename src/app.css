@@ -171,8 +171,7 @@ body {
 	inset: 0;
 	z-index: -1;
 	border-radius: inherit;
-	background:
-		linear-gradient(145deg, rgb(255 255 255 / 0.34), transparent 30%),
+	background: linear-gradient(145deg, rgb(255 255 255 / 0.34), transparent 30%),
 		radial-gradient(circle at 68% 78%, rgb(255 255 255 / 0.1), transparent 38%);
 	opacity: 0.62;
 	mix-blend-mode: screen;
@@ -184,7 +183,12 @@ body {
 	inset: 1px;
 	z-index: -1;
 	border-radius: inherit;
-	background: linear-gradient(180deg, rgb(255 255 255 / 0.2), transparent 42%, rgb(255 255 255 / 0.04));
+	background: linear-gradient(
+		180deg,
+		rgb(255 255 255 / 0.2),
+		transparent 42%,
+		rgb(255 255 255 / 0.04)
+	);
 	opacity: 0.5;
 }
 
@@ -234,20 +238,21 @@ body {
 .glass-section-dirty {
 	@apply border-rose-400 dark:border-rose-500/70;
 	box-shadow:
-		0 0 0 1px rgba(251,113,133,0.45),
-		0 0 20px -4px rgba(244,63,94,0.15);
+		0 0 0 1px rgba(251, 113, 133, 0.45),
+		0 0 20px -4px rgba(244, 63, 94, 0.15);
 	animation: dirty-pulse 2.5s ease-in-out infinite;
 }
 @keyframes dirty-pulse {
-	0%, 100% {
+	0%,
+	100% {
 		box-shadow:
-			0 0 0 1px rgba(251,113,133,0.3),
-			0 0 12px -4px rgba(244,63,94,0.08);
+			0 0 0 1px rgba(251, 113, 133, 0.3),
+			0 0 12px -4px rgba(244, 63, 94, 0.08);
 	}
 	50% {
 		box-shadow:
-			0 0 0 1px rgba(251,113,133,0.55),
-			0 0 24px -4px rgba(244,63,94,0.2);
+			0 0 0 1px rgba(251, 113, 133, 0.55),
+			0 0 24px -4px rgba(244, 63, 94, 0.2);
 	}
 }
 
@@ -258,7 +263,7 @@ body {
 @keyframes controls-ack {
 	0% {
 		border-color: rgb(45 212 191 / 0.7);
-		box-shadow: 0 0 12px -4px rgba(20,184,166,0.25);
+		box-shadow: 0 0 12px -4px rgba(20, 184, 166, 0.25);
 	}
 	100% {
 		border-color: inherit;
@@ -461,10 +466,18 @@ body {
 		0 0 0 1px rgba(0, 0, 0, 0.02);
 }
 
-[data-sonner-toaster][data-theme='dark'] [data-rich-colors='true'] [data-sonner-toast][data-type='success'],
-[data-sonner-toaster][data-theme='dark'] [data-rich-colors='true'] [data-sonner-toast][data-type='error'],
-[data-sonner-toaster][data-theme='dark'] [data-rich-colors='true'] [data-sonner-toast][data-type='warning'],
-[data-sonner-toaster][data-theme='dark'] [data-rich-colors='true'] [data-sonner-toast][data-type='info'] {
+[data-sonner-toaster][data-theme='dark']
+	[data-rich-colors='true']
+	[data-sonner-toast][data-type='success'],
+[data-sonner-toaster][data-theme='dark']
+	[data-rich-colors='true']
+	[data-sonner-toast][data-type='error'],
+[data-sonner-toaster][data-theme='dark']
+	[data-rich-colors='true']
+	[data-sonner-toast][data-type='warning'],
+[data-sonner-toaster][data-theme='dark']
+	[data-rich-colors='true']
+	[data-sonner-toast][data-type='info'] {
 	box-shadow:
 		0 4px 24px -4px rgba(0, 0, 0, 0.3),
 		0 0 0 1px rgba(255, 255, 255, 0.03);
@@ -481,7 +494,9 @@ body {
 	-webkit-backdrop-filter: blur(8px);
 	border-radius: 50% !important;
 	opacity: 0.7;
-	transition: opacity 150ms ease, transform 150ms ease;
+	transition:
+		opacity 150ms ease,
+		transform 150ms ease;
 }
 [data-sonner-toast] [data-close-button]:hover {
 	opacity: 1;
@@ -619,20 +634,17 @@ textarea::placeholder {
 	}
 }
 
-.markdown-prose
-	:where(h1):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
+.markdown-prose :where(h1):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
 	font-size: 1.5625rem;
 	line-height: 1.25;
 }
 
-.markdown-prose
-	:where(h2):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
+.markdown-prose :where(h2):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
 	font-size: 1.375rem;
 	line-height: 1.35;
 }
 
-.markdown-prose
-	:where(h3):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
+.markdown-prose :where(h3):not(:where([class~='not-prose'], [class~='not-prose'] *)) {
 	font-size: 1.125rem;
 	line-height: 1.45;
 }
@@ -809,8 +821,7 @@ html {
 }
 
 [data-scrollbars='visible'] {
-	scrollbar-color: rgb(var(--sb-thumb-rgb) / var(--sb-thumb-alpha-visible))
-		transparent;
+	scrollbar-color: rgb(var(--sb-thumb-rgb) / var(--sb-thumb-alpha-visible)) transparent;
 }
 
 select {
@@ -822,7 +833,9 @@ select {
 	line-height: 1.25rem;
 	outline: none;
 	cursor: pointer;
-	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+	transition:
+		border-color 0.15s ease,
+		box-shadow 0.15s ease;
 	background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
 	background-position: right 0.5rem center;
 	background-repeat: no-repeat;

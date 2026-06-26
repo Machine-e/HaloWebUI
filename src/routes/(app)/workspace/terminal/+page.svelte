@@ -16,7 +16,9 @@
 					{$i18n.t('Files')}
 				</div>
 				<div class="text-xs text-gray-500 dark:text-gray-400">
-					{$i18n.t('Switch between file browser and terminal access for advanced workspace operations.')}
+					{$i18n.t(
+						'Switch between file browser and terminal access for advanced workspace operations.'
+					)}
 				</div>
 			</div>
 
@@ -25,18 +27,22 @@
 			>
 				<button
 					type="button"
-					class={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${activeTab === 'files'
-						? 'bg-white text-gray-900 shadow-[0_1px_3px_rgba(15,23,42,0.08)] dark:bg-gray-800 dark:text-white'
-						: 'text-gray-500 hover:bg-white/50 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'}`}
+					class={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+						activeTab === 'files'
+							? 'bg-white text-gray-900 shadow-[0_1px_3px_rgba(15,23,42,0.08)] dark:bg-gray-800 dark:text-white'
+							: 'text-gray-500 hover:bg-white/50 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'
+					}`}
 					on:click={() => (activeTab = 'files')}
 				>
 					{$i18n.t('File Browser')}
 				</button>
 				<button
 					type="button"
-					class={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${activeTab === 'terminal'
-						? 'bg-white text-gray-900 shadow-[0_1px_3px_rgba(15,23,42,0.08)] dark:bg-gray-800 dark:text-white'
-						: 'text-gray-500 hover:bg-white/50 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'}`}
+					class={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+						activeTab === 'terminal'
+							? 'bg-white text-gray-900 shadow-[0_1px_3px_rgba(15,23,42,0.08)] dark:bg-gray-800 dark:text-white'
+							: 'text-gray-500 hover:bg-white/50 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'
+					}`}
 					on:click={() => (activeTab = 'terminal')}
 				>
 					{$i18n.t('Terminal')}

@@ -218,9 +218,15 @@
 							<div class="flex items-center justify-between glass-item px-4 py-3">
 								<div class="min-w-0 mr-3">
 									<div class="text-sm font-medium">{$i18n.t('Import Chats')}</div>
-									<div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{$i18n.t('Import chat history from a JSON file')}</div>
+									<div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+										{$i18n.t('Import chat history from a JSON file')}
+									</div>
 								</div>
-								<button class={btnNeutral} type="button" on:click={() => chatImportInputElement.click()}>
+								<button
+									class={btnNeutral}
+									type="button"
+									on:click={() => chatImportInputElement.click()}
+								>
 									{$i18n.t('Import')}
 								</button>
 							</div>
@@ -228,7 +234,9 @@
 							<div class="flex items-center justify-between glass-item px-4 py-3">
 								<div class="min-w-0 mr-3">
 									<div class="text-sm font-medium">{$i18n.t('Export Chats')}</div>
-									<div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{$i18n.t('Export your chat history to a JSON file')}</div>
+									<div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+										{$i18n.t('Export your chat history to a JSON file')}
+									</div>
 								</div>
 								<button class={btnNeutral} type="button" on:click={() => exportChats()}>
 									{$i18n.t('Export')}
@@ -244,9 +252,15 @@
 							<div class="flex items-center justify-between glass-item px-4 py-3">
 								<div class="min-w-0 mr-3">
 									<div class="text-sm font-medium">{$i18n.t('Archived Chats')}</div>
-									<div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{$i18n.t('View and manage your archived conversations')}</div>
+									<div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+										{$i18n.t('View and manage your archived conversations')}
+									</div>
 								</div>
-								<button class={btnNeutral} type="button" on:click={() => showArchivedChatsModal = true}>
+								<button
+									class={btnNeutral}
+									type="button"
+									on:click={() => (showArchivedChatsModal = true)}
+								>
 									{$i18n.t('View')}
 								</button>
 							</div>
@@ -254,20 +268,40 @@
 							<div class="flex items-center justify-between glass-item px-4 py-3">
 								<div class="min-w-0 mr-3">
 									<div class="text-sm font-medium">{$i18n.t('Archive All Chats')}</div>
-									<div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{$i18n.t('Move all current conversations to the archive')}</div>
+									<div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+										{$i18n.t('Move all current conversations to the archive')}
+									</div>
 								</div>
 								{#if showArchiveConfirm}
 									<div class="shrink-0 flex items-center gap-1.5">
-										<span class="text-xs text-orange-600/80 dark:text-orange-400/80 whitespace-nowrap">{$i18n.t('Are you sure?')}</span>
-										<button class={btnSmall} type="button" on:click={() => showArchiveConfirm = false}>
+										<span
+											class="text-xs text-orange-600/80 dark:text-orange-400/80 whitespace-nowrap"
+											>{$i18n.t('Are you sure?')}</span
+										>
+										<button
+											class={btnSmall}
+											type="button"
+											on:click={() => (showArchiveConfirm = false)}
+										>
 											{$i18n.t('Cancel')}
 										</button>
-										<button class={btnSmallWarn} type="button" on:click={() => { archiveAllChatsHandler(); showArchiveConfirm = false; }}>
+										<button
+											class={btnSmallWarn}
+											type="button"
+											on:click={() => {
+												archiveAllChatsHandler();
+												showArchiveConfirm = false;
+											}}
+										>
 											{$i18n.t('Confirm')}
 										</button>
 									</div>
 								{:else}
-									<button class={btnWarn} type="button" on:click={() => showArchiveConfirm = true}>
+									<button
+										class={btnWarn}
+										type="button"
+										on:click={() => (showArchiveConfirm = true)}
+									>
 										{$i18n.t('Archive All')}
 									</button>
 								{/if}
@@ -329,25 +363,44 @@
 
 				{#if expandedSections.danger}
 					<div transition:slide={{ duration: 200, easing: quintOut }} class="space-y-3">
-						<div class="flex items-center justify-between glass-item px-4 py-3 border-red-200/60 dark:border-red-800/30">
+						<div
+							class="flex items-center justify-between glass-item px-4 py-3 border-red-200/60 dark:border-red-800/30"
+						>
 							<div class="min-w-0 mr-3">
-								<div class="text-sm font-medium text-red-700 dark:text-red-400">{$i18n.t('Delete All Chats')}</div>
+								<div class="text-sm font-medium text-red-700 dark:text-red-400">
+									{$i18n.t('Delete All Chats')}
+								</div>
 								<div class="text-xs text-red-500/70 dark:text-red-400/70 mt-0.5">
-									{$i18n.t('Permanently delete all of your chat records. This action cannot be undone.')}
+									{$i18n.t(
+										'Permanently delete all of your chat records. This action cannot be undone.'
+									)}
 								</div>
 							</div>
 							{#if showDeleteConfirm}
 								<div class="shrink-0 flex items-center gap-1.5">
-									<span class="text-xs text-red-600/70 dark:text-red-400/80 whitespace-nowrap">{$i18n.t('Are you sure?')}</span>
-									<button class={btnSmall} type="button" on:click={() => showDeleteConfirm = false}>
+									<span class="text-xs text-red-600/70 dark:text-red-400/80 whitespace-nowrap"
+										>{$i18n.t('Are you sure?')}</span
+									>
+									<button
+										class={btnSmall}
+										type="button"
+										on:click={() => (showDeleteConfirm = false)}
+									>
 										{$i18n.t('Cancel')}
 									</button>
-									<button class={btnSmallDanger} type="button" on:click={() => { deleteAllChatsHandler(); showDeleteConfirm = false; }}>
+									<button
+										class={btnSmallDanger}
+										type="button"
+										on:click={() => {
+											deleteAllChatsHandler();
+											showDeleteConfirm = false;
+										}}
+									>
 										{$i18n.t('Confirm')}
 									</button>
 								</div>
 							{:else}
-								<button class={btnDanger} type="button" on:click={() => showDeleteConfirm = true}>
+								<button class={btnDanger} type="button" on:click={() => (showDeleteConfirm = true)}>
 									{$i18n.t('Delete All')}
 								</button>
 							{/if}

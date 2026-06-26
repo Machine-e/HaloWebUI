@@ -69,11 +69,7 @@
 </script>
 
 <div class="preview-frame">
-	<Markdown
-		content={streamedContent}
-		streaming={isStreaming}
-		transitionMode={mode}
-	/>
+	<Markdown content={streamedContent} streaming={isStreaming} transitionMode={mode} />
 </div>
 
 <style>

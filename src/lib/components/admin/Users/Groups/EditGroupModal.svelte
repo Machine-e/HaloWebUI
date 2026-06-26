@@ -125,8 +125,15 @@
 					show = false;
 				}}
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
-					<path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="size-5"
+				>
+					<path
+						d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"
+					/>
 				</svg>
 			</button>
 		</div>
@@ -147,14 +154,26 @@
 						>
 							{#if tabs.includes('general')}
 								<button
-									class="px-3 py-2 rounded-lg flex items-center gap-2 transition {selectedTab === 'general'
+									class="px-3 py-2 rounded-lg flex items-center gap-2 transition {selectedTab ===
+									'general'
 										? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
 										: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'}"
-									on:click={() => { selectedTab = 'general'; }}
+									on:click={() => {
+										selectedTab = 'general';
+									}}
 									type="button"
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-										<path fill-rule="evenodd" d="M6.955 1.45A.5.5 0 0 1 7.452 1h1.096a.5.5 0 0 1 .497.45l.17 1.699c.484.12.94.312 1.356.562l1.321-1.081a.5.5 0 0 1 .67.033l.774.775a.5.5 0 0 1 .034.67l-1.08 1.32c.25.417.44.873.561 1.357l1.699.17a.5.5 0 0 1 .45.497v1.096a.5.5 0 0 1-.45.497l-1.699.17c-.12.484-.312.94-.562 1.356l1.082 1.322a.5.5 0 0 1-.034.67l-.774.774a.5.5 0 0 1-.67.033l-1.322-1.08c-.416.25-.872.44-1.356.561l-.17 1.699a.5.5 0 0 1-.497.45H7.452a.5.5 0 0 1-.497-.45l-.17-1.699a4.973 4.973 0 0 1-1.356-.562L4.108 13.37a.5.5 0 0 1-.67-.033l-.774-.775a.5.5 0 0 1-.034-.67l1.08-1.32a4.971 4.971 0 0 1-.561-1.357l-1.699-.17A.5.5 0 0 1 1 8.548V7.452a.5.5 0 0 1 .45-.497l1.699-.17c.12-.484.312-.94.562-1.356L2.629 4.107a.5.5 0 0 1 .034-.67l.774-.774a.5.5 0 0 1 .67-.033L5.43 3.71a4.97 4.97 0 0 1 1.356-.561l.17-1.699ZM6 8c0 .538.212 1.026.558 1.385l.057.057a2 2 0 0 0 2.828-2.828l-.058-.056A2 2 0 0 0 6 8Z" clip-rule="evenodd" />
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 16 16"
+										fill="currentColor"
+										class="size-4"
+									>
+										<path
+											fill-rule="evenodd"
+											d="M6.955 1.45A.5.5 0 0 1 7.452 1h1.096a.5.5 0 0 1 .497.45l.17 1.699c.484.12.94.312 1.356.562l1.321-1.081a.5.5 0 0 1 .67.033l.774.775a.5.5 0 0 1 .034.67l-1.08 1.32c.25.417.44.873.561 1.357l1.699.17a.5.5 0 0 1 .45.497v1.096a.5.5 0 0 1-.45.497l-1.699.17c-.12.484-.312.94-.562 1.356l1.082 1.322a.5.5 0 0 1-.034.67l-.774.774a.5.5 0 0 1-.67.033l-1.322-1.08c-.416.25-.872.44-1.356.561l-.17 1.699a.5.5 0 0 1-.497.45H7.452a.5.5 0 0 1-.497-.45l-.17-1.699a4.973 4.973 0 0 1-1.356-.562L4.108 13.37a.5.5 0 0 1-.67-.033l-.774-.775a.5.5 0 0 1-.034-.67l1.08-1.32a4.971 4.971 0 0 1-.561-1.357l-1.699-.17A.5.5 0 0 1 1 8.548V7.452a.5.5 0 0 1 .45-.497l1.699-.17c.12-.484.312-.94.562-1.356L2.629 4.107a.5.5 0 0 1 .034-.67l.774-.774a.5.5 0 0 1 .67-.033L5.43 3.71a4.97 4.97 0 0 1 1.356-.561l.17-1.699ZM6 8c0 .538.212 1.026.558 1.385l.057.057a2 2 0 0 0 2.828-2.828l-.058-.056A2 2 0 0 0 6 8Z"
+											clip-rule="evenodd"
+										/>
 									</svg>
 									<span>{$i18n.t('General')}</span>
 								</button>
@@ -162,10 +181,13 @@
 
 							{#if tabs.includes('permissions')}
 								<button
-									class="px-3 py-2 rounded-lg flex items-center gap-2 transition {selectedTab === 'permissions'
+									class="px-3 py-2 rounded-lg flex items-center gap-2 transition {selectedTab ===
+									'permissions'
 										? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
 										: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'}"
-									on:click={() => { selectedTab = 'permissions'; }}
+									on:click={() => {
+										selectedTab = 'permissions';
+									}}
 									type="button"
 								>
 									<WrenchSolid />
@@ -175,10 +197,13 @@
 
 							{#if tabs.includes('users')}
 								<button
-									class="px-3 py-2 rounded-lg flex items-center gap-2 transition {selectedTab === 'users'
+									class="px-3 py-2 rounded-lg flex items-center gap-2 transition {selectedTab ===
+									'users'
 										? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
 										: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50'}"
-									on:click={() => { selectedTab = 'users'; }}
+									on:click={() => {
+										selectedTab = 'users';
+									}}
 									type="button"
 								>
 									<UserPlusSolid />
@@ -187,7 +212,9 @@
 							{/if}
 						</div>
 
-						<div class="flex-1 mt-1 lg:mt-1 lg:h-[22rem] lg:max-h-[22rem] overflow-y-auto scrollbar-hidden">
+						<div
+							class="flex-1 mt-1 lg:mt-1 lg:h-[22rem] lg:max-h-[22rem] overflow-y-auto scrollbar-hidden"
+						>
 							{#if selectedTab == 'general'}
 								<Display bind:name bind:description />
 							{:else if selectedTab == 'permissions'}
@@ -203,7 +230,9 @@
 							<button
 								class="px-4 py-2 text-sm font-medium rounded-lg border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 transition"
 								type="button"
-								on:click={() => { showDeleteConfirmDialog = true; }}
+								on:click={() => {
+									showDeleteConfirmDialog = true;
+								}}
 							>
 								{$i18n.t('Delete')}
 							</button>
@@ -218,7 +247,29 @@
 						>
 							{$i18n.t('Save')}
 							{#if loading}
-								<svg class="ml-2 inline size-4" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><style>.spinner_ajPY{transform-origin:center;animation:spinner_AtaB .75s infinite linear}@keyframes spinner_AtaB{100%{transform:rotate(360deg)}}</style><path d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25"/><path d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z" class="spinner_ajPY"/></svg>
+								<svg
+									class="ml-2 inline size-4"
+									viewBox="0 0 24 24"
+									fill="currentColor"
+									xmlns="http://www.w3.org/2000/svg"
+									><style>
+										.spinner_ajPY {
+											transform-origin: center;
+											animation: spinner_AtaB 0.75s infinite linear;
+										}
+										@keyframes spinner_AtaB {
+											100% {
+												transform: rotate(360deg);
+											}
+										}
+									</style><path
+										d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"
+										opacity=".25"
+									/><path
+										d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z"
+										class="spinner_ajPY"
+									/></svg
+								>
 							{/if}
 						</button>
 					</div>

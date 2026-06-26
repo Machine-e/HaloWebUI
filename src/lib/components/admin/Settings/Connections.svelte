@@ -794,7 +794,9 @@
 		{#if ENABLE_OPENAI_API !== null && ENABLE_OLLAMA_API !== null && ENABLE_GEMINI_API !== null && ENABLE_GROK_API !== null && ENABLE_ANTHROPIC_API !== null && connectionsConfig !== null}
 			<div class="max-w-6xl mx-auto space-y-3">
 				<div bind:this={sectionEl_openai} class="scroll-mt-2">
-					<div class="rounded-2xl border bg-gray-50 border-gray-100 dark:bg-gray-850 dark:border-gray-800">
+					<div
+						class="rounded-2xl border bg-gray-50 border-gray-100 dark:bg-gray-850 dark:border-gray-800"
+					>
 						<div
 							class="w-full flex items-center justify-between px-5 py-4 text-left cursor-pointer select-none"
 							role="button"
@@ -820,9 +822,7 @@
 							}}
 						>
 							<div class="flex items-center gap-3">
-								<div
-									class="glass-icon-badge bg-emerald-100/80 dark:bg-emerald-900/30"
-								>
+								<div class="glass-icon-badge bg-emerald-100/80 dark:bg-emerald-900/30">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										viewBox="0 0 24 24"
@@ -834,7 +834,9 @@
 										/>
 									</svg>
 								</div>
-								<div class="text-base font-semibold text-gray-800 dark:text-gray-100 tracking-tight">
+								<div
+									class="text-base font-semibold text-gray-800 dark:text-gray-100 tracking-tight"
+								>
 									{$i18n.t('OpenAI API')}
 								</div>
 							</div>
@@ -868,7 +870,7 @@
 						{#if expandedSections.openai}
 							<div transition:slide={{ duration: 200, easing: quintOut }} class="px-5 pb-5">
 								<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-										{#each OPENAI_API_BASE_URLS as url, idx (getConnectionRenderKey(url, OPENAI_API_KEYS[idx], OPENAI_API_CONFIGS[idx]))}
+									{#each OPENAI_API_BASE_URLS as url, idx (getConnectionRenderKey(url, OPENAI_API_KEYS[idx], OPENAI_API_CONFIGS[idx]))}
 										<OpenAIConnection
 											bind:url={OPENAI_API_BASE_URLS[idx]}
 											bind:key={OPENAI_API_KEYS[idx]}
@@ -922,7 +924,9 @@
 
 				<!-- Gemini API Section -->
 				<div bind:this={sectionEl_gemini} class="scroll-mt-2">
-					<div class="rounded-2xl border bg-gray-50 border-gray-100 dark:bg-gray-850 dark:border-gray-800">
+					<div
+						class="rounded-2xl border bg-gray-50 border-gray-100 dark:bg-gray-850 dark:border-gray-800"
+					>
 						<div
 							class="w-full flex items-center justify-between px-5 py-4 text-left cursor-pointer select-none"
 							role="button"
@@ -948,9 +952,7 @@
 							}}
 						>
 							<div class="flex items-center gap-3">
-								<div
-									class="glass-icon-badge bg-blue-100/80 dark:bg-blue-900/30"
-								>
+								<div class="glass-icon-badge bg-blue-100/80 dark:bg-blue-900/30">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										viewBox="0 0 24 24"
@@ -971,7 +973,9 @@
 										/>
 									</svg>
 								</div>
-								<div class="text-base font-semibold text-gray-800 dark:text-gray-100 tracking-tight">
+								<div
+									class="text-base font-semibold text-gray-800 dark:text-gray-100 tracking-tight"
+								>
 									{$i18n.t('Gemini API')}
 								</div>
 							</div>
@@ -1005,7 +1009,7 @@
 						{#if expandedSections.gemini}
 							<div transition:slide={{ duration: 200, easing: quintOut }} class="px-5 pb-5">
 								<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-										{#each GEMINI_API_BASE_URLS as url, idx (getConnectionRenderKey(url, GEMINI_API_KEYS[idx], GEMINI_API_CONFIGS[idx]))}
+									{#each GEMINI_API_BASE_URLS as url, idx (getConnectionRenderKey(url, GEMINI_API_KEYS[idx], GEMINI_API_CONFIGS[idx]))}
 										<GeminiConnection
 											bind:url={GEMINI_API_BASE_URLS[idx]}
 											bind:key={GEMINI_API_KEYS[idx]}
@@ -1059,7 +1063,9 @@
 
 				<!-- Grok API Section -->
 				<div bind:this={sectionEl_grok} class="scroll-mt-2">
-					<div class="rounded-2xl border bg-gray-50 border-gray-100 dark:bg-gray-850 dark:border-gray-800">
+					<div
+						class="rounded-2xl border bg-gray-50 border-gray-100 dark:bg-gray-850 dark:border-gray-800"
+					>
 						<div
 							class="w-full flex items-center justify-between px-5 py-4 text-left cursor-pointer select-none"
 							role="button"
@@ -1086,14 +1092,11 @@
 						>
 							<div class="flex items-center gap-3">
 								<div class="glass-icon-badge bg-slate-100/80 dark:bg-slate-900/30">
-									<ModelIcon
-										src={GROK_PROVIDER_ICON}
-										alt="Grok"
-										bare
-										className="size-[18px]"
-									/>
+									<ModelIcon src={GROK_PROVIDER_ICON} alt="Grok" bare className="size-[18px]" />
 								</div>
-								<div class="text-base font-semibold text-gray-800 dark:text-gray-100 tracking-tight">
+								<div
+									class="text-base font-semibold text-gray-800 dark:text-gray-100 tracking-tight"
+								>
 									{$i18n.t('Grok API')}
 								</div>
 							</div>
@@ -1146,8 +1149,7 @@
 
 												let newConfig = {};
 												GROK_API_BASE_URLS.forEach((u, newIdx) => {
-													newConfig[newIdx] =
-														GROK_API_CONFIGS[newIdx < idx ? newIdx : newIdx + 1];
+													newConfig[newIdx] = GROK_API_CONFIGS[newIdx < idx ? newIdx : newIdx + 1];
 												});
 												GROK_API_CONFIGS = newConfig;
 												updateGrokHandler(!!ENABLE_GROK_API);
@@ -1181,7 +1183,9 @@
 
 				<!-- Anthropic API Section -->
 				<div bind:this={sectionEl_anthropic} class="scroll-mt-2">
-					<div class="rounded-2xl border bg-gray-50 border-gray-100 dark:bg-gray-850 dark:border-gray-800">
+					<div
+						class="rounded-2xl border bg-gray-50 border-gray-100 dark:bg-gray-850 dark:border-gray-800"
+					>
 						<div
 							class="w-full flex items-center justify-between px-5 py-4 text-left cursor-pointer select-none"
 							role="button"
@@ -1207,9 +1211,7 @@
 							}}
 						>
 							<div class="flex items-center gap-3">
-								<div
-									class="glass-icon-badge bg-amber-100/80 dark:bg-amber-900/30"
-								>
+								<div class="glass-icon-badge bg-amber-100/80 dark:bg-amber-900/30">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										viewBox="0 0 16 16"
@@ -1221,7 +1223,9 @@
 										/>
 									</svg>
 								</div>
-								<div class="text-base font-semibold text-gray-800 dark:text-gray-100 tracking-tight">
+								<div
+									class="text-base font-semibold text-gray-800 dark:text-gray-100 tracking-tight"
+								>
 									{$i18n.t('Anthropic API')}
 								</div>
 							</div>
@@ -1255,7 +1259,7 @@
 						{#if expandedSections.anthropic}
 							<div transition:slide={{ duration: 200, easing: quintOut }} class="px-5 pb-5">
 								<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-										{#each ANTHROPIC_API_BASE_URLS as url, idx (getConnectionRenderKey(url, ANTHROPIC_API_KEYS[idx], ANTHROPIC_API_CONFIGS[idx]))}
+									{#each ANTHROPIC_API_BASE_URLS as url, idx (getConnectionRenderKey(url, ANTHROPIC_API_KEYS[idx], ANTHROPIC_API_CONFIGS[idx]))}
 										<AnthropicConnection
 											bind:url={ANTHROPIC_API_BASE_URLS[idx]}
 											bind:key={ANTHROPIC_API_KEYS[idx]}
@@ -1311,7 +1315,9 @@
 
 				<!-- Ollama API Section -->
 				<div bind:this={sectionEl_ollama} class="scroll-mt-2">
-					<div class="rounded-2xl border bg-gray-50 border-gray-100 dark:bg-gray-850 dark:border-gray-800">
+					<div
+						class="rounded-2xl border bg-gray-50 border-gray-100 dark:bg-gray-850 dark:border-gray-800"
+					>
 						<div
 							class="w-full flex items-center justify-between px-5 py-4 text-left cursor-pointer select-none"
 							role="button"
@@ -1337,9 +1343,7 @@
 							}}
 						>
 							<div class="flex items-center gap-3">
-								<div
-									class="glass-icon-badge bg-gray-100/80 dark:bg-gray-900/30"
-								>
+								<div class="glass-icon-badge bg-gray-100/80 dark:bg-gray-900/30">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										viewBox="0 0 24 24"
@@ -1351,7 +1355,9 @@
 										/>
 									</svg>
 								</div>
-								<div class="text-base font-semibold text-gray-800 dark:text-gray-100 tracking-tight">
+								<div
+									class="text-base font-semibold text-gray-800 dark:text-gray-100 tracking-tight"
+								>
 									{$i18n.t('Ollama API')}
 								</div>
 							</div>
@@ -1388,7 +1394,7 @@
 								class="px-5 pb-5 space-y-2"
 							>
 								<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-										{#each OLLAMA_BASE_URLS as url, idx (getOllamaRenderKey(url, OLLAMA_API_CONFIGS[idx]))}
+									{#each OLLAMA_BASE_URLS as url, idx (getOllamaRenderKey(url, OLLAMA_API_CONFIGS[idx]))}
 										<OllamaConnection
 											bind:url={OLLAMA_BASE_URLS[idx]}
 											bind:config={OLLAMA_API_CONFIGS[idx]}
@@ -1452,7 +1458,9 @@
 
 				<!-- Advanced Settings -->
 				<div bind:this={sectionEl_advanced} class="scroll-mt-2">
-					<div class="rounded-2xl border bg-gray-50 border-gray-100 dark:bg-gray-850 dark:border-gray-800">
+					<div
+						class="rounded-2xl border bg-gray-50 border-gray-100 dark:bg-gray-850 dark:border-gray-800"
+					>
 						<button
 							type="button"
 							class="w-full flex items-center justify-between px-5 py-4 text-left"
@@ -1464,9 +1472,7 @@
 							}}
 						>
 							<div class="flex items-center gap-3">
-								<div
-									class="glass-icon-badge bg-slate-100/80 dark:bg-slate-900/30"
-								>
+								<div class="glass-icon-badge bg-slate-100/80 dark:bg-slate-900/30">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										viewBox="0 0 24 24"
@@ -1480,7 +1486,9 @@
 										/>
 									</svg>
 								</div>
-								<div class="text-base font-semibold text-gray-800 dark:text-gray-100 tracking-tight">
+								<div
+									class="text-base font-semibold text-gray-800 dark:text-gray-100 tracking-tight"
+								>
 									{$i18n.t('Advanced Settings')}
 								</div>
 							</div>
@@ -1528,7 +1536,6 @@
 			</div>
 		{/if}
 	</div>
-
 </form>
 
 <ConfirmDialog

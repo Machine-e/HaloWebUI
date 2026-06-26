@@ -58,10 +58,14 @@
 					{#each selectedTools as tool}
 						<Collapsible buttonClassName="w-full mb-0.5">
 							<div>
-								<div class="flex items-center gap-1.5 text-sm font-medium dark:text-gray-100 text-gray-800">
+								<div
+									class="flex items-center gap-1.5 text-sm font-medium dark:text-gray-100 text-gray-800"
+								>
 									<span>{tool?.name}</span>
 									{#if tool?.meta?.source === 'shared'}
-										<span class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+										<span
+											class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+										>
 											共享
 										</span>
 									{/if}
@@ -98,10 +102,14 @@
 					{#each selectedSkills as skill}
 						<Collapsible buttonClassName="w-full mb-0.5">
 							<div>
-								<div class="flex items-center gap-1.5 text-sm font-medium dark:text-gray-100 text-gray-800">
+								<div
+									class="flex items-center gap-1.5 text-sm font-medium dark:text-gray-100 text-gray-800"
+								>
 									<span>{skill?.name}</span>
 									{#if skill?.meta?.runtime?.mode === 'runnable'}
-										<span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+										<span
+											class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+										>
 											可执行
 										</span>
 									{/if}

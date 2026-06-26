@@ -22,7 +22,7 @@
     <img src="https://img.shields.io/github/license/ztx888/HaloWebUI?style=for-the-badge&color=6a4c93" alt="License" />
   </a>
 
-  <br/><br/>
+<br/><br/>
 
   <img src="https://img.shields.io/badge/Svelte_4-FF3E00?style=flat-square&logo=svelte&logoColor=white" />
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" />
@@ -164,18 +164,18 @@ docker compose -f docker-compose.yaml -f docker-compose.slim.yaml up -d
 <details>
 <summary><strong>⚙️ 常用环境变量</strong></summary>
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `OPENAI_API_KEY` | OpenAI 兼容 API 密钥 | — |
-| `OPENAI_API_BASE_URL` | OpenAI 兼容 API 地址 | `https://api.openai.com/v1` |
-| `REQUESTS_VERIFY` | 后端通过 `requests` 发起 HTTPS 请求时是否校验证书 | `true` |
-| `AIOHTTP_CLIENT_SESSION_SSL` | 后端通过 `aiohttp` 发起 HTTPS 请求时是否校验证书 | `true` |
-| `ANTHROPIC_API_KEY` | Anthropic Claude API 密钥 | — |
-| `GEMINI_API_KEY` | Google Gemini API 密钥 | — |
-| `OLLAMA_BASE_URL` | Ollama 服务地址 | `http://host.docker.internal:11434` |
-| `WEBUI_SECRET_KEY` | JWT 签名密钥（生产环境必须设置） | 随机生成 |
-| `DATABASE_URL` | 数据库连接串（PostgreSQL） | SQLite 本地文件 |
-| `REDIS_URL` | Redis 缓存地址 | — |
+| 变量                         | 说明                                              | 默认值                              |
+| ---------------------------- | ------------------------------------------------- | ----------------------------------- |
+| `OPENAI_API_KEY`             | OpenAI 兼容 API 密钥                              | —                                   |
+| `OPENAI_API_BASE_URL`        | OpenAI 兼容 API 地址                              | `https://api.openai.com/v1`         |
+| `REQUESTS_VERIFY`            | 后端通过 `requests` 发起 HTTPS 请求时是否校验证书 | `true`                              |
+| `AIOHTTP_CLIENT_SESSION_SSL` | 后端通过 `aiohttp` 发起 HTTPS 请求时是否校验证书  | `true`                              |
+| `ANTHROPIC_API_KEY`          | Anthropic Claude API 密钥                         | —                                   |
+| `GEMINI_API_KEY`             | Google Gemini API 密钥                            | —                                   |
+| `OLLAMA_BASE_URL`            | Ollama 服务地址                                   | `http://host.docker.internal:11434` |
+| `WEBUI_SECRET_KEY`           | JWT 签名密钥（生产环境必须设置）                  | 随机生成                            |
+| `DATABASE_URL`               | 数据库连接串（PostgreSQL）                        | SQLite 本地文件                     |
+| `REDIS_URL`                  | Redis 缓存地址                                    | —                                   |
 
 使用自签证书时，优先把 CA 证书导入容器信任链；只有临时排障时才建议把上面两个开关设为 `false`。
 

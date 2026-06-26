@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	DEFAULT_CHAT_TRANSITION_MODE,
-	resolveChatTransitionMode
-} from './lobehub-chat-appearance';
+import { DEFAULT_CHAT_TRANSITION_MODE, resolveChatTransitionMode } from './lobehub-chat-appearance';
 
 describe('resolveChatTransitionMode', () => {
 	it('prefers the explicit transition mode', () => {
-		expect(resolveChatTransitionMode({ transitionMode: 'smooth', chatFadeStreamingText: false })).toBe(
-			'smooth'
-		);
+		expect(
+			resolveChatTransitionMode({ transitionMode: 'smooth', chatFadeStreamingText: false })
+		).toBe('smooth');
 	});
 
 	it('maps legacy enabled fade toggle to fadeIn', () => {
@@ -24,4 +21,3 @@ describe('resolveChatTransitionMode', () => {
 		expect(resolveChatTransitionMode({})).toBe(DEFAULT_CHAT_TRANSITION_MODE);
 	});
 });
-

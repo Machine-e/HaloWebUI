@@ -89,25 +89,33 @@
 			</div>
 		</div>
 
-		<div class="glass-item p-2.5 text-gray-500 dark:text-gray-400 transition group-hover:text-gray-700 dark:group-hover:text-gray-200">
+		<div
+			class="glass-item p-2.5 text-gray-500 dark:text-gray-400 transition group-hover:text-gray-700 dark:group-hover:text-gray-200"
+		>
 			<Pencil className="size-4" />
 		</div>
 	</div>
 
 	<div class="mt-4 flex flex-wrap items-center gap-2">
-		<div class="inline-flex items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-950/30 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+		<div
+			class="inline-flex items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-950/30 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400"
+		>
 			<UsersSolid className="size-3.5" />
 			<span>{memberIds.length} {$i18n.t('Users')}</span>
 		</div>
 
 		{#each memberPreview as name}
-			<div class="inline-flex items-center rounded-full border border-gray-200/40 dark:border-gray-700/30 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+			<div
+				class="inline-flex items-center rounded-full border border-gray-200/40 dark:border-gray-700/30 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400"
+			>
 				{name}
 			</div>
 		{/each}
 
 		{#if memberIds.length > memberPreview.length}
-			<div class="inline-flex items-center rounded-full border border-gray-200/40 dark:border-gray-700/30 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+			<div
+				class="inline-flex items-center rounded-full border border-gray-200/40 dark:border-gray-700/30 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400"
+			>
 				+{memberIds.length - memberPreview.length}
 			</div>
 		{/if}

@@ -11,10 +11,7 @@ type OpenAIConnectionConfig = Record<string, any> & {
 
 type OpenAIVerifyPurpose = 'connection' | 'models';
 
-const isForceModeConnection = (
-	url: string,
-	config?: OpenAIConnectionConfig
-) => {
+const isForceModeConnection = (url: string, config?: OpenAIConnectionConfig) => {
 	const normalizedUrl = (url || '').trim().replace(/\/+$/, '');
 	return Boolean(config?.force_mode) || normalizedUrl.endsWith(OPENAI_CHAT_COMPLETIONS_SUFFIX);
 };
@@ -139,7 +136,9 @@ const looksLikeModelsEndpointUnsupported = (status: number, body: unknown) => {
 	const text =
 		typeof body === 'string'
 			? body.trim().toLowerCase()
-			: JSON.stringify(body ?? '').toLowerCase().trim();
+			: JSON.stringify(body ?? '')
+					.toLowerCase()
+					.trim();
 
 	if (!text) return true;
 	if (text.startsWith('<!doctype html') || text.startsWith('<html')) return true;
@@ -176,10 +175,7 @@ const buildDashScopeVerifyFallback = (purpose: OpenAIVerifyPurpose) =>
 				}
 			};
 
-const getOpenAIModelsEndpoint = (
-	url: string,
-	config?: OpenAIConnectionConfig
-) => {
+const getOpenAIModelsEndpoint = (url: string, config?: OpenAIConnectionConfig) => {
 	const normalizedUrl = (url || '').trim().replace(/\/+$/, '');
 	if (!normalizedUrl) return '';
 
@@ -201,12 +197,10 @@ const getOpenAIModelsEndpoint = (
 	return `${normalizedUrl}/models`;
 };
 
-const getOpenAIRequestHeaders = (
-	url: string,
-	key: string,
-	config?: OpenAIConnectionConfig
-) => {
-	const authType = String(config?.auth_type ?? '').trim().toLowerCase();
+const getOpenAIRequestHeaders = (url: string, key: string, config?: OpenAIConnectionConfig) => {
+	const authType = String(config?.auth_type ?? '')
+		.trim()
+		.toLowerCase();
 	const headers: Record<string, string> = {};
 
 	if (config?.headers && typeof config.headers === 'object') {
@@ -681,9 +675,7 @@ export const generateOpenAIChatCompletion = async (
 	const timeoutId =
 		timeoutMs > 0
 			? globalThis.setTimeout(() => {
-					controller.abort(
-						new DOMException('Chat request did not start in time.', 'TimeoutError')
-					);
+					controller.abort(new DOMException('Chat request did not start in time.', 'TimeoutError'));
 				}, timeoutMs)
 			: null;
 	let error = null;

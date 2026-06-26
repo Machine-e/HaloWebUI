@@ -81,7 +81,9 @@
 		</div>
 
 		{#if err.body}
-			<p class="mt-2 text-[13px] leading-relaxed text-red-700 dark:text-red-300 whitespace-pre-line">
+			<p
+				class="mt-2 text-[13px] leading-relaxed text-red-700 dark:text-red-300 whitespace-pre-line"
+			>
 				{err.body}
 			</p>
 		{/if}
@@ -149,8 +151,7 @@
 			{#if rawExpanded}
 				<div transition:slide={{ duration: 200, easing: quintOut, axis: 'y' }}>
 					<pre
-						class="mt-1.5 overflow-x-auto rounded-md bg-red-100/80 px-2.5 py-2 text-[12px] leading-relaxed text-red-700 dark:bg-red-900/20 dark:text-red-200 whitespace-pre-wrap break-words"
-					>{err.rawMessage}</pre>
+						class="mt-1.5 overflow-x-auto rounded-md bg-red-100/80 px-2.5 py-2 text-[12px] leading-relaxed text-red-700 dark:bg-red-900/20 dark:text-red-200 whitespace-pre-wrap break-words">{err.rawMessage}</pre>
 				</div>
 			{/if}
 		{/if}

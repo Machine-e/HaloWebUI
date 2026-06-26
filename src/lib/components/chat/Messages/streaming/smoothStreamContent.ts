@@ -166,13 +166,7 @@ export const createSmoothStreamContentController = ({
 		const baseLagChars = Math.max(1, Math.round((baseCps * config.targetBufferMs) / 1000));
 		const lagUpperBound = Math.max(baseLagChars + 2, baseLagChars * 3);
 		const targetLagChars = inputActive
-			? Math.round(
-					clamp(
-						baseLagChars + chunkSizeEma * 0.35,
-						baseLagChars,
-						lagUpperBound
-					)
-				)
+			? Math.round(clamp(baseLagChars + chunkSizeEma * 0.35, baseLagChars, lagUpperBound))
 			: 0;
 		const desiredDisplayed = Math.max(0, targetCount - targetLagChars);
 
@@ -193,16 +187,8 @@ export const createSmoothStreamContentController = ({
 			);
 			currentCps = clamp(baseCps * combinedPressure, config.minCps, activeCap);
 		} else if (settling) {
-			const drainTargetMs = clamp(
-				backlog * 8,
-				config.settleDrainMinMs,
-				config.settleDrainMaxMs
-			);
-			currentCps = clamp(
-				(backlog * 1000) / drainTargetMs,
-				config.flushCps,
-				config.maxFlushCps
-			);
+			const drainTargetMs = clamp(backlog * 8, config.settleDrainMinMs, config.settleDrainMaxMs);
+			currentCps = clamp((backlog * 1000) / drainTargetMs, config.flushCps, config.maxFlushCps);
 		} else {
 			currentCps = clamp(
 				Math.max(config.flushCps, baseCps * 1.8, arrivalCpsEma * 0.8),
@@ -211,10 +197,8 @@ export const createSmoothStreamContentController = ({
 			);
 		}
 
-		const urgentBacklog =
-			inputActive && targetLagChars > 0 && backlog > targetLagChars * 2.2;
-		const burstyInput =
-			inputActive && targetLagChars > 0 && chunkSizeEma >= targetLagChars * 0.9;
+		const urgentBacklog = inputActive && targetLagChars > 0 && backlog > targetLagChars * 2.2;
+		const burstyInput = inputActive && targetLagChars > 0 && chunkSizeEma >= targetLagChars * 0.9;
 		const minRevealChars = inputActive ? (urgentBacklog || burstyInput ? 2 : 1) : 2;
 
 		let revealChars = Math.max(minRevealChars, Math.round(currentCps * dtSeconds));
@@ -296,15 +280,10 @@ export const createSmoothStreamContentController = ({
 		const deltaMs = Math.max(1, now - lastInputTs);
 		if (deltaChars > 0) {
 			const instantCps = (deltaChars * 1000) / deltaMs;
-			const normalizedInstantCps = clamp(
-				instantCps,
-				config.minCps,
-				config.maxFlushCps * 2
-			);
+			const normalizedInstantCps = clamp(instantCps, config.minCps, config.maxFlushCps * 2);
 			const chunkEmaAlpha = 0.35;
 			chunkSizeEma = chunkSizeEma * (1 - chunkEmaAlpha) + appendedCount * chunkEmaAlpha;
-			arrivalCpsEma =
-				arrivalCpsEma * (1 - chunkEmaAlpha) + normalizedInstantCps * chunkEmaAlpha;
+			arrivalCpsEma = arrivalCpsEma * (1 - chunkEmaAlpha) + normalizedInstantCps * chunkEmaAlpha;
 			const clampedCps = clamp(instantCps, config.minCps, config.maxActiveCps);
 			emaCps = emaCps * (1 - config.emaAlpha) + clampedCps * config.emaAlpha;
 		}
@@ -327,4 +306,3 @@ export const createSmoothStreamContentController = ({
 		setEnabled
 	};
 };
-

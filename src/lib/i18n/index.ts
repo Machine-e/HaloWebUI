@@ -273,9 +273,11 @@ const ZH_TW_CHAR_MAP: Record<string, string> = {
 
 const getSupportedLocaleCodes = async () => {
 	if (!supportedLocaleCodesPromise) {
-		supportedLocaleCodesPromise = import(`./locales/languages.json`).then(({ default: languages }) => {
-			return new Set(languages.map((language) => language.code));
-		});
+		supportedLocaleCodesPromise = import(`./locales/languages.json`).then(
+			({ default: languages }) => {
+				return new Set(languages.map((language) => language.code));
+			}
+		);
 	}
 
 	return supportedLocaleCodesPromise;
@@ -313,21 +315,26 @@ const normalizeZhTwText = (value: string) => {
 };
 
 export const translateWithDefault = (
-	i18nInstance: {
-		resolvedLanguage?: string | null;
-		language?: string | null;
-		t?: (key: string, options?: Record<string, any>) => string;
-	} | null | undefined,
+	i18nInstance:
+		| {
+				resolvedLanguage?: string | null;
+				language?: string | null;
+				t?: (key: string, options?: Record<string, any>) => string;
+		  }
+		| null
+		| undefined,
 	key: string,
 	defaultValue: string,
 	options: Record<string, any> = {}
 ) => {
-	const currentLanguage = `${i18nInstance?.resolvedLanguage ?? i18nInstance?.language ?? ''}`.trim();
-	const localizedDefaultValue = currentLanguage === 'zh-TW'
-		? normalizeZhTwText(key)
-		: currentLanguage.startsWith('zh')
-			? key
-			: defaultValue;
+	const currentLanguage =
+		`${i18nInstance?.resolvedLanguage ?? i18nInstance?.language ?? ''}`.trim();
+	const localizedDefaultValue =
+		currentLanguage === 'zh-TW'
+			? normalizeZhTwText(key)
+			: currentLanguage.startsWith('zh')
+				? key
+				: defaultValue;
 
 	return (
 		i18nInstance?.t?.(key, { ...options, defaultValue: localizedDefaultValue }) ??
@@ -344,7 +351,8 @@ const decorateI18nInstance = (i18nInstance: i18nType & { __haloZhTwDecorated?: b
 
 	i18nInstance.t = ((...args: Parameters<typeof originalT>) => {
 		const result = originalT(...args);
-		const currentLanguage = `${i18nInstance.resolvedLanguage ?? i18nInstance.language ?? ''}`.trim();
+		const currentLanguage =
+			`${i18nInstance.resolvedLanguage ?? i18nInstance.language ?? ''}`.trim();
 
 		if (currentLanguage !== 'zh-TW') {
 			return result;
@@ -454,7 +462,9 @@ export const initI18n = async (defaultLocale?: string | undefined) => {
 			}
 		});
 
-	const lang = await resolveSupportedLocale(i18next?.resolvedLanguage || i18next?.language || resolvedDefaultLocale);
+	const lang = await resolveSupportedLocale(
+		i18next?.resolvedLanguage || i18next?.language || resolvedDefaultLocale
+	);
 	if (i18next.resolvedLanguage !== lang) {
 		await i18next.changeLanguage(lang);
 	}

@@ -28,11 +28,13 @@
 		prompt: string;
 	};
 
-	type FloatingChatRequestFactory = ((args: {
-		modelId: string;
-		messages: any[];
-		stream?: boolean;
-	}) => Promise<Record<string, unknown>>) | undefined;
+	type FloatingChatRequestFactory =
+		| ((args: {
+				modelId: string;
+				messages: any[];
+				stream?: boolean;
+		  }) => Promise<Record<string, unknown>>)
+		| undefined;
 
 	type PendingSelection = {
 		quote: string;
@@ -70,8 +72,9 @@
 	export let onClearPendingSelection: () => void = () => {};
 	export let onAdd = () => {};
 
-	const floatingChatRequestFactory =
-		getContext<FloatingChatRequestFactory>('floatingChatRequestFactory');
+	const floatingChatRequestFactory = getContext<FloatingChatRequestFactory>(
+		'floatingChatRequestFactory'
+	);
 
 	const defaultActions: FloatingAction[] = [
 		{
@@ -113,9 +116,7 @@
 			return false;
 		}
 
-		return thread.turns.some(
-			(turn) => turn.role === 'assistant' && turn.state === 'streaming'
-		);
+		return thread.turns.some((turn) => turn.role === 'assistant' && turn.state === 'streaming');
 	};
 
 	const getLastAssistantTurn = (thread: SelectionThread | null) => {
@@ -200,7 +201,6 @@
 			options
 		);
 	};
-
 
 	const createThreadFromSelection = (action: FloatingAction) => {
 		if (!pendingSelection) {
@@ -685,14 +685,21 @@
 			on:mousedown|stopPropagation
 			on:mouseup|stopPropagation
 		>
-			<div class="relative bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl dark:text-gray-100 rounded-2xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 selection-thread-card">
+			<div
+				class="relative bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl dark:text-gray-100 rounded-2xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 selection-thread-card"
+			>
 				<div class="absolute top-2 right-2 flex items-center gap-1 z-10">
 					<button
 						class="selection-thread-icon-button"
 						on:click={() => toggleThreadPin(activeThread.id)}
 						aria-label={activeThread.pinned ? $i18n.t('Unpin') : $i18n.t('Pin')}
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+							class="size-3.5"
+						>
 							<path
 								d="M6.28 4.22a.75.75 0 0 1 .53-.22h6.38a.75.75 0 0 1 .53 1.28l-1.72 1.72v2.56l1.72 1.72a.75.75 0 0 1-.53 1.28H10.75v3.75a.75.75 0 0 1-1.5 0v-3.75H6.81a.75.75 0 0 1-.53-1.28L8 9.56V7L6.28 5.28a.75.75 0 0 1 0-1.06Z"
 							/>
@@ -703,7 +710,12 @@
 						on:click={minimizeThread}
 						aria-label={$i18n.t('Minimize')}
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+							class="size-3.5"
+						>
 							<path d="M5 9.25a.75.75 0 0 0 0 1.5h10a.75.75 0 0 0 0-1.5H5Z" />
 						</svg>
 					</button>
@@ -712,7 +724,12 @@
 						on:click={() => deleteThread(activeThread.id)}
 						aria-label={$i18n.t('Delete')}
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+							class="size-3.5"
+						>
 							<path
 								fill-rule="evenodd"
 								d="M8.75 3a.75.75 0 0 0-.75.75V4H5.75a.75.75 0 0 0 0 1.5h.44l.63 9.48A2.25 2.25 0 0 0 9.06 17h1.88a2.25 2.25 0 0 0 2.24-2.02l.63-9.48h.44a.75.75 0 0 0 0-1.5H12V3.75A.75.75 0 0 0 11.25 3h-2.5Zm1.5 1V4h-.5v-.25h.5Z"
@@ -722,21 +739,25 @@
 					</button>
 				</div>
 
-					<div class="bg-blue-50/40 dark:bg-blue-900/10 rounded-t-2xl px-4 py-3 pr-20">
-						<div class="flex items-start justify-between gap-3">
-							<div class="flex items-start gap-2 min-w-0">
-								<div class="w-0.5 self-stretch rounded-full bg-blue-400/60 dark:bg-blue-500/50 shrink-0 min-h-4"></div>
-								<div class="text-xs text-gray-500 dark:text-gray-400 line-clamp-4 italic leading-relaxed">
-									{activeThread.quote}
-								</div>
+				<div class="bg-blue-50/40 dark:bg-blue-900/10 rounded-t-2xl px-4 py-3 pr-20">
+					<div class="flex items-start justify-between gap-3">
+						<div class="flex items-start gap-2 min-w-0">
+							<div
+								class="w-0.5 self-stretch rounded-full bg-blue-400/60 dark:bg-blue-500/50 shrink-0 min-h-4"
+							></div>
+							<div
+								class="text-xs text-gray-500 dark:text-gray-400 line-clamp-4 italic leading-relaxed"
+							>
+								{activeThread.quote}
 							</div>
-							{#if getThreadStatusText(activeThread)}
-								<span class="selection-thread-status-chip">
-									{getThreadStatusText(activeThread)}
-								</span>
-							{/if}
 						</div>
+						{#if getThreadStatusText(activeThread)}
+							<span class="selection-thread-status-chip">
+								{getThreadStatusText(activeThread)}
+							</span>
+						{/if}
 					</div>
+				</div>
 
 				<div class="px-4 py-3">
 					<div
@@ -750,11 +771,15 @@
 						{:else}
 							{#each activeThread.turns as turn (turn.id)}
 								{#if turn.role === 'user'}
-									<div class="rounded-2xl bg-gray-100/90 dark:bg-gray-700/70 px-3 py-2 text-sm text-gray-700 dark:text-gray-100 whitespace-pre-wrap">
+									<div
+										class="rounded-2xl bg-gray-100/90 dark:bg-gray-700/70 px-3 py-2 text-sm text-gray-700 dark:text-gray-100 whitespace-pre-wrap"
+									>
 										{turn.displayContent}
 									</div>
 								{:else}
-									<div class="rounded-2xl border border-gray-200/70 dark:border-gray-700/70 bg-white/70 dark:bg-gray-900/40 px-3 py-2 text-sm">
+									<div
+										class="rounded-2xl border border-gray-200/70 dark:border-gray-700/70 bg-white/70 dark:bg-gray-900/40 px-3 py-2 text-sm"
+									>
 										{#if turn.content.trim() === '' && turn.state === 'streaming'}
 											<Skeleton size="sm" />
 										{:else if turn.content.trim() === '' && turn.state === 'error'}
@@ -786,7 +811,12 @@
 							disabled={activeBusy || activeThread.draft.trim() === ''}
 							on:click={() => handleDraftSend(activeThread.id)}
 						>
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 16 16"
+								fill="currentColor"
+								class="size-4"
+							>
 								<path
 									fill-rule="evenodd"
 									d="M8 14a.75.75 0 0 1-.75-.75V4.56L4.03 7.78a.75.75 0 0 1-1.06-1.06l4.5-4.5a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1-1.06 1.06L8.75 4.56v8.69A.75.75 0 0 1 8 14Z"
@@ -803,8 +833,15 @@
 								disabled={activeBusy || Boolean(activeThread.addedToConversationAt)}
 								on:click={() => handleAddToConversation(activeThread)}
 							>
-								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 shrink-0">
-									<path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 20 20"
+									fill="currentColor"
+									class="size-3.5 shrink-0"
+								>
+									<path
+										d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"
+									/>
 								</svg>
 								{activeThread.addedToConversationAt
 									? $i18n.t('Added to conversation')

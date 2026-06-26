@@ -139,28 +139,32 @@
 			id: 'cinematic-realistic',
 			nameKey: 'Cinematic Realistic',
 			icon: '🎬',
-			promptTemplate: 'cinematic photography, photorealistic, dramatic lighting, film grain, professional color grading',
+			promptTemplate:
+				'cinematic photography, photorealistic, dramatic lighting, film grain, professional color grading',
 			category: 'photography'
 		},
 		{
 			id: 'ecommerce-product',
 			nameKey: 'E-commerce Product',
 			icon: '🛍️',
-			promptTemplate: 'clean product photography, white background, studio lighting, high resolution, commercial quality',
+			promptTemplate:
+				'clean product photography, white background, studio lighting, high resolution, commercial quality',
 			category: 'commercial'
 		},
 		{
 			id: 'transparent-sticker',
 			nameKey: 'Transparent Sticker',
 			icon: '🏷️',
-			promptTemplate: 'sticker design, transparent background, clean edges, vibrant colors, die-cut style',
+			promptTemplate:
+				'sticker design, transparent background, clean edges, vibrant colors, die-cut style',
 			category: 'design'
 		},
 		{
 			id: '3d-toy',
 			nameKey: '3D Designer Toy',
 			icon: '🎨',
-			promptTemplate: '3D render, designer toy, smooth plastic material, studio lighting, trendy collectible style',
+			promptTemplate:
+				'3D render, designer toy, smooth plastic material, studio lighting, trendy collectible style',
 			category: 'design'
 		},
 		{
@@ -174,21 +178,24 @@
 			id: 'vintage-poster',
 			nameKey: 'Vintage Poster',
 			icon: '📜',
-			promptTemplate: 'vintage poster design, retro style, aged paper texture, classic typography, nostalgic aesthetic',
+			promptTemplate:
+				'vintage poster design, retro style, aged paper texture, classic typography, nostalgic aesthetic',
 			category: 'art'
 		},
 		{
 			id: 'anime-illustration',
 			nameKey: 'Anime Illustration',
 			icon: '🎌',
-			promptTemplate: 'anime style illustration, vibrant colors, detailed linework, expressive characters, Japanese animation aesthetic',
+			promptTemplate:
+				'anime style illustration, vibrant colors, detailed linework, expressive characters, Japanese animation aesthetic',
 			category: 'art'
 		},
 		{
 			id: 'minimal-wallpaper',
 			nameKey: 'Minimal Wallpaper',
 			icon: '🖼️',
-			promptTemplate: 'minimalist wallpaper, clean composition, subtle gradients, modern aesthetic, high resolution',
+			promptTemplate:
+				'minimalist wallpaper, clean composition, subtle gradients, modern aesthetic, high resolution',
 			category: 'design'
 		}
 	];
@@ -298,7 +305,9 @@
 		};
 	};
 	const openImageModelSelector = async (searchValue = '') => {
-		const button = document.getElementById(WORKSPACE_IMAGE_MODEL_SELECTOR_ID) as HTMLButtonElement | null;
+		const button = document.getElementById(
+			WORKSPACE_IMAGE_MODEL_SELECTOR_ID
+		) as HTMLButtonElement | null;
 		if (!button) return;
 		button.click();
 		await tick();
@@ -372,8 +381,9 @@
 		return '';
 	};
 	const getModelLabel = (model: ImageGenerationModel | null | undefined) =>
-		getModelChatDisplayName(model as { id?: string; name?: string; connection_name?: string } | null) ||
-		`${model?.name ?? model?.id ?? ''}`.trim();
+		getModelChatDisplayName(
+			model as { id?: string; name?: string; connection_name?: string } | null
+		) || `${model?.name ?? model?.id ?? ''}`.trim();
 
 	const loadWorkspacePrefs = () => {
 		try {
@@ -460,10 +470,14 @@
 	$: showsStepsControl = !showsResolutionControl;
 	$: activeSize = usingCustomSize ? `${customSizeInput ?? ''}`.trim() : selectedPresetSize;
 	$: activeSizeLabel =
-		usingCustomSize && activeSize ? activeSize : usingCustomSize ? $i18n.t('Custom size') : selectedPresetSize;
+		usingCustomSize && activeSize
+			? activeSize
+			: usingCustomSize
+				? $i18n.t('Custom size')
+				: selectedPresetSize;
 	$: activeSizeParsed = parseImageSize(activeSize);
 	$: selectedAspectRatio = activeSizeParsed?.aspectRatio ?? null;
-	$: currentConstraint = selectedModel ? learnedConstraints[selectedModel] ?? null : null;
+	$: currentConstraint = selectedModel ? (learnedConstraints[selectedModel] ?? null) : null;
 	$: sizeSelectValue = usingCustomSize ? CUSTOM_SIZE_OPTION_VALUE : selectedPresetSize;
 	$: recommendedSizes = getRecommendedImageSizes(activeSize, {
 		minPixels: currentConstraint?.minPixels,
@@ -528,7 +542,7 @@
 				? $i18n.t('Image models are unavailable right now. Check your image settings.')
 				: selectedModelNeedsReselection || !selectedModel
 					? $i18n.t('Model not selected')
-				: sizeValidation?.description ?? null;
+					: (sizeValidation?.description ?? null);
 
 	$: canSubmit =
 		!loading &&
@@ -773,11 +787,7 @@
 		}
 	};
 
-	const addToHistory = (
-		status: 'success' | 'failed',
-		images?: string[],
-		error?: string
-	) => {
+	const addToHistory = (status: 'success' | 'failed', images?: string[], error?: string) => {
 		try {
 			const raw = localStorage.getItem(WORKSPACE_IMAGE_HISTORY_KEY);
 			const existing: GenerationHistory[] = raw ? JSON.parse(raw) : [];
@@ -938,7 +948,10 @@
 			search: normalizedQuery
 		}).catch(() => null);
 
-		if (requestId !== imageModelSearchRequestId || imageModelSearchQuery.trim() !== normalizedQuery) {
+		if (
+			requestId !== imageModelSearchRequestId ||
+			imageModelSearchQuery.trim() !== normalizedQuery
+		) {
 			return;
 		}
 
@@ -1118,7 +1131,10 @@
 			if (response?.length) {
 				generatedImages = response;
 				addToGallery(response);
-				addToHistory('success', response.map((img) => img.url));
+				addToHistory(
+					'success',
+					response.map((img) => img.url)
+				);
 				await tick();
 				resultsSectionElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 			} else {
@@ -1135,11 +1151,7 @@
 						? 'This image workspace was saved in an older version with only the model name. Multiple connections now share that model. Please reselect the correct image model with its connection suffix.'
 						: 'The saved image model connection is no longer available. Please reselect the correct image model with its connection suffix.'
 				);
-				addToHistory(
-					'failed',
-					undefined,
-					resolutionDetail.message || formatError(error)
-				);
+				addToHistory('failed', undefined, resolutionDetail.message || formatError(error));
 				return;
 			}
 
@@ -1197,7 +1209,6 @@
 			viewState = 'disabled';
 			return;
 		}
-
 
 		await loadWorkspaceModels();
 
@@ -1273,7 +1284,9 @@
 
 			<section class="workspace-section">
 				<div class="workspace-empty-state">
-					<div class="flex size-14 mx-auto items-center justify-center rounded-2xl bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500">
+					<div
+						class="flex size-14 mx-auto items-center justify-center rounded-2xl bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
+					>
 						<PhotoSolid className="size-7" />
 					</div>
 					<h2 class="mt-4 text-base font-semibold text-gray-900 dark:text-white">
@@ -1294,16 +1307,19 @@
 								: $i18n.t('Please try again later.'))}
 					</p>
 					<div class="mt-5 flex flex-wrap justify-center gap-2">
-						<button type="button" class="workspace-secondary-button text-xs" on:click={() => location.reload()}>
+						<button
+							type="button"
+							class="workspace-secondary-button text-xs"
+							on:click={() => location.reload()}
+						>
 							{$i18n.t('Refresh')}
 						</button>
 					</div>
 				</div>
 			</section>
 		</div>
-	{:else}
-		{#if activeTab === 'workbench'}
-			<form class="space-y-4" on:submit|preventDefault={submitHandler}>
+	{:else if activeTab === 'workbench'}
+		<form class="space-y-4" on:submit|preventDefault={submitHandler}>
 			<section class="workspace-section space-y-4">
 				<div class="flex flex-col gap-3 lg:flex-row lg:items-center">
 					<div class="workspace-toolbar-summary">
@@ -1353,9 +1369,25 @@
 								title={blockedReason ?? ''}
 							>
 								{#if loading}
-									<svg class="size-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+									<svg
+										class="size-4 animate-spin"
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+									>
+										<circle
+											class="opacity-25"
+											cx="12"
+											cy="12"
+											r="10"
+											stroke="currentColor"
+											stroke-width="4"
+										/>
+										<path
+											class="opacity-75"
+											fill="currentColor"
+											d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+										/>
 									</svg>
 								{:else}
 									<Sparkles className="size-4" strokeWidth="2" />
@@ -1497,7 +1529,9 @@
 								/>
 
 								{#if usingCustomSize}
-									<div class="space-y-2 rounded-xl border border-dashed border-gray-200/80 bg-gray-50/70 p-3 dark:border-gray-700/60 dark:bg-gray-900/40">
+									<div
+										class="space-y-2 rounded-xl border border-dashed border-gray-200/80 bg-gray-50/70 p-3 dark:border-gray-700/60 dark:bg-gray-900/40"
+									>
 										<div class="flex items-center justify-between gap-2">
 											<div class="text-xs font-medium text-gray-700 dark:text-gray-200">
 												{$i18n.t('Custom size')}
@@ -1515,8 +1549,12 @@
 											placeholder="1344x768"
 											class="w-full rounded-xl border border-gray-200/80 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-gray-300 dark:border-gray-700/60 dark:bg-gray-950/70 dark:text-gray-100 dark:focus:border-gray-600"
 										/>
-										<div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
-											<div>{$i18n.t('Enter a custom size like {{example}}.', { example: '1344x768' })}</div>
+										<div
+											class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400"
+										>
+											<div>
+												{$i18n.t('Enter a custom size like {{example}}.', { example: '1344x768' })}
+											</div>
 											{#if activeSizeParsed}
 												<div>
 													{$i18n.t('Total pixels')}: {formatPixelCount(activeSizeParsed.pixels)}
@@ -1536,7 +1574,9 @@
 								{/if}
 
 								{#if sizeValidation}
-									<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+									<div
+										class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+									>
 										<div class="font-semibold">{sizeValidation.title}</div>
 										<div class="mt-1 leading-5">{sizeValidation.description}</div>
 										{#if currentConstraint?.requestId}
@@ -1701,7 +1741,12 @@
 													</div>
 												{/if}
 											</div>
-											<svg class="size-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<svg
+												class="size-4 text-gray-400"
+												fill="none"
+												stroke="currentColor"
+												viewBox="0 0 24 24"
+											>
 												<path
 													stroke-linecap="round"
 													stroke-linejoin="round"
@@ -1803,14 +1848,18 @@
 					</div>
 				{:else}
 					<div class="workspace-empty-state">
-						<div class="flex size-14 mx-auto items-center justify-center rounded-2xl bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500">
+						<div
+							class="flex size-14 mx-auto items-center justify-center rounded-2xl bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
+						>
 							<PhotoSolid className="size-7" />
 						</div>
 						<div class="mt-4 text-base font-semibold text-gray-900 dark:text-gray-100">
 							{$i18n.t('Your images will appear here after generation.')}
 						</div>
 						<div class="mt-2 max-w-sm mx-auto text-sm leading-6 text-gray-500 dark:text-gray-400">
-							{$i18n.t('Start with a strong subject, then add lighting, composition, materials, and mood for better results.')}
+							{$i18n.t(
+								'Start with a strong subject, then add lighting, composition, materials, and mood for better results.'
+							)}
 						</div>
 					</div>
 				{/if}
@@ -2060,7 +2109,9 @@
 										<div class="text-sm text-gray-900 dark:text-gray-100 line-clamp-2">
 											{item.prompt}
 										</div>
-										<div class="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
+										<div
+											class="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400"
+										>
 											<span>{item.model}</span>
 											<span>•</span>
 											<span>{new Date(item.createdAt).toLocaleString()}</span>
@@ -2111,11 +2162,6 @@
 			</div>
 		</div>
 	{/if}
-	{/if}
 {/if}
 
-<ImagePreview
-	bind:show={previewOpen}
-	src={previewSrc}
-	alt={previewAlt}
-/>
+<ImagePreview bind:show={previewOpen} src={previewSrc} alt={previewAlt} />

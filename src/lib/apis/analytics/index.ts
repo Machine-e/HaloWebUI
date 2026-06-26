@@ -3,7 +3,9 @@ import { parseJsonResponse } from '../response';
 
 const getBrowserTimeZone = () => {
 	try {
-		return typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone ?? '' : '';
+		return typeof Intl !== 'undefined'
+			? (Intl.DateTimeFormat().resolvedOptions().timeZone ?? '')
+			: '';
 	} catch {
 		return '';
 	}
@@ -71,11 +73,7 @@ export const getDailyStats = async (token: string, days: number = 30, model?: st
 
 export const cleanupAnalytics = async (
 	token: string,
-	{
-		models,
-		days,
-		dry_run = false
-	}: { models: string[]; days: number | null; dry_run?: boolean }
+	{ models, days, dry_run = false }: { models: string[]; days: number | null; dry_run?: boolean }
 ) => {
 	let error = null;
 	const res = await fetch(`${WEBUI_API_BASE_URL}/analytics/cleanup`, {

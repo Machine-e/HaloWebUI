@@ -51,19 +51,23 @@ export const getPyodideDownloadSummary = (packages: string[], t?: Translator) =>
 	if (packages.length === 0) {
 		return t
 			? t('首次运行需要下载浏览器 Python 运行时，约 {{size}} MB。', {
-					defaultValue: 'The browser Python runtime needs to be downloaded on first use, about {{size}} MB.',
+					defaultValue:
+						'The browser Python runtime needs to be downloaded on first use, about {{size}} MB.',
 					size: rounded
 				})
 			: `The browser Python runtime needs to be downloaded on first use, about ${rounded} MB.`;
 	}
 
 	return t
-		? t('首次运行需要下载浏览器 Python 运行时，约 {{size}} MB；其中包含基础运行时和 {{packages}} 等附加包。', {
-				defaultValue:
-					'The browser Python runtime needs to be downloaded on first use, about {{size}} MB, including the base runtime and extra packages such as {{packages}}.',
-				size: rounded,
-				packages: packages.join(', ')
-			})
+		? t(
+				'首次运行需要下载浏览器 Python 运行时，约 {{size}} MB；其中包含基础运行时和 {{packages}} 等附加包。',
+				{
+					defaultValue:
+						'The browser Python runtime needs to be downloaded on first use, about {{size}} MB, including the base runtime and extra packages such as {{packages}}.',
+					size: rounded,
+					packages: packages.join(', ')
+				}
+			)
 		: `The browser Python runtime needs to be downloaded on first use, about ${rounded} MB, including the base runtime and extra packages such as ${packages.join(', ')}.`;
 };
 

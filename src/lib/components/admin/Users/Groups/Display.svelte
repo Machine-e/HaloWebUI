@@ -24,7 +24,9 @@
 	</div>
 
 	<div class="glass-item p-4">
-		<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('Description')}</div>
+		<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+			{$i18n.t('Description')}
+		</div>
 		<Textarea
 			className="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input resize-none"
 			rows={4}

@@ -193,10 +193,7 @@ export const initPWAInstallSupport = async () => {
 			displayModeMedia.removeListener(handleDisplayModeChange);
 		}
 
-		window.removeEventListener(
-			'beforeinstallprompt',
-			handleBeforeInstallPrompt as EventListener
-		);
+		window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt as EventListener);
 		window.removeEventListener('appinstalled', handleAppInstalled);
 		initialized = false;
 	};

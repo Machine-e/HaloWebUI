@@ -63,13 +63,17 @@
 </script>
 
 {#if svg}
-	<div class="overflow-x-auto rounded-xl border border-gray-100 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+	<div
+		class="overflow-x-auto rounded-xl border border-gray-100 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
+	>
 		<div class="mx-auto min-w-[460px] max-w-[640px] [&_svg]:h-auto [&_svg]:w-full">
 			{@html svg}
 		</div>
 	</div>
 {:else}
-	<div class="flex h-[280px] items-center justify-center rounded-xl border border-gray-100 dark:border-gray-800 text-sm text-gray-400">
+	<div
+		class="flex h-[280px] items-center justify-center rounded-xl border border-gray-100 dark:border-gray-800 text-sm text-gray-400"
+	>
 		加载中...
 	</div>
 {/if}

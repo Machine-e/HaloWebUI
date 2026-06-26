@@ -244,9 +244,7 @@ const getLuminance = (color: RgbaColor | null) => {
 		return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
 	};
 
-	return (
-		0.2126 * normalize(color.r) + 0.7152 * normalize(color.g) + 0.0722 * normalize(color.b)
-	);
+	return 0.2126 * normalize(color.r) + 0.7152 * normalize(color.g) + 0.0722 * normalize(color.b);
 };
 
 const isDarkSurface = (color: RgbaColor | null) =>
@@ -324,9 +322,17 @@ const applyCompactAppearance = (root: HTMLElement) => {
 		const textColor = parseCssColor(computed.color);
 		const borderColor = parseCssColor(computed.borderColor);
 		const tagName = element.tagName.toLowerCase();
-		const isCodeLike = ['pre', 'code', 'blockquote', 'table', 'thead', 'tbody', 'tr', 'td', 'th'].includes(
-			tagName
-		);
+		const isCodeLike = [
+			'pre',
+			'code',
+			'blockquote',
+			'table',
+			'thead',
+			'tbody',
+			'tr',
+			'td',
+			'th'
+		].includes(tagName);
 
 		if (isDarkSurface(backgroundColor)) {
 			element.style.backgroundColor = isCodeLike ? '#f3f4f6' : '#ffffff';
@@ -364,11 +370,7 @@ const getPxPerCssPixel = (root: HTMLElement, canvasWidth: number) => {
 	return canvasWidth / rootWidth;
 };
 
-const getRangeInCanvasPixels = (
-	rootRect: DOMRect,
-	element: HTMLElement,
-	pxPerCssPixel: number
-) => {
+const getRangeInCanvasPixels = (rootRect: DOMRect, element: HTMLElement, pxPerCssPixel: number) => {
 	const rect = element.getBoundingClientRect();
 	const left = Math.max(0, Math.round((rect.left - rootRect.left) * pxPerCssPixel));
 	const right = Math.max(left, Math.round((rect.right - rootRect.left) * pxPerCssPixel));
@@ -513,7 +515,11 @@ const collectBreakOffsets = (root: HTMLElement, selector: string, canvasWidth: n
 			offsets.add(range.top);
 		}
 
-		if (selector === SECONDARY_BREAK_SELECTOR && range.bottom > 0 && range.bottom < rootPixelHeight) {
+		if (
+			selector === SECONDARY_BREAK_SELECTOR &&
+			range.bottom > 0 &&
+			range.bottom < rootPixelHeight
+		) {
 			offsets.add(range.bottom);
 		}
 	}
@@ -615,7 +621,10 @@ const collectMessageHeadRanges = (root: HTMLElement, canvasWidth: number) => {
 			continue;
 		}
 
-		const headBottom = Math.min(messageRange.bottom, contentRange.top + Math.round(12 * pxPerCssPixel));
+		const headBottom = Math.min(
+			messageRange.bottom,
+			contentRange.top + Math.round(12 * pxPerCssPixel)
+		);
 		if (headBottom <= messageRange.top + Math.round(24 * pxPerCssPixel)) {
 			continue;
 		}
@@ -630,11 +639,7 @@ const collectMessageHeadRanges = (root: HTMLElement, canvasWidth: number) => {
 	return ranges.sort((left, right) => left.top - right.top);
 };
 
-const collectKeepTogetherRanges = (
-	root: HTMLElement,
-	canvasWidth: number,
-	maxHeight: number
-) => {
+const collectKeepTogetherRanges = (root: HTMLElement, canvasWidth: number, maxHeight: number) => {
 	const rootRect = root.getBoundingClientRect();
 	const pxPerCssPixel = getPxPerCssPixel(root, canvasWidth);
 	const ranges: BlockRange[] = [];
@@ -702,11 +707,7 @@ const findBlockingImageRange = (breakOffset: number, atomicRanges: AtomicRange[]
 			breakOffset < range.bottom
 	);
 
-const findContainingRange = (
-	breakOffset: number,
-	ranges: BlockRange[],
-	previousBreak: number
-) => {
+const findContainingRange = (breakOffset: number, ranges: BlockRange[], previousBreak: number) => {
 	for (let index = ranges.length - 1; index >= 0; index -= 1) {
 		const range = ranges[index];
 		if (range.top <= previousBreak + 1) {
@@ -949,9 +950,7 @@ const getBandInkScore = (
 			}
 
 			const distance =
-				Math.abs(r - background.r) +
-				Math.abs(g - background.g) +
-				Math.abs(b - background.b);
+				Math.abs(r - background.r) + Math.abs(g - background.g) + Math.abs(b - background.b);
 
 			if (distance > 48) {
 				inkPixels += 1;
@@ -984,7 +983,12 @@ const findWhitespaceBreak = (
 		return null;
 	}
 
-	const imageData = ctx.getImageData(0, searchStart, canvas.width, searchEnd - searchStart + 1).data;
+	const imageData = ctx.getImageData(
+		0,
+		searchStart,
+		canvas.width,
+		searchEnd - searchStart + 1
+	).data;
 	let bestRow = -1;
 	let bestScore = Number.POSITIVE_INFINITY;
 
@@ -1163,7 +1167,10 @@ const findActualCanvasImageRange = (
 	const scanLeft = Math.max(0, approximateRange.left - 8);
 	const scanRight = Math.min(canvas.width, approximateRange.right + 8);
 	const scanTop = Math.max(0, approximateRange.top - CANVAS_IMAGE_POSITION_SEARCH_PX);
-	const scanBottom = Math.min(canvas.height, approximateRange.bottom + CANVAS_IMAGE_POSITION_SEARCH_PX);
+	const scanBottom = Math.min(
+		canvas.height,
+		approximateRange.bottom + CANVAS_IMAGE_POSITION_SEARCH_PX
+	);
 	const scanWidth = scanRight - scanLeft;
 	const scanHeight = scanBottom - scanTop;
 
@@ -1267,8 +1274,7 @@ const resolveCanvasImageRanges = (
 	canvas: HTMLCanvasElement,
 	approximateImageRanges: AtomicRange[],
 	background: RgbaColor
-) =>
-	approximateImageRanges.map((range) => findActualCanvasImageRange(canvas, range, background));
+) => approximateImageRanges.map((range) => findActualCanvasImageRange(canvas, range, background));
 
 const planPageSlices = async (root: HTMLElement, pageCssHeight: number) => {
 	for (let pass = 0; pass < MAX_PAGE_SLICE_PLAN_PASSES; pass += 1) {
@@ -1345,12 +1351,7 @@ const planPageSlices = async (root: HTMLElement, pageCssHeight: number) => {
 				protectedAtomicRanges,
 				keepTogetherRanges
 			);
-			const resolvedBreak = resolveImageBreak(
-				offsetY,
-				pageCssHeight,
-				candidateBreak,
-				atomicRanges
-			);
+			const resolvedBreak = resolveImageBreak(offsetY, pageCssHeight, candidateBreak, atomicRanges);
 
 			if (resolvedBreak.layoutAdjusted) {
 				layoutAdjusted = true;
@@ -1570,26 +1571,26 @@ export const exportChatPdfFromElement = async ({
 		await waitForImages(clone);
 
 		const backgroundColor = config.backgroundColor(darkMode);
-			const canvas = await html2canvas(clone, {
-				backgroundColor,
-				useCORS: true,
-				scale: config.scale,
-				width: config.width,
-				windowWidth: config.width,
-				logging: false
-			});
-			const background =
-				parseCssColor(backgroundColor) ??
-				({
-					r: 255,
-					g: 255,
-					b: 255,
-					a: 1
-				} satisfies RgbaColor);
-			const pageSlices = buildPageSlices(clone, canvas, cssPageSlices, background, pageCssHeight);
+		const canvas = await html2canvas(clone, {
+			backgroundColor,
+			useCORS: true,
+			scale: config.scale,
+			width: config.width,
+			windowWidth: config.width,
+			logging: false
+		});
+		const background =
+			parseCssColor(backgroundColor) ??
+			({
+				r: 255,
+				g: 255,
+				b: 255,
+				a: 1
+			} satisfies RgbaColor);
+		const pageSlices = buildPageSlices(clone, canvas, cssPageSlices, background, pageCssHeight);
 
-			await saveCanvasAsPdf(
-				canvas,
+		await saveCanvasAsPdf(
+			canvas,
 			title,
 			config.quality,
 			darkMode && mode === 'stylized',

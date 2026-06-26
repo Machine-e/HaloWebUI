@@ -74,7 +74,8 @@ const getDiagnosticKeys = (code: string): Record<string, string | null> | null =
 		case 'unsupported_archive':
 			return {
 				title: 'Archive not supported',
-				message: 'This model does not support archive files. Please extract and upload files individually.',
+				message:
+					'This model does not support archive files. Please extract and upload files individually.',
 				hint: null
 			};
 		case 'unsupported_binary_file':
@@ -133,8 +134,7 @@ const getDiagnosticKeys = (code: string): Record<string, string | null> | null =
 				title: 'Document parsing failed',
 				message:
 					'The system tried the current document parser first, then a backup parser, but neither could read this file.',
-				hint:
-					'Check the selected document parser, required credentials such as API keys, and local parsing dependencies. If you do not have access, ask an administrator to review them, then try again.'
+				hint: 'Check the selected document parser, required credentials such as API keys, and local parsing dependencies. If you do not have access, ask an administrator to review them, then try again.'
 			};
 		case 'file_processing_failed':
 			return {
@@ -191,13 +191,13 @@ export const getLocalizedFileUploadDiagnostic = (
 
 	if (diagnostic) {
 		const keys = getDiagnosticKeys(diagnostic.code);
-		const title = keys?.title ? t(keys.title) : diagnostic.title ?? t('Upload failed');
-		const message = keys?.message ? t(keys.message) : diagnostic.message ?? t('Upload failed');
+		const title = keys?.title ? t(keys.title) : (diagnostic.title ?? t('Upload failed'));
+		const message = keys?.message ? t(keys.message) : (diagnostic.message ?? t('Upload failed'));
 		const hintKey =
 			getEmbeddingHintKey(diagnostic.code, options.isAdmin ?? false) ??
 			getEmbeddingServiceHintKey(diagnostic.code, options.isAdmin ?? false) ??
 			keys?.hint;
-		const hint = hintKey ? t(hintKey) : diagnostic.hint ?? '';
+		const hint = hintKey ? t(hintKey) : (diagnostic.hint ?? '');
 
 		return {
 			code: diagnostic.code,

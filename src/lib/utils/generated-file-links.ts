@@ -50,9 +50,8 @@ export const normalizeGeneratedFileLinkPath = (value: unknown): string | null =>
 	}
 
 	const normalizedInput = trimmed.replaceAll('\\', '/');
-	const knownSandboxUrlMatch = /^(?:sandbox:|file:\/\/)(\/mnt\/(?:data|generated|uploads)\/.+)$/i.exec(
-		normalizedInput
-	);
+	const knownSandboxUrlMatch =
+		/^(?:sandbox:|file:\/\/)(\/mnt\/(?:data|generated|uploads)\/.+)$/i.exec(normalizedInput);
 	const linkTarget = knownSandboxUrlMatch?.[1] ?? normalizedInput;
 
 	if (!knownSandboxUrlMatch && /^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
@@ -60,8 +59,7 @@ export const normalizeGeneratedFileLinkPath = (value: unknown): string | null =>
 	}
 
 	const { path } = splitLinkTarget(linkTarget);
-	const normalizedPath =
-		path.startsWith('/') ? stripKnownGeneratedFileSandboxPrefix(path) : path;
+	const normalizedPath = path.startsWith('/') ? stripKnownGeneratedFileSandboxPrefix(path) : path;
 	if (!normalizedPath) {
 		return null;
 	}

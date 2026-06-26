@@ -16,7 +16,10 @@
 	<div class="flex-1 mb-2.5">
 		<HaloSelect
 			bind:value={selectedUrlIdxStr}
-			options={ollamaConfig.OLLAMA_BASE_URLS.map((url, idx) => ({ value: String(idx), label: url }))}
+			options={ollamaConfig.OLLAMA_BASE_URLS.map((url, idx) => ({
+				value: String(idx),
+				label: url
+			}))}
 			placeholder={$i18n.t('Select an Ollama instance')}
 			className="w-full"
 		/>

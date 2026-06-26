@@ -204,25 +204,15 @@
 		{#if selectedTab === 'models'}
 			<Models />
 		{:else if selectedTab === 'documents'}
-			<Documents
-				on:save={() => handleSettingsSaved({ refreshConfig: true })}
-			/>
+			<Documents on:save={() => handleSettingsSaved({ refreshConfig: true })} />
 		{:else if selectedTab === 'web'}
-			<WebSearch
-				saveHandler={() => handleSettingsSaved({ refreshConfig: true })}
-			/>
+			<WebSearch saveHandler={() => handleSettingsSaved({ refreshConfig: true })} />
 		{:else if selectedTab === 'code-execution'}
-			<CodeExecution
-				saveHandler={() => handleSettingsSaved({ refreshConfig: true })}
-			/>
+			<CodeExecution saveHandler={() => handleSettingsSaved({ refreshConfig: true })} />
 		{:else if selectedTab === 'audio'}
-			<GlobalAudioSettingsForm
-				saveHandler={() => handleSettingsSaved()}
-			/>
+			<GlobalAudioSettingsForm saveHandler={() => handleSettingsSaved()} />
 		{:else if selectedTab === 'images'}
-			<Images
-				on:save={() => handleSettingsSaved()}
-			/>
+			<Images on:save={() => handleSettingsSaved()} />
 		{/if}
 	</div>
 </div>

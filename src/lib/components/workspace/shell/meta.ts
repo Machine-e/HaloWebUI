@@ -131,8 +131,7 @@ export const WORKSPACE_TABS: WorkspaceTabMeta[] = [
 		key: 'skills',
 		href: '/workspace/skills',
 		labelKey: 'Skills',
-		descKey:
-			'Add skills to give chats task-specific instructions, resources, and automation.',
+		descKey: 'Add skills to give chats task-specific instructions, resources, and automation.',
 		badgeColor: 'bg-gray-100 dark:bg-gray-900',
 		iconColor: 'text-gray-600 dark:text-gray-300',
 		iconPaths: [

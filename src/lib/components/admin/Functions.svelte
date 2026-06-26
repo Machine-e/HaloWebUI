@@ -195,9 +195,7 @@
 			<div class="flex md:self-center text-xl items-center font-medium px-0.5">
 				{$i18n.t('Functions')}
 				<div class="flex self-center w-[1px] h-6 mx-2.5 bg-gray-50 dark:bg-gray-850" />
-				<span class="text-base font-lg text-gray-500 dark:text-gray-300"
-					>{countLabel}</span
-				>
+				<span class="text-base font-lg text-gray-500 dark:text-gray-300">{countLabel}</span>
 			</div>
 		</div>
 
@@ -230,157 +228,157 @@
 				<Spinner />
 			</div>
 		{:else}
-		{#each filteredItems as func (func.id)}
-			<div
-				class=" flex space-x-4 cursor-pointer w-full px-3 py-2 dark:hover:bg-white/5 hover:bg-black/5 rounded-xl"
-			>
-				<a
-					class=" flex flex-1 space-x-3.5 cursor-pointer w-full"
-					href={`/settings/functions/edit?id=${encodeURIComponent(func.id)}`}
+			{#each filteredItems as func (func.id)}
+				<div
+					class=" flex space-x-4 cursor-pointer w-full px-3 py-2 dark:hover:bg-white/5 hover:bg-black/5 rounded-xl"
 				>
-					<div class="flex items-center text-left">
-						<div class=" flex-1 self-center pl-1">
-							<div class=" font-semibold flex items-center gap-1.5">
-								<div
-									class=" text-xs font-bold px-1 rounded-sm uppercase line-clamp-1 bg-gray-500/20 text-gray-700 dark:text-gray-200"
-								>
-									{func.type}
-								</div>
-
-								{#if func?.meta?.manifest?.version}
+					<a
+						class=" flex flex-1 space-x-3.5 cursor-pointer w-full"
+						href={`/settings/functions/edit?id=${encodeURIComponent(func.id)}`}
+					>
+						<div class="flex items-center text-left">
+							<div class=" flex-1 self-center pl-1">
+								<div class=" font-semibold flex items-center gap-1.5">
 									<div
-										class="text-xs font-bold px-1 rounded-sm line-clamp-1 bg-gray-500/20 text-gray-700 dark:text-gray-200"
+										class=" text-xs font-bold px-1 rounded-sm uppercase line-clamp-1 bg-gray-500/20 text-gray-700 dark:text-gray-200"
 									>
-										v{func?.meta?.manifest?.version ?? ''}
+										{func.type}
 									</div>
-								{/if}
 
-								<div class=" line-clamp-1">
-									{func.name}
+									{#if func?.meta?.manifest?.version}
+										<div
+											class="text-xs font-bold px-1 rounded-sm line-clamp-1 bg-gray-500/20 text-gray-700 dark:text-gray-200"
+										>
+											v{func?.meta?.manifest?.version ?? ''}
+										</div>
+									{/if}
+
+									<div class=" line-clamp-1">
+										{func.name}
+									</div>
 								</div>
-							</div>
 
-							<div class="flex gap-1.5 px-1">
-								<div class=" text-gray-500 text-xs font-medium shrink-0">{func.id}</div>
+								<div class="flex gap-1.5 px-1">
+									<div class=" text-gray-500 text-xs font-medium shrink-0">{func.id}</div>
 
-								<div class=" text-xs overflow-hidden text-ellipsis line-clamp-1">
-									{func.meta.description}
+									<div class=" text-xs overflow-hidden text-ellipsis line-clamp-1">
+										{func.meta.description}
+									</div>
 								</div>
 							</div>
 						</div>
-					</div>
-				</a>
-				<div class="flex flex-row gap-0.5 self-center">
-					{#if shiftKey}
-						<Tooltip content={$i18n.t('Delete')}>
-							<button
-								class="self-center w-fit text-sm px-2 py-2 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
-								type="button"
-								on:click={() => {
-									deleteHandler(func);
-								}}
-							>
-								<GarbageBin />
-							</button>
-						</Tooltip>
-					{:else}
-						{#if func?.meta?.manifest?.funding_url ?? false}
-							<Tooltip content={$i18n.t('Support')}>
+					</a>
+					<div class="flex flex-row gap-0.5 self-center">
+						{#if shiftKey}
+							<Tooltip content={$i18n.t('Delete')}>
+								<button
+									class="self-center w-fit text-sm px-2 py-2 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
+									type="button"
+									on:click={() => {
+										deleteHandler(func);
+									}}
+								>
+									<GarbageBin />
+								</button>
+							</Tooltip>
+						{:else}
+							{#if func?.meta?.manifest?.funding_url ?? false}
+								<Tooltip content={$i18n.t('Support')}>
+									<button
+										class="self-center w-fit text-sm px-2 py-2 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
+										type="button"
+										on:click={() => {
+											selectedFunction = func;
+											showManifestModal = true;
+										}}
+									>
+										<Heart />
+									</button>
+								</Tooltip>
+							{/if}
+
+							<Tooltip content={$i18n.t('Valves')}>
 								<button
 									class="self-center w-fit text-sm px-2 py-2 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
 									type="button"
 									on:click={() => {
 										selectedFunction = func;
-										showManifestModal = true;
+										showValvesModal = true;
 									}}
 								>
-									<Heart />
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke-width="1.5"
+										stroke="currentColor"
+										class="size-4"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"
+										/>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+										/>
+									</svg>
 								</button>
 							</Tooltip>
+
+							<FunctionMenu
+								{func}
+								editHandler={() => {
+									goto(`/settings/functions/edit?id=${encodeURIComponent(func.id)}`);
+								}}
+								shareHandler={() => {
+									shareHandler(func);
+								}}
+								cloneHandler={() => {
+									cloneHandler(func);
+								}}
+								exportHandler={() => {
+									exportHandler(func);
+								}}
+								deleteHandler={async () => {
+									selectedFunction = func;
+									showDeleteConfirm = true;
+								}}
+								toggleGlobalHandler={() => {
+									if (['filter', 'action'].includes(func.type)) {
+										toggleGlobalHandler(func);
+									}
+								}}
+								onClose={() => {}}
+							>
+								<button
+									class="self-center w-fit text-sm p-1.5 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
+									type="button"
+								>
+									<EllipsisHorizontal className="size-5" />
+								</button>
+							</FunctionMenu>
 						{/if}
 
-						<Tooltip content={$i18n.t('Valves')}>
-							<button
-								class="self-center w-fit text-sm px-2 py-2 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
-								type="button"
-								on:click={() => {
-									selectedFunction = func;
-									showValvesModal = true;
-								}}
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke-width="1.5"
-									stroke="currentColor"
-									class="size-4"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"
-									/>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-									/>
-								</svg>
-							</button>
-						</Tooltip>
-
-						<FunctionMenu
-							{func}
-							editHandler={() => {
-								goto(`/settings/functions/edit?id=${encodeURIComponent(func.id)}`);
-							}}
-							shareHandler={() => {
-								shareHandler(func);
-							}}
-							cloneHandler={() => {
-								cloneHandler(func);
-							}}
-							exportHandler={() => {
-								exportHandler(func);
-							}}
-							deleteHandler={async () => {
-								selectedFunction = func;
-								showDeleteConfirm = true;
-							}}
-							toggleGlobalHandler={() => {
-								if (['filter', 'action'].includes(func.type)) {
-									toggleGlobalHandler(func);
-								}
-							}}
-							onClose={() => {}}
-						>
-							<button
-								class="self-center w-fit text-sm p-1.5 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
-								type="button"
-							>
-								<EllipsisHorizontal className="size-5" />
-							</button>
-						</FunctionMenu>
-					{/if}
-
-					<div class=" self-center mx-1">
-						<Tooltip content={func.is_active ? $i18n.t('Enabled') : $i18n.t('Disabled')}>
-							<Switch
-								bind:state={func.is_active}
-								on:change={async (e) => {
-									toggleFunctionById(localStorage.token, func.id);
-									await refreshModels(localStorage.token, {
-										force: true,
-										reason: 'admin-functions'
-									});
-								}}
-							/>
-						</Tooltip>
+						<div class=" self-center mx-1">
+							<Tooltip content={func.is_active ? $i18n.t('Enabled') : $i18n.t('Disabled')}>
+								<Switch
+									bind:state={func.is_active}
+									on:change={async (e) => {
+										toggleFunctionById(localStorage.token, func.id);
+										await refreshModels(localStorage.token, {
+											force: true,
+											reason: 'admin-functions'
+										});
+									}}
+								/>
+							</Tooltip>
+						</div>
 					</div>
 				</div>
-			</div>
-		{/each}
+			{/each}
 		{/if}
 	</div>
 

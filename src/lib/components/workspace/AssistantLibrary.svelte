@@ -113,7 +113,8 @@
 		<!-- 左侧分类列表 -->
 		<div class="workspace-section w-full shrink-0 overflow-y-auto lg:w-56">
 			<div class="workspace-count-pill">
-				{filteredAgents.length} {$i18n.t('Assistant Templates')}
+				{filteredAgents.length}
+				{$i18n.t('Assistant Templates')}
 			</div>
 			<div class="mt-4 space-y-1.5">
 				<button

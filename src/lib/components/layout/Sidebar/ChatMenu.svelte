@@ -66,17 +66,17 @@
 			return;
 		}
 
-		const res = await updateChatFolderIdById(localStorage.token, chatId, folderId).catch((error) => {
-			toast.error(`${error}`);
-			return null;
-		});
+		const res = await updateChatFolderIdById(localStorage.token, chatId, folderId).catch(
+			(error) => {
+				toast.error(`${error}`);
+				return null;
+			}
+		);
 
 		if (res) {
 			dispatch('change');
 			show = false;
-			toast.success(
-				folderId === null ? $i18n.t('Removed from group') : $i18n.t('Moved to group')
-			);
+			toast.success(folderId === null ? $i18n.t('Removed from group') : $i18n.t('Moved to group'));
 		}
 	};
 

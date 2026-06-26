@@ -75,15 +75,16 @@
 		});
 	};
 
-	$: dirtySections = initialSnapshot && snapshot
-		? {
-				general: !isSettingsSnapshotEqual(snapshot.general, initialSnapshot.general),
-				terminal: !isSettingsSnapshotEqual(snapshot.terminal, initialSnapshot.terminal)
-			}
-		: {
-				general: false,
-				terminal: false
-			};
+	$: dirtySections =
+		initialSnapshot && snapshot
+			? {
+					general: !isSettingsSnapshotEqual(snapshot.general, initialSnapshot.general),
+					terminal: !isSettingsSnapshotEqual(snapshot.terminal, initialSnapshot.terminal)
+				}
+			: {
+					general: false,
+					terminal: false
+				};
 
 	const submitHandler = async () => {
 		isSaving = true;
@@ -162,7 +163,11 @@
 									fill="currentColor"
 									class="size-[18px] text-blue-500 dark:text-blue-400"
 								>
-									<path fill-rule="evenodd" d="M14.447 3.027a.75.75 0 01.527.92l-4.5 16.5a.75.75 0 01-1.448-.394l4.5-16.5a.75.75 0 01.921-.526zM16.72 6.22a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L21.44 12l-4.72-4.72a.75.75 0 010-1.06zm-9.44 0a.75.75 0 010 1.06L2.56 12l4.72 4.72a.75.75 0 11-1.06 1.06L.97 12.53a.75.75 0 010-1.06l5.25-5.25a.75.75 0 011.06 0z" clip-rule="evenodd" />
+									<path
+										fill-rule="evenodd"
+										d="M14.447 3.027a.75.75 0 01.527.92l-4.5 16.5a.75.75 0 01-1.448-.394l4.5-16.5a.75.75 0 01.921-.526zM16.72 6.22a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L21.44 12l-4.72-4.72a.75.75 0 010-1.06zm-9.44 0a.75.75 0 010 1.06L2.56 12l4.72 4.72a.75.75 0 11-1.06 1.06L.97 12.53a.75.75 0 010-1.06l5.25-5.25a.75.75 0 011.06 0z"
+										clip-rule="evenodd"
+									/>
 								</svg>
 							</div>
 							<div class="text-base font-semibold text-gray-800 dark:text-gray-100">
@@ -178,153 +183,147 @@
 					</div>
 
 					<div class="space-y-3">
-							<div class="text-sm font-medium text-gray-500 dark:text-gray-400 pl-1">
-								{$i18n.t('Code Execution')}
-							</div>
-							<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-								<!-- 启用代码执行 -->
-								<div
-									class="flex items-center justify-between glass-item px-4 py-3"
-								>
-									<div class="text-sm font-medium">{$i18n.t('Enable Code Execution')}</div>
-									<Switch bind:state={config.ENABLE_CODE_EXECUTION} />
-								</div>
-
-								<!-- 代码执行引擎 -->
-								<div
-									class="glass-item px-4 py-3"
-								>
-									<div class="flex items-center justify-between">
-										<div class="text-sm font-medium">{$i18n.t('Code Execution Engine')}</div>
-										<HaloSelect
-											bind:value={config.CODE_EXECUTION_ENGINE}
-											placeholder={$i18n.t('Select a engine')}
-											options={engines.map((engine) => ({ value: engine, label: engine }))}
-											className="w-fit capitalize"
-										/>
-									</div>
-								</div>
-							</div>
-
-							{#if config.CODE_EXECUTION_ENGINE === 'jupyter'}
-								<!-- Jupyter 安全警告 -->
-								<div
-									class="p-3 glass-warning"
-								>
-									<div class="flex items-start gap-2.5">
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke-width="1.5"
-											stroke="currentColor"
-											class="size-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
-											/>
-										</svg>
-										<div class="text-xs leading-relaxed text-amber-700 dark:text-amber-300">
-											{$i18n.t(
-												'Warning: Jupyter execution enables arbitrary code execution, posing severe security risks—proceed with extreme caution.'
-											)}
-										</div>
-									</div>
-								</div>
-
-								<!-- Jupyter 配置 -->
-								<div class="space-y-3 pt-3">
-									<div class="relative flex items-center mb-4">
-										<span class="pr-3 text-[13px] font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">
-											{$i18n.t('Jupyter Configuration')}
-										</span>
-										<div class="flex-grow border-t border-dashed border-gray-200 dark:border-gray-800/60"></div>
-									</div>
-
-									<!-- Jupyter URL -->
-									<div
-										class="glass-item p-4"
-									>
-										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('Jupyter URL')}</div>
-										<input
-											class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
-											type="text"
-											placeholder={$i18n.t('Enter Jupyter URL')}
-											bind:value={config.CODE_EXECUTION_JUPYTER_URL}
-											autocomplete="off"
-										/>
-									</div>
-
-									<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-										<!-- Auth Method -->
-										<div
-											class="glass-item px-4 py-3"
-										>
-											<div class="flex items-center justify-between">
-												<div class="text-sm font-medium">{$i18n.t('Jupyter Auth')}</div>
-												<HaloSelect
-													bind:value={config.CODE_EXECUTION_JUPYTER_AUTH}
-													placeholder={$i18n.t('Select an auth method')}
-													options={[
-														{ value: '', label: $i18n.t('None') },
-														{ value: 'token', label: $i18n.t('Token') },
-														{ value: 'password', label: $i18n.t('Password') }
-													]}
-													className="w-fit"
-												/>
-											</div>
-										</div>
-
-										<!-- Timeout -->
-										<div
-											class="glass-item px-4 py-3"
-										>
-											<div class="flex items-center justify-between">
-												<div class="text-sm font-medium">{$i18n.t('Code Execution Timeout')}</div>
-												<Tooltip content={$i18n.t('Enter timeout in seconds')}>
-													<div class="flex items-center gap-2">
-														<input
-															class="w-20 py-1.5 px-3 text-sm dark:text-gray-300 text-right glass-input"
-															type="number"
-															bind:value={config.CODE_EXECUTION_JUPYTER_TIMEOUT}
-															placeholder="60"
-															autocomplete="off"
-														/>
-														<span class="text-xs text-gray-400 dark:text-gray-500">{$i18n.t('seconds')}</span>
-													</div>
-												</Tooltip>
-											</div>
-										</div>
-									</div>
-
-									{#if config.CODE_EXECUTION_JUPYTER_AUTH}
-										<!-- Auth Credential -->
-										<div
-											class="glass-item p-4"
-										>
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
-												{config.CODE_EXECUTION_JUPYTER_AUTH === 'password'
-													? $i18n.t('Jupyter Password')
-													: $i18n.t('Jupyter Token')}
-											</div>
-											{#if config.CODE_EXECUTION_JUPYTER_AUTH === 'password'}
-												<SensitiveInput
-													placeholder={$i18n.t('Enter Jupyter Password')}
-													bind:value={config.CODE_EXECUTION_JUPYTER_AUTH_PASSWORD}
-												/>
-											{:else}
-												<SensitiveInput
-													placeholder={$i18n.t('Enter Jupyter Token')}
-													bind:value={config.CODE_EXECUTION_JUPYTER_AUTH_TOKEN}
-												/>
-											{/if}
-										</div>
-									{/if}
-								</div>
-							{/if}
+						<div class="text-sm font-medium text-gray-500 dark:text-gray-400 pl-1">
+							{$i18n.t('Code Execution')}
 						</div>
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+							<!-- 启用代码执行 -->
+							<div class="flex items-center justify-between glass-item px-4 py-3">
+								<div class="text-sm font-medium">{$i18n.t('Enable Code Execution')}</div>
+								<Switch bind:state={config.ENABLE_CODE_EXECUTION} />
+							</div>
+
+							<!-- 代码执行引擎 -->
+							<div class="glass-item px-4 py-3">
+								<div class="flex items-center justify-between">
+									<div class="text-sm font-medium">{$i18n.t('Code Execution Engine')}</div>
+									<HaloSelect
+										bind:value={config.CODE_EXECUTION_ENGINE}
+										placeholder={$i18n.t('Select a engine')}
+										options={engines.map((engine) => ({ value: engine, label: engine }))}
+										className="w-fit capitalize"
+									/>
+								</div>
+							</div>
+						</div>
+
+						{#if config.CODE_EXECUTION_ENGINE === 'jupyter'}
+							<!-- Jupyter 安全警告 -->
+							<div class="p-3 glass-warning">
+								<div class="flex items-start gap-2.5">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke-width="1.5"
+										stroke="currentColor"
+										class="size-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+										/>
+									</svg>
+									<div class="text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+										{$i18n.t(
+											'Warning: Jupyter execution enables arbitrary code execution, posing severe security risks—proceed with extreme caution.'
+										)}
+									</div>
+								</div>
+							</div>
+
+							<!-- Jupyter 配置 -->
+							<div class="space-y-3 pt-3">
+								<div class="relative flex items-center mb-4">
+									<span
+										class="pr-3 text-[13px] font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase"
+									>
+										{$i18n.t('Jupyter Configuration')}
+									</span>
+									<div
+										class="flex-grow border-t border-dashed border-gray-200 dark:border-gray-800/60"
+									></div>
+								</div>
+
+								<!-- Jupyter URL -->
+								<div class="glass-item p-4">
+									<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+										{$i18n.t('Jupyter URL')}
+									</div>
+									<input
+										class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+										type="text"
+										placeholder={$i18n.t('Enter Jupyter URL')}
+										bind:value={config.CODE_EXECUTION_JUPYTER_URL}
+										autocomplete="off"
+									/>
+								</div>
+
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+									<!-- Auth Method -->
+									<div class="glass-item px-4 py-3">
+										<div class="flex items-center justify-between">
+											<div class="text-sm font-medium">{$i18n.t('Jupyter Auth')}</div>
+											<HaloSelect
+												bind:value={config.CODE_EXECUTION_JUPYTER_AUTH}
+												placeholder={$i18n.t('Select an auth method')}
+												options={[
+													{ value: '', label: $i18n.t('None') },
+													{ value: 'token', label: $i18n.t('Token') },
+													{ value: 'password', label: $i18n.t('Password') }
+												]}
+												className="w-fit"
+											/>
+										</div>
+									</div>
+
+									<!-- Timeout -->
+									<div class="glass-item px-4 py-3">
+										<div class="flex items-center justify-between">
+											<div class="text-sm font-medium">{$i18n.t('Code Execution Timeout')}</div>
+											<Tooltip content={$i18n.t('Enter timeout in seconds')}>
+												<div class="flex items-center gap-2">
+													<input
+														class="w-20 py-1.5 px-3 text-sm dark:text-gray-300 text-right glass-input"
+														type="number"
+														bind:value={config.CODE_EXECUTION_JUPYTER_TIMEOUT}
+														placeholder="60"
+														autocomplete="off"
+													/>
+													<span class="text-xs text-gray-400 dark:text-gray-500"
+														>{$i18n.t('seconds')}</span
+													>
+												</div>
+											</Tooltip>
+										</div>
+									</div>
+								</div>
+
+								{#if config.CODE_EXECUTION_JUPYTER_AUTH}
+									<!-- Auth Credential -->
+									<div class="glass-item p-4">
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+											{config.CODE_EXECUTION_JUPYTER_AUTH === 'password'
+												? $i18n.t('Jupyter Password')
+												: $i18n.t('Jupyter Token')}
+										</div>
+										{#if config.CODE_EXECUTION_JUPYTER_AUTH === 'password'}
+											<SensitiveInput
+												placeholder={$i18n.t('Enter Jupyter Password')}
+												bind:value={config.CODE_EXECUTION_JUPYTER_AUTH_PASSWORD}
+											/>
+										{:else}
+											<SensitiveInput
+												placeholder={$i18n.t('Enter Jupyter Token')}
+												bind:value={config.CODE_EXECUTION_JUPYTER_AUTH_TOKEN}
+											/>
+										{/if}
+									</div>
+								{/if}
+							</div>
+						{/if}
+					</div>
 
 					<!-- 代码解释器 Code Interpreter -->
 					<div class="space-y-3">
@@ -334,18 +333,14 @@
 
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 							<!-- 启用代码解释器 -->
-							<div
-								class="flex items-center justify-between glass-item px-4 py-3"
-							>
+							<div class="flex items-center justify-between glass-item px-4 py-3">
 								<div class="text-sm font-medium">{$i18n.t('Enable Code Interpreter')}</div>
 								<Switch bind:state={config.ENABLE_CODE_INTERPRETER} />
 							</div>
 
 							{#if config.ENABLE_CODE_INTERPRETER}
 								<!-- 代码解释器引擎 -->
-								<div
-									class="glass-item px-4 py-3"
-								>
+								<div class="glass-item px-4 py-3">
 									<div class="flex items-center justify-between">
 										<div class="text-sm font-medium">{$i18n.t('Code Interpreter Engine')}</div>
 										<HaloSelect
@@ -362,9 +357,7 @@
 						{#if config.ENABLE_CODE_INTERPRETER}
 							{#if config.CODE_INTERPRETER_ENGINE === 'jupyter'}
 								<!-- Jupyter 安全警告 -->
-								<div
-									class="p-3 glass-warning"
-								>
+								<div class="p-3 glass-warning">
 									<div class="flex items-start gap-2.5">
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -391,17 +384,21 @@
 								<!-- Jupyter 配置 -->
 								<div class="space-y-3 pt-3">
 									<div class="relative flex items-center mb-4">
-										<span class="pr-3 text-[13px] font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase">
+										<span
+											class="pr-3 text-[13px] font-semibold tracking-wider text-gray-500 dark:text-gray-400 uppercase"
+										>
 											{$i18n.t('Jupyter Configuration')}
 										</span>
-										<div class="flex-grow border-t border-dashed border-gray-200 dark:border-gray-800/60"></div>
+										<div
+											class="flex-grow border-t border-dashed border-gray-200 dark:border-gray-800/60"
+										></div>
 									</div>
 
 									<!-- Jupyter URL -->
-									<div
-										class="glass-item p-4"
-									>
-										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('Jupyter URL')}</div>
+									<div class="glass-item p-4">
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+											{$i18n.t('Jupyter URL')}
+										</div>
 										<input
 											class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
 											type="text"
@@ -413,9 +410,7 @@
 
 									<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 										<!-- Auth Method -->
-										<div
-											class="glass-item px-4 py-3"
-										>
+										<div class="glass-item px-4 py-3">
 											<div class="flex items-center justify-between">
 												<div class="text-sm font-medium">{$i18n.t('Jupyter Auth')}</div>
 												<HaloSelect
@@ -432,9 +427,7 @@
 										</div>
 
 										<!-- Timeout -->
-										<div
-											class="glass-item px-4 py-3"
-										>
+										<div class="glass-item px-4 py-3">
 											<div class="flex items-center justify-between">
 												<div class="text-sm font-medium">{$i18n.t('Code Execution Timeout')}</div>
 												<Tooltip content={$i18n.t('Enter timeout in seconds')}>
@@ -446,7 +439,9 @@
 															placeholder="60"
 															autocomplete="off"
 														/>
-														<span class="text-xs text-gray-400 dark:text-gray-500">{$i18n.t('seconds')}</span>
+														<span class="text-xs text-gray-400 dark:text-gray-500"
+															>{$i18n.t('seconds')}</span
+														>
 													</div>
 												</Tooltip>
 											</div>
@@ -455,9 +450,7 @@
 
 									{#if config.CODE_INTERPRETER_JUPYTER_AUTH}
 										<!-- Auth Credential -->
-										<div
-											class="glass-item p-4"
-										>
+										<div class="glass-item p-4">
 											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
 												{config.CODE_INTERPRETER_JUPYTER_AUTH === 'password'
 													? $i18n.t('Jupyter Password')
@@ -518,43 +511,38 @@
 					</div>
 
 					<div class="space-y-4">
-							<div
-								class="flex items-center justify-between glass-item px-4 py-3"
-							>
-								<div class="text-sm font-medium">{$i18n.t('Enable Terminal & File Browser')}</div>
-								<Switch bind:state={terminalEnabled} />
-							</div>
+						<div class="flex items-center justify-between glass-item px-4 py-3">
+							<div class="text-sm font-medium">{$i18n.t('Enable Terminal & File Browser')}</div>
+							<Switch bind:state={terminalEnabled} />
+						</div>
 
-							<div
-								class="p-3 glass-warning"
-							>
-								<div class="flex items-start gap-2.5">
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke-width="1.5"
-										stroke="currentColor"
-										class="size-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
-										/>
-									</svg>
-									<div class="text-xs leading-relaxed text-amber-700 dark:text-amber-300">
-										{$i18n.t(
-											'Warning: Enabling terminal grants full server access. Only enable in trusted environments.'
-										)}
-									</div>
+						<div class="p-3 glass-warning">
+							<div class="flex items-start gap-2.5">
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke-width="1.5"
+									stroke="currentColor"
+									class="size-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+									/>
+								</svg>
+								<div class="text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+									{$i18n.t(
+										'Warning: Enabling terminal grants full server access. Only enable in trusted environments.'
+									)}
 								</div>
 							</div>
 						</div>
+					</div>
 				</section>
 			</div>
 		</div>
-
 	</form>
 {:else}
 	<div class="h-full w-full flex justify-center items-center">

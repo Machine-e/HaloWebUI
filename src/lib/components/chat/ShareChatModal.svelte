@@ -44,9 +44,7 @@
 					tab.postMessage(
 						JSON.stringify({
 							chat: _chat,
-							models: _chat.models
-								.map((id) => findModelByIdentity($models, id))
-								.filter(Boolean)
+							models: _chat.models.map((id) => findModelByIdentity($models, id)).filter(Boolean)
 						}),
 						'*'
 					);

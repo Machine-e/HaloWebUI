@@ -11,7 +11,8 @@
 	import { localizeCommonError } from '$lib/utils/common-errors';
 
 	const i18n = getContext('i18n');
-	const formatError = (error) => localizeCommonError(error, (key, options) => $i18n.t(key, options));
+	const formatError = (error) =>
+		localizeCommonError(error, (key, options) => $i18n.t(key, options));
 
 	let mounted = false;
 	let clone = false;
@@ -108,19 +109,19 @@
 			descKey="Write, configure, and save a custom Python tool for your workspace workflows."
 		/>
 
-			{#key tool?.content}
-				<ToolkitEditor
-					id={tool?.id ?? ''}
-					name={tool?.name ?? ''}
-					meta={tool?.meta ?? { description: '' }}
-					content={tool?.content ?? ''}
-					accessControl={tool?.access_control ?? defaultAccessControl}
-					{clone}
-					showBackButton={false}
-					onSave={(value) => {
-						return saveHandler(value);
-					}}
-				/>
+		{#key tool?.content}
+			<ToolkitEditor
+				id={tool?.id ?? ''}
+				name={tool?.name ?? ''}
+				meta={tool?.meta ?? { description: '' }}
+				content={tool?.content ?? ''}
+				accessControl={tool?.access_control ?? defaultAccessControl}
+				{clone}
+				showBackButton={false}
+				onSave={(value) => {
+					return saveHandler(value);
+				}}
+			/>
 		{/key}
 	</div>
 {/if}

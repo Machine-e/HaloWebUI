@@ -250,10 +250,8 @@
 				showChangelog.set($settings?.version !== $config.version);
 			}
 
-			const {
-				allowed: temporaryChatAllowed,
-				enforced: temporaryChatEnforced
-			} = getTemporaryChatAccess($user);
+			const { allowed: temporaryChatAllowed, enforced: temporaryChatEnforced } =
+				getTemporaryChatAccess($user);
 			const resolvedTemporaryChatEnabled = resolveTemporaryChatEnabled({
 				searchParams: $page.url.searchParams,
 				defaultEnabled: $settings?.temporaryChatByDefault ?? false,

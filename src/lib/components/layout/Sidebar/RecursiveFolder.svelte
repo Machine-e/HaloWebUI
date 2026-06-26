@@ -209,7 +209,9 @@
 					editHandler();
 				}}
 			>
-				<div class="flex size-4 shrink-0 items-center justify-center text-gray-400 dark:text-gray-500">
+				<div
+					class="flex size-4 shrink-0 items-center justify-center text-gray-400 dark:text-gray-500"
+				>
 					{#if open}
 						<ChevronDown className=" size-3" strokeWidth="2.5" />
 					{:else}
@@ -336,7 +338,7 @@
 								id={chat.id}
 								title={chat.title}
 								assistantId={chat.assistant_id ?? null}
-								folderId={folderId}
+								{folderId}
 								{folderOptions}
 								{shiftKey}
 								selected={chat.id === $chatId}

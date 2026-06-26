@@ -45,16 +45,20 @@
 <div class="w-full space-y-6">
 	{#if knowledgeItems.length > 0}
 		<div in:fade={{ duration: 160 }}>
-			<div class="mb-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+			<div
+				class="mb-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400"
+			>
 				{$i18n.t('Knowledge')}
 			</div>
 			<div class="flex flex-wrap gap-2">
 				{#each knowledgeItems as item, idx (`${item?.id ?? item?.name ?? idx}`)}
 					<FileItem
 						className="w-56"
-						item={item}
+						{item}
 						name={item?.name ?? `${$i18n.t('Knowledge')} ${idx + 1}`}
-						type={item?.collection_names || item?.collection_name ? 'collection' : item?.type ?? 'collection'}
+						type={item?.collection_names || item?.collection_name
+							? 'collection'
+							: (item?.type ?? 'collection')}
 						size={item?.size}
 					/>
 				{/each}
@@ -63,7 +67,9 @@
 	{/if}
 
 	<div in:fade={{ duration: 180, delay: 40 }}>
-		<div class="mb-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+		<div
+			class="mb-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400"
+		>
 			{$i18n.t('Chats')}
 		</div>
 
@@ -72,7 +78,9 @@
 				<Spinner />
 			</div>
 		{:else if chats.length === 0}
-			<div class="rounded-2xl border border-dashed border-gray-200/80 px-4 py-8 text-center text-sm text-gray-400 dark:border-gray-700/70 dark:text-gray-500">
+			<div
+				class="rounded-2xl border border-dashed border-gray-200/80 px-4 py-8 text-center text-sm text-gray-400 dark:border-gray-700/70 dark:text-gray-500"
+			>
 				{$i18n.t('No chats found')}
 			</div>
 		{:else}

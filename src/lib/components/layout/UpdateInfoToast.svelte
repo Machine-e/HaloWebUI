@@ -25,9 +25,21 @@
 		px-4 py-3.5 text-xs max-w-80 w-full"
 >
 	<div class="shrink-0 mt-0.5">
-		<div class="flex items-center justify-center w-7 h-7 bg-blue-100/70 dark:bg-blue-900/40 backdrop-blur-sm rounded-lg border border-blue-200/30 dark:border-blue-700/25">
-			<svg class="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
+		<div
+			class="flex items-center justify-center w-7 h-7 bg-blue-100/70 dark:bg-blue-900/40 backdrop-blur-sm rounded-lg border border-blue-200/30 dark:border-blue-700/25"
+		>
+			<svg
+				class="w-3.5 h-3.5 text-blue-500 dark:text-blue-400"
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke-width="2"
+				stroke="currentColor"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18"
+				/>
 			</svg>
 		</div>
 	</div>
@@ -37,8 +49,11 @@
 			LATEST_VERSION: version.latest
 		})}
 
-		<a href="https://github.com/ztx888/HaloWebUI/releases" target="_blank"
-			class="underline hover:text-blue-900 dark:hover:text-blue-200 transition-colors">
+		<a
+			href="https://github.com/ztx888/HaloWebUI/releases"
+			target="_blank"
+			class="underline hover:text-blue-900 dark:hover:text-blue-200 transition-colors"
+		>
 			{$i18n.t('Update for the latest features and improvements.')}
 		</a>
 	</div>

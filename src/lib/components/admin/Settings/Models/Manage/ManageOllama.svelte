@@ -79,12 +79,10 @@
 			console.log(model);
 
 			updateModelId = model.id;
-			const pullResult = await pullModel(localStorage.token, model.id, urlIdx).catch(
-				(error) => {
-					showError(error);
-					return null;
-				}
-			);
+			const pullResult = await pullModel(localStorage.token, model.id, urlIdx).catch((error) => {
+				showError(error);
+				return null;
+			});
 			if (!pullResult) {
 				continue;
 			}
@@ -750,7 +748,14 @@
 								bind:value={deleteModelTag}
 								options={[
 									{ value: '', label: $i18n.t('Select a model'), disabled: true },
-									...ollamaModels.map((model) => ({ value: model.id, label: getModelChatDisplayName(model) + ' (' + (model.size / 1024 ** 3).toFixed(1) + ' GB)' }))
+									...ollamaModels.map((model) => ({
+										value: model.id,
+										label:
+											getModelChatDisplayName(model) +
+											' (' +
+											(model.size / 1024 ** 3).toFixed(1) +
+											' GB)'
+									}))
 								]}
 								placeholder={$i18n.t('Select a model')}
 								className="w-full"

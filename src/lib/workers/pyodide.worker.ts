@@ -54,7 +54,9 @@ const uint8ArrayToBase64 = (data: Uint8Array) => {
 	return btoa(binary);
 };
 
-const collectGeneratedFiles = (roots: { root: string; prefix?: string }[]): GeneratedFilesCollection => {
+const collectGeneratedFiles = (
+	roots: { root: string; prefix?: string }[]
+): GeneratedFilesCollection => {
 	const files: GeneratedFile[] = [];
 	const warnings: string[] = [];
 	let totalBytes = 0;

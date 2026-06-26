@@ -18,7 +18,8 @@
 	import ArrowLeft from '../icons/ArrowLeft.svelte';
 	import { findModelByIdentity } from '$lib/utils/model-identity';
 
-	const { fitView, flowToScreenPosition, getNodesBounds, getViewport, setViewport } = useSvelteFlow();
+	const { fitView, flowToScreenPosition, getNodesBounds, getViewport, setViewport } =
+		useSvelteFlow();
 	const nodesInitialized = useNodesInitialized();
 
 	export let history;
@@ -34,10 +35,9 @@
 		custom: CustomNode
 	};
 
-	$: highlightedMessageId =
-		history?.messages?.[$overviewFocusedMessageId]
-			? $overviewFocusedMessageId
-			: history?.currentId ?? null;
+	$: highlightedMessageId = history?.messages?.[$overviewFocusedMessageId]
+		? $overviewFocusedMessageId
+		: (history?.currentId ?? null);
 
 	$: if (history) {
 		highlightedMessageId;

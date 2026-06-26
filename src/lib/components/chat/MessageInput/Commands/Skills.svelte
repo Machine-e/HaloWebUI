@@ -78,7 +78,7 @@
 				</div>
 			</button>
 		</Tooltip>
-		{/each}
+	{/each}
 {:else}
 	<div class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
 		{#if query}

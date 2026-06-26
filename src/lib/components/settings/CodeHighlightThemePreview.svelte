@@ -1,10 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 
-	import {
-		DEFAULT_HIGHLIGHTER_THEME,
-		renderCodeToHtml
-	} from '$lib/utils/lobehub-chat-appearance';
+	import { DEFAULT_HIGHLIGHTER_THEME, renderCodeToHtml } from '$lib/utils/lobehub-chat-appearance';
 
 	export let themeId: string = DEFAULT_HIGHLIGHTER_THEME;
 
@@ -62,11 +59,15 @@ const dog = { name: "Buddy", breed: "Golden Retriever" } satisfies Animal;`;
 </script>
 
 {#if renderedHtml}
-	<div class="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800 [&_.shiki]:!m-0 [&_.shiki]:!rounded-xl [&_.shiki]:!p-5 [&_.shiki]:!text-[15px] [&_.shiki]:!leading-7 [&_.shiki]:overflow-x-auto">
+	<div
+		class="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800 [&_.shiki]:!m-0 [&_.shiki]:!rounded-xl [&_.shiki]:!p-5 [&_.shiki]:!text-[15px] [&_.shiki]:!leading-7 [&_.shiki]:overflow-x-auto"
+	>
 		{@html renderedHtml}
 	</div>
 {:else}
-	<div class="flex h-[180px] items-center justify-center rounded-xl border border-gray-100 dark:border-gray-800 text-sm text-gray-400">
+	<div
+		class="flex h-[180px] items-center justify-center rounded-xl border border-gray-100 dark:border-gray-800 text-sm text-gray-400"
+	>
 		加载中...
 	</div>
 {/if}

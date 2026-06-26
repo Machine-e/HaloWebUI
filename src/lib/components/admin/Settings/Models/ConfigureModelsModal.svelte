@@ -17,7 +17,11 @@
 	import ChevronUp from '$lib/components/icons/ChevronUp.svelte';
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
 	import { getModelChatDisplayName } from '$lib/utils/model-display';
-	import { findModelByIdentity, getModelSelectionId, resolveModelSelectionId } from '$lib/utils/model-identity';
+	import {
+		findModelByIdentity,
+		getModelSelectionId,
+		resolveModelSelectionId
+	} from '$lib/utils/model-identity';
 
 	export let show = false;
 	export let initHandler = () => {};
@@ -69,7 +73,9 @@
 			// Add all IDs from MODEL_ORDER_LIST that still exist, migrating old IDs to selection IDs.
 			...normalizedOrderedIds.filter((id) => allModelIds.includes(id)),
 			// Add remaining IDs not in MODEL_ORDER_LIST, sorted by the same display name users see elsewhere.
-			...allModelIds.filter((id) => !orderedSet.has(id)).sort((a, b) => compareModelIdsByDisplayName(a, b))
+			...allModelIds
+				.filter((id) => !orderedSet.has(id))
+				.sort((a, b) => compareModelIdsByDisplayName(a, b))
 		];
 
 		sortKey = '';
@@ -115,11 +121,22 @@
 <Modal size="sm" bind:show>
 	<div class="flex flex-col max-h-[85vh]">
 		<!-- Header (fixed) -->
-		<div class="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-100 dark:border-gray-800">
+		<div
+			class="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-100 dark:border-gray-800"
+		>
 			<div class="flex items-center gap-2.5">
-				<div class="flex items-center justify-center size-8 rounded-lg bg-gray-100 dark:bg-gray-800">
-					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4 text-gray-600 dark:text-gray-300">
-						<path d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z" />
+				<div
+					class="flex items-center justify-center size-8 rounded-lg bg-gray-100 dark:bg-gray-800"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 20 20"
+						fill="currentColor"
+						class="size-4 text-gray-600 dark:text-gray-300"
+					>
+						<path
+							d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z"
+						/>
 					</svg>
 				</div>
 				<div>
@@ -133,10 +150,19 @@
 			</div>
 			<button
 				class="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition"
-				on:click={() => { show = false; }}
+				on:click={() => {
+					show = false;
+				}}
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
-					<path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="size-5"
+				>
+					<path
+						d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"
+					/>
 				</svg>
 			</button>
 		</div>
@@ -144,10 +170,14 @@
 		{#if config}
 			<form
 				class="flex flex-col min-h-0 flex-1"
-				on:submit|preventDefault={() => { submitHandler(); }}
+				on:submit|preventDefault={() => {
+					submitHandler();
+				}}
 			>
 				<!-- Toolbar (fixed) -->
-				<div class="flex items-center justify-between px-5 py-2.5 border-b border-gray-50 dark:border-gray-850">
+				<div
+					class="flex items-center justify-between px-5 py-2.5 border-b border-gray-50 dark:border-gray-850"
+				>
 					<button
 						class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition"
 						type="button"
@@ -161,8 +191,17 @@
 								.sort((a, b) => compareModelIdsByDisplayName(a, b, nextSortOrder));
 						}}
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5">
-							<path fill-rule="evenodd" d="M2 3.75A.75.75 0 012.75 3h11.5a.75.75 0 010 1.5H2.75A.75.75 0 012 3.75zM2 7.5a.75.75 0 01.75-.75h6.365a.75.75 0 010 1.5H2.75A.75.75 0 012 7.5zM14 7a.75.75 0 01.55.24l3.25 3.5a.75.75 0 11-1.1 1.02l-1.95-2.1v6.59a.75.75 0 01-1.5 0V9.66l-1.95 2.1a.75.75 0 11-1.1-1.02l3.25-3.5A.75.75 0 0114 7zM2 11.25a.75.75 0 01.75-.75H7A.75.75 0 017 12H2.75a.75.75 0 01-.75-.75z" clip-rule="evenodd" />
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+							class="size-3.5"
+						>
+							<path
+								fill-rule="evenodd"
+								d="M2 3.75A.75.75 0 012.75 3h11.5a.75.75 0 010 1.5H2.75A.75.75 0 012 3.75zM2 7.5a.75.75 0 01.75-.75h6.365a.75.75 0 010 1.5H2.75A.75.75 0 012 7.5zM14 7a.75.75 0 01.55.24l3.25 3.5a.75.75 0 11-1.1 1.02l-1.95-2.1v6.59a.75.75 0 01-1.5 0V9.66l-1.95 2.1a.75.75 0 11-1.1-1.02l3.25-3.5A.75.75 0 0114 7zM2 11.25a.75.75 0 01.75-.75H7A.75.75 0 017 12H2.75a.75.75 0 01-.75-.75z"
+								clip-rule="evenodd"
+							/>
 						</svg>
 						{$i18n.t('Reorder Models')}
 						{#if sortKey === 'model'}
@@ -176,7 +215,8 @@
 						{/if}
 					</button>
 					<span class="text-xs text-gray-400 dark:text-gray-500 tabular-nums">
-						{modelIds.length} {$i18n.t('models')}
+						{modelIds.length}
+						{$i18n.t('models')}
 					</span>
 				</div>
 
@@ -186,12 +226,16 @@
 				</div>
 
 				<!-- Footer (fixed) -->
-				<div class="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-gray-800">
+				<div
+					class="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-gray-800"
+				>
 					<Tooltip content={$i18n.t('This will delete all models including custom models')}>
 						<button
 							class="px-3.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
 							type="button"
-							on:click={() => { showResetModal = true; }}
+							on:click={() => {
+								showResetModal = true;
+							}}
 						>
 							{$i18n.t('Reset All Models')}
 						</button>

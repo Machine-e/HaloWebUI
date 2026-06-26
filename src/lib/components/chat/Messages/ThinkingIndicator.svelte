@@ -247,15 +247,33 @@
 						)}"
 					>
 						{#if step.tone === 'error'}
-							<svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+							<svg
+								class="w-2.5 h-2.5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="3"
+							>
 								<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
 							</svg>
 						{:else if step.tone === 'warning'}
-							<svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+							<svg
+								class="w-2.5 h-2.5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="3"
+							>
 								<path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01" />
 							</svg>
 						{:else}
-							<svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+							<svg
+								class="w-2.5 h-2.5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="3"
+							>
 								<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
 							</svg>
 						{/if}

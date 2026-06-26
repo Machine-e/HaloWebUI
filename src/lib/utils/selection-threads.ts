@@ -451,7 +451,10 @@ export const findSelectionAnchorOffsets = (
 		const end = start + anchor.exact.length;
 		let score = 0;
 
-		if (anchor.prefix && text.slice(Math.max(0, start - anchor.prefix.length), start) === anchor.prefix) {
+		if (
+			anchor.prefix &&
+			text.slice(Math.max(0, start - anchor.prefix.length), start) === anchor.prefix
+		) {
 			score += 2;
 		}
 
@@ -510,4 +513,3 @@ export const materializeSelectionThreadMessages = (thread: SelectionThread) =>
 			}
 		];
 	});
-

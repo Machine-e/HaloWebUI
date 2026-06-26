@@ -49,9 +49,7 @@ describe('marked katex extension', () => {
 	});
 
 	it('keeps the existing list-item inline math parsing intact', () => {
-		const tokens = createParser().lexer(
-			'1.  **对角线元素**：$a_{ii}$ 是 $x_i^2$ 的系数。'
-		);
+		const tokens = createParser().lexer('1.  **对角线元素**：$a_{ii}$ 是 $x_i^2$ 的系数。');
 		const inlineMath = collectTokens(tokens, 'inlineKatex');
 
 		expect(inlineMath.map((token: any) => token.text)).toEqual(['a_{ii}', 'x_i^2']);

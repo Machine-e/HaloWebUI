@@ -116,9 +116,7 @@
 	};
 
 	const getModelIds = (value: string | string[] | null | undefined) =>
-		(Array.isArray(value) ? value : [value])
-			.map((id) => String(id ?? '').trim())
-			.filter(Boolean);
+		(Array.isArray(value) ? value : [value]).map((id) => String(id ?? '').trim()).filter(Boolean);
 
 	const getModelSystemPrompt = (model: any): string => {
 		const system =
@@ -272,7 +270,10 @@
 
 	const customizeSystemPromptForChat = () => {
 		markInteraction('system');
-		params = { ...params, system: hasGlobalSystemPrompt ? globalSystemPrompt : currentChatSystemPrompt };
+		params = {
+			...params,
+			system: hasGlobalSystemPrompt ? globalSystemPrompt : currentChatSystemPrompt
+		};
 	};
 
 	const resetThinking = () => {
@@ -587,11 +588,11 @@
 				title={$i18n.t('Valves')}
 				buttonClassName="w-full px-3 py-2.5 rounded-xl hover:bg-gray-100/60 dark:hover:bg-white/[0.04] transition-colors duration-200"
 			>
-					<div class="text-sm px-3 pb-3" slot="content">
-						<Valves show={showValves} preferredContext={currentValvesContext} />
-					</div>
-				</Collapsible>
-			</div>
+				<div class="text-sm px-3 pb-3" slot="content">
+					<Valves show={showValves} preferredContext={currentValvesContext} />
+				</div>
+			</Collapsible>
+		</div>
 
 		{#if $user?.role === 'admin' || $user?.permissions?.chat?.controls}
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -626,7 +627,9 @@
 									: $i18n.t('Inheriting Global System Prompt')}
 							</span>
 							{#if systemModified || systemAck}
-								<span class="inline-flex items-center rounded-full border border-teal-200/80 bg-teal-50 px-2 py-0.5 text-[11px] font-medium text-teal-700 dark:border-teal-800/70 dark:bg-teal-950/40 dark:text-teal-300">
+								<span
+									class="inline-flex items-center rounded-full border border-teal-200/80 bg-teal-50 px-2 py-0.5 text-[11px] font-medium text-teal-700 dark:border-teal-800/70 dark:bg-teal-950/40 dark:text-teal-300"
+								>
 									{systemModified
 										? $i18n.t('已调整', { defaultValue: 'Adjusted' })
 										: $i18n.t('已应用', { defaultValue: 'Applied' })}
@@ -700,7 +703,9 @@
 									/>
 								{/if}
 
-								<div class="flex items-center justify-between gap-2 text-[11px] text-gray-400 dark:text-gray-500">
+								<div
+									class="flex items-center justify-between gap-2 text-[11px] text-gray-400 dark:text-gray-500"
+								>
 									<div>
 										{hasCurrentChatSystemPromptOverride
 											? $i18n.t('Only applies to this chat')
@@ -800,9 +805,9 @@
 							<!-- 强度模式 -->
 							<div>
 								<div class="flex items-center justify-between mb-1">
-								<div class="text-xs text-gray-500 dark:text-gray-400">
-									{tr('思考强度', 'Reasoning Effort')}
-								</div>
+									<div class="text-xs text-gray-500 dark:text-gray-400">
+										{tr('思考强度', 'Reasoning Effort')}
+									</div>
 									<button
 										type="button"
 										class="text-[10px] transition-colors duration-150 cursor-pointer {customEffortMode
@@ -820,9 +825,7 @@
 											}
 										}}
 									>
-										{customEffortMode
-											? tr('返回预设', 'Back to presets')
-											: tr('自定义', 'Custom')}
+										{customEffortMode ? tr('返回预设', 'Back to presets') : tr('自定义', 'Custom')}
 									</button>
 								</div>
 								{#if customEffortMode}
@@ -928,9 +931,7 @@
 											}
 										}}
 									>
-										{customTokenMode
-											? tr('返回预设', 'Back to presets')
-											: tr('自定义', 'Custom')}
+										{customTokenMode ? tr('返回预设', 'Back to presets') : tr('自定义', 'Custom')}
 									</button>
 								</div>
 								{#if customTokenMode}

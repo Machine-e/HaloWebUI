@@ -59,17 +59,24 @@
 					show = false;
 				}}
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
-					<path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="size-5"
+				>
+					<path
+						d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"
+					/>
 				</svg>
 			</button>
 		</div>
 
-		<div class="mt-3 rounded-xl border border-emerald-200/70 bg-emerald-50/80 px-4 py-3 text-xs leading-5 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-300">
+		<div
+			class="mt-3 rounded-xl border border-emerald-200/70 bg-emerald-50/80 px-4 py-3 text-xs leading-5 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-300"
+		>
 			<div class="font-medium">{resourceName || '共享外部工具'}</div>
-			<div class="mt-1">
-				共享后，普通用户会直接使用管理员保存的连接和密钥，不需要再单独配置。
-			</div>
+			<div class="mt-1">共享后，普通用户会直接使用管理员保存的连接和密钥，不需要再单独配置。</div>
 		</div>
 
 		<div class="mt-4">

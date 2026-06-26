@@ -21,7 +21,9 @@ describe('mention helpers', () => {
 	});
 
 	it('hydrates stored mention tags back into mention spans', () => {
-		const hydrated = hydrateMentionTagsInHtml('Hello &lt;@U:user-1|Alice&gt; and <$skill-id|Summarize>');
+		const hydrated = hydrateMentionTagsInHtml(
+			'Hello &lt;@U:user-1|Alice&gt; and <$skill-id|Summarize>'
+		);
 
 		expect(hydrated).toContain('data-id="U:user-1"');
 		expect(hydrated).toContain('data-label="Alice"');

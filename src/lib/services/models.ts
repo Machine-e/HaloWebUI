@@ -1,13 +1,7 @@
 import { get } from 'svelte/store';
 
 import { getModels as apiGetModels } from '$lib/apis';
-import {
-	config,
-	models,
-	modelsError,
-	modelsStatus,
-	settings
-} from '$lib/stores';
+import { config, models, modelsError, modelsStatus, settings } from '$lib/stores';
 import type { Model } from '$lib/stores';
 
 let inFlight: Promise<Model[]> | null = null;

@@ -243,7 +243,10 @@
 		boolRow(
 			tr('复制时保留格式', 'Copy formatted'),
 			'copyFormatted',
-			tr('关闭时，新用户会明确使用不保留格式的复制设置。', 'When off, new users explicitly copy without formatting.')
+			tr(
+				'关闭时，新用户会明确使用不保留格式的复制设置。',
+				'When off, new users explicitly copy without formatting.'
+			)
 		),
 		boolRow(tr('Ctrl+Enter 发送', 'Ctrl+Enter to send'), 'ctrlEnterToSend')
 	];
@@ -301,9 +304,7 @@
 		<div class="mx-auto max-w-6xl space-y-6 pb-8">
 			<section class="glass-section p-5 space-y-5">
 				<div class="@container flex flex-col gap-5">
-					<div
-						class="flex flex-col gap-4"
-					>
+					<div class="flex flex-col gap-4">
 						<div class="min-w-0 @[64rem]:flex-1">
 							<div class="flex items-start gap-3">
 								<div class="glass-icon-badge {pageMeta.badgeColor}">

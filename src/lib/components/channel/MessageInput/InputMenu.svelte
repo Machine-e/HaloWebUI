@@ -55,7 +55,9 @@
 						screenCaptureHandler();
 					}}
 				>
-					<span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600 dark:bg-gray-700/60 dark:text-gray-300">
+					<span
+						class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600 dark:bg-gray-700/60 dark:text-gray-300"
+					>
 						<Camera class="size-4" strokeWidth={2} />
 					</span>
 					<div class=" line-clamp-1">{$i18n.t('Capture')}</div>
@@ -68,10 +70,12 @@
 					uploadFilesHandler();
 				}}
 			>
-				<span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600 dark:bg-gray-700/60 dark:text-gray-300">
-						<FileUp class="size-4" strokeWidth={2} />
-					</span>
-					<div class="line-clamp-1">{$i18n.t('Upload Files')}</div>
+				<span
+					class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600 dark:bg-gray-700/60 dark:text-gray-300"
+				>
+					<FileUp class="size-4" strokeWidth={2} />
+				</span>
+				<div class="line-clamp-1">{$i18n.t('Upload Files')}</div>
 			</DropdownMenu.Item>
 		</DropdownMenu.Content>
 	</div>

@@ -473,23 +473,28 @@ const createLobeShikiTheme = (isDark: boolean) => {
 				settings: { foreground: palette.purple }
 			},
 			{
-				scope: 'constant.numeric, keyword.other, variable.object.property, meta.field.declaration entity.name.function, meta.definition.method entity.name.function, entity.name.tag.yaml, meta.object-literal.key, meta.object-literal.key string, support.type.property-name.json, entity.other.attribute-name.id, entity.name.tag',
+				scope:
+					'constant.numeric, keyword.other, variable.object.property, meta.field.declaration entity.name.function, meta.definition.method entity.name.function, entity.name.tag.yaml, meta.object-literal.key, meta.object-literal.key string, support.type.property-name.json, entity.other.attribute-name.id, entity.name.tag',
 				settings: { foreground: palette.warning }
 			},
 			{
-				scope: 'keyword, modifier, variable.language.this, support.type.object, constant.language, punctuation, constant.language.json, markup.heading, text.html.markdown beginning.punctuation.definition.list, template.expression.begin, template.expression.end, punctuation.definition.template-expression.begin, punctuation.definition.template-expression.end',
+				scope:
+					'keyword, modifier, variable.language.this, support.type.object, constant.language, punctuation, constant.language.json, markup.heading, text.html.markdown beginning.punctuation.definition.list, template.expression.begin, template.expression.end, punctuation.definition.template-expression.begin, punctuation.definition.template-expression.end',
 				settings: { foreground: palette.info }
 			},
 			{
-				scope: 'entity.name.function, support.function, meta.function entity.name.function, source.cs meta.method-call meta.method, source.cs entity.name.function, source.python meta.function-call.python, meta.function-call.arguments, entity.name.function.call',
+				scope:
+					'entity.name.function, support.function, meta.function entity.name.function, source.cs meta.method-call meta.method, source.cs entity.name.function, source.python meta.function-call.python, meta.function-call.arguments, entity.name.function.call',
 				settings: { foreground: isDark ? '#93c5fd' : '#1d4ed8' }
 			},
 			{
-				scope: 'support.type, constant.other.key, entity.name.type, entity.other.inherited-class, entity.other, entity.name, entity.name.type.class, support.class, meta.use, entity.other.attribute-name.class, source.css entity.name.tag, source.cs meta.class.identifier storage.type, source.cs storage.type, source.cs meta.method.return-type, support.class.component',
+				scope:
+					'support.type, constant.other.key, entity.name.type, entity.other.inherited-class, entity.other, entity.name, entity.name.type.class, support.class, meta.use, entity.other.attribute-name.class, source.css entity.name.tag, source.cs meta.class.identifier storage.type, source.cs storage.type, source.cs meta.method.return-type, support.class.component',
 				settings: { foreground: palette.warning }
 			},
 			{
-				scope: 'comment, comment punctuation.definition.comment, string.quoted.docstring, source.cs meta.preprocessor',
+				scope:
+					'comment, comment punctuation.definition.comment, string.quoted.docstring, source.cs meta.preprocessor',
 				settings: { fontStyle: 'italic', foreground: palette.comment }
 			},
 			{
@@ -497,7 +502,8 @@ const createLobeShikiTheme = (isDark: boolean) => {
 				settings: { fontStyle: 'italic', foreground: palette.info }
 			},
 			{
-				scope: 'meta.embedded, source.groovy.embedded, meta.template.expression, meta.jsx.children, SXNested, source.cpp meta.block variable.other, source.php support.other.namespace, source.php meta.use support.class, variable, variable.parameter, support.variable, variable.language, support.constant, meta.definition.variable entity.name.function',
+				scope:
+					'meta.embedded, source.groovy.embedded, meta.template.expression, meta.jsx.children, SXNested, source.cpp meta.block variable.other, source.php support.other.namespace, source.php meta.use support.class, variable, variable.parameter, support.variable, variable.language, support.constant, meta.definition.variable entity.name.function',
 				settings: { foreground: palette.text }
 			},
 			{
@@ -509,7 +515,8 @@ const createLobeShikiTheme = (isDark: boolean) => {
 				settings: { foreground: palette.secondaryText }
 			},
 			{
-				scope: 'markup.inline.raw.string.markdown, markup.fenced_code.block.markdown punctuation.definition.markdown',
+				scope:
+					'markup.inline.raw.string.markdown, markup.fenced_code.block.markdown punctuation.definition.markdown',
 				settings: { foreground: palette.success }
 			},
 			{
@@ -573,7 +580,9 @@ export const normalizeMermaidTheme = (value: string | null | undefined): Mermaid
 
 export const resolveShikiLanguage = async (input: string | null | undefined) => {
 	const shiki = await loadShikiModule();
-	const normalized = String(input ?? '').trim().toLowerCase();
+	const normalized = String(input ?? '')
+		.trim()
+		.toLowerCase();
 	if (!normalized) return 'plaintext';
 	const canonical = SHIKI_LANGUAGE_ALIASES[normalized] ?? normalized;
 
@@ -589,7 +598,11 @@ const resolveThemeRegistration = (themeId: string, isDark: boolean) =>
 		? createLobeShikiTheme(isDark)
 		: normalizeHighlighterTheme(themeId);
 
-export const ensureShikiHighlighter = async (language: string, themeId: string, isDark: boolean) => {
+export const ensureShikiHighlighter = async (
+	language: string,
+	themeId: string,
+	isDark: boolean
+) => {
 	const shiki = await loadShikiModule();
 	const resolvedLanguage = await resolveShikiLanguage(language);
 	const resolvedTheme = resolveThemeRegistration(themeId, isDark);
@@ -635,10 +648,7 @@ export const renderCodeToHtml = async (params: {
 	});
 };
 
-export const createMermaidConfig = (
-	themeId: MermaidThemeId,
-	isDark: boolean
-): MermaidConfig => {
+export const createMermaidConfig = (themeId: MermaidThemeId, isDark: boolean): MermaidConfig => {
 	const palette = getPalette(isDark);
 	const normalizedTheme = normalizeMermaidTheme(themeId);
 	const isLobeTheme = normalizedTheme === DEFAULT_MERMAID_THEME;

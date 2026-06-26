@@ -99,9 +99,7 @@
 						</div>
 
 						{#each group.messages as msg}
-							<div
-								class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}"
-							>
+							<div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
 								<div
 									class="max-w-[75%] rounded-2xl px-4 py-2.5 text-sm {msg.role === 'user'
 										? 'bg-blue-500 text-white rounded-br-md'
@@ -114,7 +112,7 @@
 											: 'text-gray-400'} flex items-center gap-1.5"
 									>
 										<span>{formatTime(msg.created_at)}</span>
-	{#if msg.model_id}
+										{#if msg.model_id}
 											<span>&middot; {formatModelDisplay(msg.model_id)}</span>
 										{/if}
 									</div>

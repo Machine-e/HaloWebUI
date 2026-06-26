@@ -471,7 +471,9 @@
 </script>
 
 {#if !isInitialized}
-	<div class="glass-item flex items-center gap-3 px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+	<div
+		class="glass-item flex items-center gap-3 px-4 py-3 text-sm text-gray-500 dark:text-gray-400"
+	>
 		<Spinner className="size-4" />
 		<span>{$i18n.t('Loading audio settings...')}</span>
 	</div>
@@ -508,17 +510,36 @@
 				</div>
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Base URL')}</div>
-						<input class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" placeholder={$i18n.t('Enter API Base URL')} bind:value={STT_OPENAI_API_BASE_URL} required />
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('API Base URL')}
+						</div>
+						<input
+							class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+							placeholder={$i18n.t('Enter API Base URL')}
+							bind:value={STT_OPENAI_API_BASE_URL}
+							required
+						/>
 					</div>
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
-						<SensitiveInput placeholder={$i18n.t('Enter API Key')} bind:value={STT_OPENAI_API_KEY} />
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('API Key')}
+						</div>
+						<SensitiveInput
+							placeholder={$i18n.t('Enter API Key')}
+							bind:value={STT_OPENAI_API_KEY}
+						/>
 					</div>
 				</div>
 				<div class="glass-item p-4">
-					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('STT Model')}</div>
-					<input list="model-list" class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" bind:value={STT_MODEL} placeholder="Select a model" />
+					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+						{$i18n.t('STT Model')}
+					</div>
+					<input
+						list="model-list"
+						class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+						bind:value={STT_MODEL}
+						placeholder="Select a model"
+					/>
 					<datalist id="model-list"><option value="whisper-1" /></datalist>
 				</div>
 			</div>
@@ -528,15 +549,30 @@
 					{$i18n.t('Engine Credentials')}
 				</div>
 				<div class="glass-item p-4">
-					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
-					<SensitiveInput placeholder={$i18n.t('Enter Deepgram API Key')} bind:value={STT_DEEPGRAM_API_KEY} />
+					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+						{$i18n.t('API Key')}
+					</div>
+					<SensitiveInput
+						placeholder={$i18n.t('Enter Deepgram API Key')}
+						bind:value={STT_DEEPGRAM_API_KEY}
+					/>
 				</div>
 				<div class="glass-item p-4">
-					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('STT Model')}</div>
-					<input class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" bind:value={STT_MODEL} placeholder="Select a model (optional)" />
+					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+						{$i18n.t('STT Model')}
+					</div>
+					<input
+						class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+						bind:value={STT_MODEL}
+						placeholder="Select a model (optional)"
+					/>
 					<div class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
 						{$i18n.t('Leave model field empty to use the default model.')}
-						<a class="hover:underline dark:text-gray-200 text-gray-800" href="https://developers.deepgram.com/docs/models" target="_blank">{$i18n.t('Click here to see available models.')}</a>
+						<a
+							class="hover:underline dark:text-gray-200 text-gray-800"
+							href="https://developers.deepgram.com/docs/models"
+							target="_blank">{$i18n.t('Click here to see available models.')}</a
+						>
 					</div>
 				</div>
 			</div>
@@ -547,17 +583,36 @@
 				</div>
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
-						<SensitiveInput placeholder={$i18n.t('Enter Azure API Key')} bind:value={STT_AZURE_API_KEY} required />
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('API Key')}
+						</div>
+						<SensitiveInput
+							placeholder={$i18n.t('Enter Azure API Key')}
+							bind:value={STT_AZURE_API_KEY}
+							required
+						/>
 					</div>
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('Azure Region')}</div>
-						<input class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" placeholder={$i18n.t('Enter Azure Region')} bind:value={STT_AZURE_REGION} required />
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('Azure Region')}
+						</div>
+						<input
+							class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+							placeholder={$i18n.t('Enter Azure Region')}
+							bind:value={STT_AZURE_REGION}
+							required
+						/>
 					</div>
 				</div>
 				<div class="glass-item p-4">
-					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('Language Locales')}</div>
-					<input class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" bind:value={STT_AZURE_LOCALES} placeholder={$i18n.t('e.g., en-US,ja-JP (leave blank for auto-detect)')} />
+					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+						{$i18n.t('Language Locales')}
+					</div>
+					<input
+						class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+						bind:value={STT_AZURE_LOCALES}
+						placeholder={$i18n.t('e.g., en-US,ja-JP (leave blank for auto-detect)')}
+					/>
 				</div>
 			</div>
 		{:else if STT_ENGINE === ''}
@@ -566,20 +621,74 @@
 					{$i18n.t('Model Configuration')}
 				</div>
 				<div class="glass-item p-4">
-					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('STT Model')}</div>
+					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+						{$i18n.t('STT Model')}
+					</div>
 					<div class="flex w-full gap-2">
-						<input class="flex-1 py-2 px-3 text-sm dark:text-gray-300 glass-input" placeholder={$i18n.t('Set whisper model')} bind:value={STT_WHISPER_MODEL} />
-						<button type="button" class="px-2.5 bg-gray-50 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-100 rounded-lg transition" on:click={() => { sttModelUpdateHandler(); }} disabled={STT_WHISPER_MODEL_LOADING}>
+						<input
+							class="flex-1 py-2 px-3 text-sm dark:text-gray-300 glass-input"
+							placeholder={$i18n.t('Set whisper model')}
+							bind:value={STT_WHISPER_MODEL}
+						/>
+						<button
+							type="button"
+							class="px-2.5 bg-gray-50 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-100 rounded-lg transition"
+							on:click={() => {
+								sttModelUpdateHandler();
+							}}
+							disabled={STT_WHISPER_MODEL_LOADING}
+						>
 							{#if STT_WHISPER_MODEL_LOADING}
-								<div class="self-center"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><style>.spinner_ajPY{transform-origin:center;animation:spinner_AtaB .75s infinite linear}@keyframes spinner_AtaB{100%{transform:rotate(360deg)}}</style><path d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25"/><path d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z" class="spinner_ajPY"/></svg></div>
+								<div class="self-center">
+									<svg
+										class="w-4 h-4"
+										viewBox="0 0 24 24"
+										fill="currentColor"
+										xmlns="http://www.w3.org/2000/svg"
+										><style>
+											.spinner_ajPY {
+												transform-origin: center;
+												animation: spinner_AtaB 0.75s infinite linear;
+											}
+											@keyframes spinner_AtaB {
+												100% {
+													transform: rotate(360deg);
+												}
+											}
+										</style><path
+											d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"
+											opacity=".25"
+										/><path
+											d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z"
+											class="spinner_ajPY"
+										/></svg
+									>
+								</div>
 							{:else}
-								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4"><path d="M8.75 2.75a.75.75 0 0 0-1.5 0v5.69L5.03 6.22a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.75 8.44V2.75Z"/><path d="M3.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 4.75 14h6.5A2.75 2.75 0 0 0 14 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-6.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z"/></svg>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 16 16"
+									fill="currentColor"
+									class="w-4 h-4"
+									><path
+										d="M8.75 2.75a.75.75 0 0 0-1.5 0v5.69L5.03 6.22a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.75 8.44V2.75Z"
+									/><path
+										d="M3.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 4.75 14h6.5A2.75 2.75 0 0 0 14 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-6.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z"
+									/></svg
+								>
 							{/if}
 						</button>
 					</div>
 					<div class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
 						{$i18n.t(`Open WebUI uses faster-whisper internally.`)}
-						<a class="hover:underline dark:text-gray-200 text-gray-800" href="https://github.com/SYSTRAN/faster-whisper" target="_blank">{$i18n.t(`Click here to learn more about faster-whisper and see the available models.`)}</a>
+						<a
+							class="hover:underline dark:text-gray-200 text-gray-800"
+							href="https://github.com/SYSTRAN/faster-whisper"
+							target="_blank"
+							>{$i18n.t(
+								`Click here to learn more about faster-whisper and see the available models.`
+							)}</a
+						>
 					</div>
 				</div>
 			</div>
@@ -614,45 +723,81 @@
 
 		{#if TTS_ENGINE === 'openai'}
 			<div class="space-y-3">
-				<div class="text-sm font-medium text-gray-500 dark:text-gray-400 pl-1">{$i18n.t('Engine Credentials')}</div>
+				<div class="text-sm font-medium text-gray-500 dark:text-gray-400 pl-1">
+					{$i18n.t('Engine Credentials')}
+				</div>
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Base URL')}</div>
-						<input class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" placeholder={$i18n.t('Enter API Base URL')} bind:value={TTS_OPENAI_API_BASE_URL} required />
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('API Base URL')}
+						</div>
+						<input
+							class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+							placeholder={$i18n.t('Enter API Base URL')}
+							bind:value={TTS_OPENAI_API_BASE_URL}
+							required
+						/>
 					</div>
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
-						<SensitiveInput placeholder={$i18n.t('Enter API Key')} bind:value={TTS_OPENAI_API_KEY} />
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('API Key')}
+						</div>
+						<SensitiveInput
+							placeholder={$i18n.t('Enter API Key')}
+							bind:value={TTS_OPENAI_API_KEY}
+						/>
 					</div>
 				</div>
 			</div>
 		{:else if TTS_ENGINE === 'elevenlabs'}
 			<div class="space-y-3">
-				<div class="text-sm font-medium text-gray-500 dark:text-gray-400 pl-1">{$i18n.t('Engine Credentials')}</div>
+				<div class="text-sm font-medium text-gray-500 dark:text-gray-400 pl-1">
+					{$i18n.t('Engine Credentials')}
+				</div>
 				<div class="glass-item p-4">
-					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
-					<SensitiveInput placeholder={$i18n.t('Enter ElevenLabs API Key')} bind:value={TTS_API_KEY} />
+					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+						{$i18n.t('API Key')}
+					</div>
+					<SensitiveInput
+						placeholder={$i18n.t('Enter ElevenLabs API Key')}
+						bind:value={TTS_API_KEY}
+					/>
 				</div>
 			</div>
 		{:else if TTS_ENGINE === 'mimo'}
 			<div class="space-y-3">
-				<div class="text-sm font-medium text-gray-500 dark:text-gray-400 pl-1">{$i18n.t('Engine Credentials')}</div>
+				<div class="text-sm font-medium text-gray-500 dark:text-gray-400 pl-1">
+					{$i18n.t('Engine Credentials')}
+				</div>
 				<div class="glass-item p-4">
-					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
+					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+						{$i18n.t('API Key')}
+					</div>
 					<SensitiveInput placeholder="Enter Xiaomi MiMo API Key" bind:value={TTS_API_KEY} />
 				</div>
 			</div>
 		{:else if TTS_ENGINE === 'azure'}
 			<div class="space-y-3">
-				<div class="text-sm font-medium text-gray-500 dark:text-gray-400 pl-1">{$i18n.t('Engine Credentials')}</div>
+				<div class="text-sm font-medium text-gray-500 dark:text-gray-400 pl-1">
+					{$i18n.t('Engine Credentials')}
+				</div>
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('API Key')}
+						</div>
 						<SensitiveInput placeholder={$i18n.t('Enter Azure API Key')} bind:value={TTS_API_KEY} />
 					</div>
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('Azure Region')}</div>
-						<input class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" placeholder={$i18n.t('Enter Azure Region')} bind:value={TTS_AZURE_SPEECH_REGION} required />
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('Azure Region')}
+						</div>
+						<input
+							class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+							placeholder={$i18n.t('Enter Azure Region')}
+							bind:value={TTS_AZURE_SPEECH_REGION}
+							required
+						/>
 					</div>
 				</div>
 			</div>
@@ -660,56 +805,125 @@
 
 		<!-- Voice & Model -->
 		<div class="space-y-3">
-			<div class="text-sm font-medium text-gray-500 dark:text-gray-400 pl-1">{$i18n.t('Voice & Model')}</div>
+			<div class="text-sm font-medium text-gray-500 dark:text-gray-400 pl-1">
+				{$i18n.t('Voice & Model')}
+			</div>
 
 			{#if TTS_ENGINE === ''}
 				<div class="glass-item p-4">
-					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Voice')}</div>
+					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+						{$i18n.t('TTS Voice')}
+					</div>
 					<div class="w-full max-w-[15rem]">
-						<HaloSelect bind:value={TTS_VOICE} placeholder={$i18n.t('Default')} options={[{ value: '', label: $i18n.t('Default') }, ...voices.map((voice) => ({ value: voice.voiceURI, label: voice.name }))]} className="w-full" />
+						<HaloSelect
+							bind:value={TTS_VOICE}
+							placeholder={$i18n.t('Default')}
+							options={[
+								{ value: '', label: $i18n.t('Default') },
+								...voices.map((voice) => ({ value: voice.voiceURI, label: voice.name }))
+							]}
+							className="w-full"
+						/>
 					</div>
 				</div>
 			{:else if TTS_ENGINE === 'transformers'}
 				<div class="glass-item p-4">
-					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Model')}</div>
-					<input list="model-list" class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" bind:value={TTS_MODEL} placeholder="CMU ARCTIC speaker embedding name" />
+					<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+						{$i18n.t('TTS Model')}
+					</div>
+					<input
+						list="model-list"
+						class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+						bind:value={TTS_MODEL}
+						placeholder="CMU ARCTIC speaker embedding name"
+					/>
 					<datalist id="model-list"><option value="tts-1" /></datalist>
 					<div class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
 						{$i18n.t(`Open WebUI uses SpeechT5 and CMU Arctic speaker embeddings.`)}
-						To learn more about SpeechT5, <a class="hover:underline dark:text-gray-200 text-gray-800" href="https://github.com/microsoft/SpeechT5" target="_blank">{$i18n.t(`click here`, { name: 'SpeechT5' })}.</a>
-						To see the available CMU Arctic speaker embeddings, <a class="hover:underline dark:text-gray-200 text-gray-800" href="https://huggingface.co/datasets/Matthijs/cmu-arctic-xvectors" target="_blank">{$i18n.t(`click here`)}.</a>
+						To learn more about SpeechT5,
+						<a
+							class="hover:underline dark:text-gray-200 text-gray-800"
+							href="https://github.com/microsoft/SpeechT5"
+							target="_blank">{$i18n.t(`click here`, { name: 'SpeechT5' })}.</a
+						>
+						To see the available CMU Arctic speaker embeddings,
+						<a
+							class="hover:underline dark:text-gray-200 text-gray-800"
+							href="https://huggingface.co/datasets/Matthijs/cmu-arctic-xvectors"
+							target="_blank">{$i18n.t(`click here`)}.</a
+						>
 					</div>
 				</div>
 			{:else if TTS_ENGINE === 'openai'}
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Voice')}</div>
-						<input list="voice-list" class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" bind:value={TTS_VOICE} placeholder="Select a voice" />
-						<datalist id="voice-list">{#each voices as voice}<option value={voice.id}>{voice.name}</option>{/each}</datalist>
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('TTS Voice')}
+						</div>
+						<input
+							list="voice-list"
+							class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+							bind:value={TTS_VOICE}
+							placeholder="Select a voice"
+						/>
+						<datalist id="voice-list"
+							>{#each voices as voice}<option value={voice.id}>{voice.name}</option
+								>{/each}</datalist
+						>
 					</div>
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Model')}</div>
-						<input list="tts-model-list" class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" bind:value={TTS_MODEL} placeholder="Select a model" />
-						<datalist id="tts-model-list">{#each models as model}<option value={model.id} />{/each}</datalist>
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('TTS Model')}
+						</div>
+						<input
+							list="tts-model-list"
+							class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+							bind:value={TTS_MODEL}
+							placeholder="Select a model"
+						/>
+						<datalist id="tts-model-list"
+							>{#each models as model}<option value={model.id} />{/each}</datalist
+						>
 					</div>
 				</div>
 			{:else if TTS_ENGINE === 'elevenlabs'}
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Voice')}</div>
-						<input list="voice-list" class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" bind:value={TTS_VOICE} placeholder="Select a voice" />
-						<datalist id="voice-list">{#each voices as voice}<option value={voice.id}>{voice.name}</option>{/each}</datalist>
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('TTS Voice')}
+						</div>
+						<input
+							list="voice-list"
+							class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+							bind:value={TTS_VOICE}
+							placeholder="Select a voice"
+						/>
+						<datalist id="voice-list"
+							>{#each voices as voice}<option value={voice.id}>{voice.name}</option
+								>{/each}</datalist
+						>
 					</div>
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Model')}</div>
-						<input list="tts-model-list" class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" bind:value={TTS_MODEL} placeholder="Select a model" />
-						<datalist id="tts-model-list">{#each models as model}<option value={model.id} />{/each}</datalist>
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('TTS Model')}
+						</div>
+						<input
+							list="tts-model-list"
+							class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+							bind:value={TTS_MODEL}
+							placeholder="Select a model"
+						/>
+						<datalist id="tts-model-list"
+							>{#each models as model}<option value={model.id} />{/each}</datalist
+						>
 					</div>
 				</div>
 			{:else if TTS_ENGINE === 'mimo'}
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Voice')}</div>
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('TTS Voice')}
+						</div>
 						<HaloSelect
 							bind:value={TTS_VOICE}
 							placeholder="Select a voice"
@@ -719,7 +933,9 @@
 						/>
 					</div>
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Model')}</div>
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('TTS Model')}
+						</div>
 						<HaloSelect
 							bind:value={TTS_MODEL}
 							placeholder="Select a model"
@@ -732,16 +948,37 @@
 			{:else if TTS_ENGINE === 'azure'}
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 					<div class="glass-item p-4">
-						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Voice')}</div>
-						<input list="voice-list" class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" bind:value={TTS_VOICE} placeholder="Select a voice" />
-						<datalist id="voice-list">{#each voices as voice}<option value={voice.id}>{voice.name}</option>{/each}</datalist>
+						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+							{$i18n.t('TTS Voice')}
+						</div>
+						<input
+							list="voice-list"
+							class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+							bind:value={TTS_VOICE}
+							placeholder="Select a voice"
+						/>
+						<datalist id="voice-list"
+							>{#each voices as voice}<option value={voice.id}>{voice.name}</option
+								>{/each}</datalist
+						>
 					</div>
 					<div class="glass-item p-4">
 						<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
 							{$i18n.t('Output format')}
-							<a href="https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech?tabs=streaming#audio-outputs" target="_blank"><small class="ml-1 text-gray-400 hover:underline">{$i18n.t('Available list')}</small></a>
+							<a
+								href="https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech?tabs=streaming#audio-outputs"
+								target="_blank"
+								><small class="ml-1 text-gray-400 hover:underline"
+									>{$i18n.t('Available list')}</small
+								></a
+							>
 						</div>
-						<input list="tts-model-list" class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input" bind:value={TTS_AZURE_SPEECH_OUTPUT_FORMAT} placeholder="Select a output format" />
+						<input
+							list="tts-model-list"
+							class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
+							bind:value={TTS_AZURE_SPEECH_OUTPUT_FORMAT}
+							placeholder="Select a output format"
+						/>
 					</div>
 				</div>
 			{/if}
@@ -751,11 +988,20 @@
 		<div class="glass-item px-4 py-3">
 			<div class="flex items-center justify-between">
 				<div class="text-sm font-medium">{$i18n.t('Response splitting')}</div>
-				<HaloSelect bind:value={TTS_SPLIT_ON} options={Object.values(TTS_RESPONSE_SPLIT).map((split) => ({ value: split, label: $i18n.t(split.charAt(0).toUpperCase() + split.slice(1)) }))} className="w-fit" />
+				<HaloSelect
+					bind:value={TTS_SPLIT_ON}
+					options={Object.values(TTS_RESPONSE_SPLIT).map((split) => ({
+						value: split,
+						label: $i18n.t(split.charAt(0).toUpperCase() + split.slice(1))
+					}))}
+					className="w-fit"
+				/>
 			</div>
 		</div>
 		<div class="text-xs text-gray-400 dark:text-gray-500 pl-1">
-			{$i18n.t("Control how message text is split for TTS requests. 'Punctuation' splits into sentences, 'paragraphs' splits into paragraphs, and 'none' keeps the message as a single string.")}
+			{$i18n.t(
+				"Control how message text is split for TTS requests. 'Punctuation' splits into sentences, 'paragraphs' splits into paragraphs, and 'none' keeps the message as a single string."
+			)}
 		</div>
 	</div>
 {:else if isDocumentCard}
@@ -779,10 +1025,16 @@
 						<div class="mb-0 text-sm font-medium flex items-center gap-2">
 							<span>{$i18n.t('STT Settings')}</span>
 							{#if showScopeBadges && scopeLabel}
-								<span class={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}>{scopeLabel}</span>
+								<span class={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}
+									>{scopeLabel}</span
+								>
 							{/if}
 						</div>
-						<div class="transform transition-transform duration-200 {expandedSections.stt ? 'rotate-180' : ''}">
+						<div
+							class="transform transition-transform duration-200 {expandedSections.stt
+								? 'rotate-180'
+								: ''}"
+						>
 							<ChevronDown className="size-4 text-gray-400" />
 						</div>
 					</button>
@@ -793,7 +1045,9 @@
 							transition:slide={{ duration: 180, easing: quintOut }}
 						>
 							<div class="flex w-full items-center justify-between gap-3 py-1">
-								<div class="min-w-0 pr-3 text-xs font-medium">{$i18n.t('Speech-to-Text Engine')}</div>
+								<div class="min-w-0 pr-3 text-xs font-medium">
+									{$i18n.t('Speech-to-Text Engine')}
+								</div>
 								<div class="relative flex shrink-0 items-center max-w-full">
 									<HaloSelect
 										bind:value={STT_ENGINE}
@@ -812,49 +1066,137 @@
 
 							{#if STT_ENGINE === 'openai'}
 								<div class="mt-1 flex gap-2 mb-1">
-									<input class="flex-1 w-full bg-transparent outline-hidden" placeholder={$i18n.t('API Base URL')} bind:value={STT_OPENAI_API_BASE_URL} required />
-									<SensitiveInput placeholder={$i18n.t('API Key')} bind:value={STT_OPENAI_API_KEY} />
+									<input
+										class="flex-1 w-full bg-transparent outline-hidden"
+										placeholder={$i18n.t('API Base URL')}
+										bind:value={STT_OPENAI_API_BASE_URL}
+										required
+									/>
+									<SensitiveInput
+										placeholder={$i18n.t('API Key')}
+										bind:value={STT_OPENAI_API_KEY}
+									/>
 								</div>
 								<hr class="border-gray-100 dark:border-gray-850 my-2" />
 								<div class="mb-1.5 text-sm font-medium">{$i18n.t('STT Model')}</div>
-								<input list="model-list" class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" bind:value={STT_MODEL} placeholder="Select a model" />
+								<input
+									list="model-list"
+									class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+									bind:value={STT_MODEL}
+									placeholder="Select a model"
+								/>
 								<datalist id="model-list"><option value="whisper-1" /></datalist>
 							{:else if STT_ENGINE === 'deepgram'}
 								<div class="mt-1 flex gap-2 mb-1">
-									<SensitiveInput placeholder={$i18n.t('API Key')} bind:value={STT_DEEPGRAM_API_KEY} />
+									<SensitiveInput
+										placeholder={$i18n.t('API Key')}
+										bind:value={STT_DEEPGRAM_API_KEY}
+									/>
 								</div>
 								<hr class="border-gray-100 dark:border-gray-850 my-2" />
 								<div class="mb-1.5 text-sm font-medium">{$i18n.t('STT Model')}</div>
-								<input class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" bind:value={STT_MODEL} placeholder="Select a model (optional)" />
+								<input
+									class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+									bind:value={STT_MODEL}
+									placeholder="Select a model (optional)"
+								/>
 								<div class="mt-2 mb-1 text-xs text-gray-400 dark:text-gray-500">
 									{$i18n.t('Leave model field empty to use the default model.')}
-									<a class="hover:underline dark:text-gray-200 text-gray-800" href="https://developers.deepgram.com/docs/models" target="_blank">{$i18n.t('Click here to see available models.')}</a>
+									<a
+										class="hover:underline dark:text-gray-200 text-gray-800"
+										href="https://developers.deepgram.com/docs/models"
+										target="_blank">{$i18n.t('Click here to see available models.')}</a
+									>
 								</div>
 							{:else if STT_ENGINE === 'azure'}
 								<div class="mt-1 flex gap-2 mb-1">
-									<SensitiveInput placeholder={$i18n.t('API Key')} bind:value={STT_AZURE_API_KEY} required />
-									<input class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" placeholder={$i18n.t('Azure Region')} bind:value={STT_AZURE_REGION} required />
+									<SensitiveInput
+										placeholder={$i18n.t('API Key')}
+										bind:value={STT_AZURE_API_KEY}
+										required
+									/>
+									<input
+										class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+										placeholder={$i18n.t('Azure Region')}
+										bind:value={STT_AZURE_REGION}
+										required
+									/>
 								</div>
 								<hr class="border-gray-100 dark:border-gray-850 my-2" />
 								<div class="mb-1.5 text-sm font-medium">{$i18n.t('Language Locales')}</div>
-								<input class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" bind:value={STT_AZURE_LOCALES} placeholder={$i18n.t('e.g., en-US,ja-JP (leave blank for auto-detect)')} />
+								<input
+									class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+									bind:value={STT_AZURE_LOCALES}
+									placeholder={$i18n.t('e.g., en-US,ja-JP (leave blank for auto-detect)')}
+								/>
 							{:else if STT_ENGINE === ''}
 								<div class="mb-1.5 text-sm font-medium">{$i18n.t('STT Model')}</div>
 								<div class="flex w-full">
 									<div class="flex-1 mr-2">
-										<input class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" placeholder={$i18n.t('Set whisper model')} bind:value={STT_WHISPER_MODEL} />
+										<input
+											class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+											placeholder={$i18n.t('Set whisper model')}
+											bind:value={STT_WHISPER_MODEL}
+										/>
 									</div>
-									<button class="px-2.5 bg-gray-50 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-100 rounded-lg transition" on:click={() => { sttModelUpdateHandler(); }} disabled={STT_WHISPER_MODEL_LOADING}>
+									<button
+										class="px-2.5 bg-gray-50 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-100 rounded-lg transition"
+										on:click={() => {
+											sttModelUpdateHandler();
+										}}
+										disabled={STT_WHISPER_MODEL_LOADING}
+									>
 										{#if STT_WHISPER_MODEL_LOADING}
-											<div class="self-center"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><style>.spinner_ajPY{transform-origin:center;animation:spinner_AtaB .75s infinite linear}@keyframes spinner_AtaB{100%{transform:rotate(360deg)}}</style><path d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25"/><path d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z" class="spinner_ajPY"/></svg></div>
+											<div class="self-center">
+												<svg
+													class="w-4 h-4"
+													viewBox="0 0 24 24"
+													fill="currentColor"
+													xmlns="http://www.w3.org/2000/svg"
+													><style>
+														.spinner_ajPY {
+															transform-origin: center;
+															animation: spinner_AtaB 0.75s infinite linear;
+														}
+														@keyframes spinner_AtaB {
+															100% {
+																transform: rotate(360deg);
+															}
+														}
+													</style><path
+														d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"
+														opacity=".25"
+													/><path
+														d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z"
+														class="spinner_ajPY"
+													/></svg
+												>
+											</div>
 										{:else}
-											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4"><path d="M8.75 2.75a.75.75 0 0 0-1.5 0v5.69L5.03 6.22a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.75 8.44V2.75Z"/><path d="M3.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 4.75 14h6.5A2.75 2.75 0 0 0 14 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-6.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z"/></svg>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 16 16"
+												fill="currentColor"
+												class="w-4 h-4"
+												><path
+													d="M8.75 2.75a.75.75 0 0 0-1.5 0v5.69L5.03 6.22a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.75 8.44V2.75Z"
+												/><path
+													d="M3.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 4.75 14h6.5A2.75 2.75 0 0 0 14 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-6.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z"
+												/></svg
+											>
 										{/if}
 									</button>
 								</div>
 								<div class="mt-2 mb-1 text-xs text-gray-400 dark:text-gray-500">
 									{$i18n.t(`Open WebUI uses faster-whisper internally.`)}
-									<a class="hover:underline dark:text-gray-200 text-gray-800" href="https://github.com/SYSTRAN/faster-whisper" target="_blank">{$i18n.t(`Click here to learn more about faster-whisper and see the available models.`)}</a>
+									<a
+										class="hover:underline dark:text-gray-200 text-gray-800"
+										href="https://github.com/SYSTRAN/faster-whisper"
+										target="_blank"
+										>{$i18n.t(
+											`Click here to learn more about faster-whisper and see the available models.`
+										)}</a
+									>
 								</div>
 							{/if}
 						</div>
@@ -874,10 +1216,16 @@
 						<div class="mb-0 text-sm font-medium flex items-center gap-2">
 							<span>{$i18n.t('TTS Settings')}</span>
 							{#if showScopeBadges && scopeLabel}
-								<span class={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}>{scopeLabel}</span>
+								<span class={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}
+									>{scopeLabel}</span
+								>
 							{/if}
 						</div>
-						<div class="transform transition-transform duration-200 {expandedSections.tts ? 'rotate-180' : ''}">
+						<div
+							class="transform transition-transform duration-200 {expandedSections.tts
+								? 'rotate-180'
+								: ''}"
+						>
 							<ChevronDown className="size-4 text-gray-400" />
 						</div>
 					</button>
@@ -888,14 +1236,19 @@
 							transition:slide={{ duration: 180, easing: quintOut }}
 						>
 							<div class="flex w-full items-center justify-between gap-3 py-1">
-								<div class="min-w-0 pr-3 text-xs font-medium">{$i18n.t('Text-to-Speech Engine')}</div>
+								<div class="min-w-0 pr-3 text-xs font-medium">
+									{$i18n.t('Text-to-Speech Engine')}
+								</div>
 								<div class="relative flex shrink-0 items-center max-w-full">
 									<HaloSelect
 										bind:value={TTS_ENGINE}
 										placeholder="Select a mode"
 										options={[
 											{ value: '', label: $i18n.t('Web API') },
-											{ value: 'transformers', label: `${$i18n.t('Transformers')} (${$i18n.t('Local')})` },
+											{
+												value: 'transformers',
+												label: `${$i18n.t('Transformers')} (${$i18n.t('Local')})`
+											},
 											{ value: 'openai', label: $i18n.t('OpenAI') },
 											{ value: 'mimo', label: 'Xiaomi MiMo' },
 											{ value: 'elevenlabs', label: $i18n.t('ElevenLabs') },
@@ -911,12 +1264,25 @@
 
 							{#if TTS_ENGINE === 'openai'}
 								<div class="mt-1 flex gap-2 mb-1">
-									<input class="flex-1 w-full bg-transparent outline-hidden" placeholder={$i18n.t('API Base URL')} bind:value={TTS_OPENAI_API_BASE_URL} required />
-									<SensitiveInput placeholder={$i18n.t('API Key')} bind:value={TTS_OPENAI_API_KEY} />
+									<input
+										class="flex-1 w-full bg-transparent outline-hidden"
+										placeholder={$i18n.t('API Base URL')}
+										bind:value={TTS_OPENAI_API_BASE_URL}
+										required
+									/>
+									<SensitiveInput
+										placeholder={$i18n.t('API Key')}
+										bind:value={TTS_OPENAI_API_KEY}
+									/>
 								</div>
 							{:else if TTS_ENGINE === 'elevenlabs'}
 								<div class="mt-1 flex gap-2 mb-1">
-									<input class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" placeholder={$i18n.t('API Key')} bind:value={TTS_API_KEY} required />
+									<input
+										class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+										placeholder={$i18n.t('API Key')}
+										bind:value={TTS_API_KEY}
+										required
+									/>
 								</div>
 							{:else if TTS_ENGINE === 'mimo'}
 								<div class="mt-1 flex gap-2 mb-1">
@@ -924,8 +1290,18 @@
 								</div>
 							{:else if TTS_ENGINE === 'azure'}
 								<div class="mt-1 flex gap-2 mb-1">
-									<input class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" placeholder={$i18n.t('API Key')} bind:value={TTS_API_KEY} required />
-									<input class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" placeholder={$i18n.t('Azure Region')} bind:value={TTS_AZURE_SPEECH_REGION} required />
+									<input
+										class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+										placeholder={$i18n.t('API Key')}
+										bind:value={TTS_API_KEY}
+										required
+									/>
+									<input
+										class="flex-1 w-full rounded-lg py-2 pl-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+										placeholder={$i18n.t('Azure Region')}
+										bind:value={TTS_AZURE_SPEECH_REGION}
+										required
+									/>
 								</div>
 							{/if}
 
@@ -934,26 +1310,91 @@
 							{#if TTS_ENGINE === ''}
 								<div class="mb-1.5 text-sm font-medium">{$i18n.t('TTS Voice')}</div>
 								<div class="w-full max-w-[15rem]">
-									<HaloSelect bind:value={TTS_VOICE} placeholder={$i18n.t('Default')} options={[{ value: '', label: $i18n.t('Default') }, ...voices.map((voice) => ({ value: voice.voiceURI, label: voice.name }))]} className="w-full" />
+									<HaloSelect
+										bind:value={TTS_VOICE}
+										placeholder={$i18n.t('Default')}
+										options={[
+											{ value: '', label: $i18n.t('Default') },
+											...voices.map((voice) => ({ value: voice.voiceURI, label: voice.name }))
+										]}
+										className="w-full"
+									/>
 								</div>
 							{:else if TTS_ENGINE === 'transformers'}
 								<div class="mb-1.5 text-sm font-medium">{$i18n.t('TTS Model')}</div>
-								<input list="model-list" class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" bind:value={TTS_MODEL} placeholder="CMU ARCTIC speaker embedding name" />
+								<input
+									list="model-list"
+									class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+									bind:value={TTS_MODEL}
+									placeholder="CMU ARCTIC speaker embedding name"
+								/>
 								<datalist id="model-list"><option value="tts-1" /></datalist>
 								<div class="mt-2 mb-1 text-xs text-gray-400 dark:text-gray-500">
 									{$i18n.t(`Open WebUI uses SpeechT5 and CMU Arctic speaker embeddings.`)}
-									To learn more about SpeechT5, <a class="hover:underline dark:text-gray-200 text-gray-800" href="https://github.com/microsoft/SpeechT5" target="_blank">{$i18n.t(`click here`, { name: 'SpeechT5' })}.</a>
-									To see the available CMU Arctic speaker embeddings, <a class="hover:underline dark:text-gray-200 text-gray-800" href="https://huggingface.co/datasets/Matthijs/cmu-arctic-xvectors" target="_blank">{$i18n.t(`click here`)}.</a>
+									To learn more about SpeechT5,
+									<a
+										class="hover:underline dark:text-gray-200 text-gray-800"
+										href="https://github.com/microsoft/SpeechT5"
+										target="_blank">{$i18n.t(`click here`, { name: 'SpeechT5' })}.</a
+									>
+									To see the available CMU Arctic speaker embeddings,
+									<a
+										class="hover:underline dark:text-gray-200 text-gray-800"
+										href="https://huggingface.co/datasets/Matthijs/cmu-arctic-xvectors"
+										target="_blank">{$i18n.t(`click here`)}.</a
+									>
 								</div>
 							{:else if TTS_ENGINE === 'openai'}
 								<div class="flex gap-2">
-									<div class="w-full"><div class="mb-1.5 text-sm font-medium">{$i18n.t('TTS Voice')}</div><input list="voice-list" class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" bind:value={TTS_VOICE} placeholder="Select a voice" /><datalist id="voice-list">{#each voices as voice}<option value={voice.id}>{voice.name}</option>{/each}</datalist></div>
-									<div class="w-full"><div class="mb-1.5 text-sm font-medium">{$i18n.t('TTS Model')}</div><input list="tts-model-list" class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" bind:value={TTS_MODEL} placeholder="Select a model" /><datalist id="tts-model-list">{#each models as model}<option value={model.id} />{/each}</datalist></div>
+									<div class="w-full">
+										<div class="mb-1.5 text-sm font-medium">{$i18n.t('TTS Voice')}</div>
+										<input
+											list="voice-list"
+											class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+											bind:value={TTS_VOICE}
+											placeholder="Select a voice"
+										/><datalist id="voice-list"
+											>{#each voices as voice}<option value={voice.id}>{voice.name}</option
+												>{/each}</datalist
+										>
+									</div>
+									<div class="w-full">
+										<div class="mb-1.5 text-sm font-medium">{$i18n.t('TTS Model')}</div>
+										<input
+											list="tts-model-list"
+											class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+											bind:value={TTS_MODEL}
+											placeholder="Select a model"
+										/><datalist id="tts-model-list"
+											>{#each models as model}<option value={model.id} />{/each}</datalist
+										>
+									</div>
 								</div>
 							{:else if TTS_ENGINE === 'elevenlabs'}
 								<div class="flex gap-2">
-									<div class="w-full"><div class="mb-1.5 text-sm font-medium">{$i18n.t('TTS Voice')}</div><input list="voice-list" class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" bind:value={TTS_VOICE} placeholder="Select a voice" /><datalist id="voice-list">{#each voices as voice}<option value={voice.id}>{voice.name}</option>{/each}</datalist></div>
-									<div class="w-full"><div class="mb-1.5 text-sm font-medium">{$i18n.t('TTS Model')}</div><input list="tts-model-list" class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" bind:value={TTS_MODEL} placeholder="Select a model" /><datalist id="tts-model-list">{#each models as model}<option value={model.id} />{/each}</datalist></div>
+									<div class="w-full">
+										<div class="mb-1.5 text-sm font-medium">{$i18n.t('TTS Voice')}</div>
+										<input
+											list="voice-list"
+											class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+											bind:value={TTS_VOICE}
+											placeholder="Select a voice"
+										/><datalist id="voice-list"
+											>{#each voices as voice}<option value={voice.id}>{voice.name}</option
+												>{/each}</datalist
+										>
+									</div>
+									<div class="w-full">
+										<div class="mb-1.5 text-sm font-medium">{$i18n.t('TTS Model')}</div>
+										<input
+											list="tts-model-list"
+											class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+											bind:value={TTS_MODEL}
+											placeholder="Select a model"
+										/><datalist id="tts-model-list"
+											>{#each models as model}<option value={model.id} />{/each}</datalist
+										>
+									</div>
 								</div>
 							{:else if TTS_ENGINE === 'mimo'}
 								<div class="flex gap-2">
@@ -980,10 +1421,32 @@
 								</div>
 							{:else if TTS_ENGINE === 'azure'}
 								<div class="flex gap-2">
-									<div class="w-full"><div class="mb-1.5 text-sm font-medium">{$i18n.t('TTS Voice')}</div><input list="voice-list" class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" bind:value={TTS_VOICE} placeholder="Select a voice" /><datalist id="voice-list">{#each voices as voice}<option value={voice.id}>{voice.name}</option>{/each}</datalist></div>
 									<div class="w-full">
-										<div class="mb-1.5 text-sm font-medium">{$i18n.t('Output format')} <a href="https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech?tabs=streaming#audio-outputs" target="_blank"><small>{$i18n.t('Available list')}</small></a></div>
-										<input list="tts-model-list" class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden" bind:value={TTS_AZURE_SPEECH_OUTPUT_FORMAT} placeholder="Select a output format" />
+										<div class="mb-1.5 text-sm font-medium">{$i18n.t('TTS Voice')}</div>
+										<input
+											list="voice-list"
+											class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+											bind:value={TTS_VOICE}
+											placeholder="Select a voice"
+										/><datalist id="voice-list"
+											>{#each voices as voice}<option value={voice.id}>{voice.name}</option
+												>{/each}</datalist
+										>
+									</div>
+									<div class="w-full">
+										<div class="mb-1.5 text-sm font-medium">
+											{$i18n.t('Output format')}
+											<a
+												href="https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech?tabs=streaming#audio-outputs"
+												target="_blank"><small>{$i18n.t('Available list')}</small></a
+											>
+										</div>
+										<input
+											list="tts-model-list"
+											class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+											bind:value={TTS_AZURE_SPEECH_OUTPUT_FORMAT}
+											placeholder="Select a output format"
+										/>
 									</div>
 								</div>
 							{/if}
@@ -993,11 +1456,20 @@
 							<div class="flex w-full items-center justify-between gap-3 py-1">
 								<div class="min-w-0 pr-3 text-xs font-medium">{$i18n.t('Response splitting')}</div>
 								<div class="relative flex shrink-0 items-center max-w-full">
-									<HaloSelect bind:value={TTS_SPLIT_ON} options={Object.values(TTS_RESPONSE_SPLIT).map((split) => ({ value: split, label: $i18n.t(split.charAt(0).toUpperCase() + split.slice(1)) }))} className="w-fit" />
+									<HaloSelect
+										bind:value={TTS_SPLIT_ON}
+										options={Object.values(TTS_RESPONSE_SPLIT).map((split) => ({
+											value: split,
+											label: $i18n.t(split.charAt(0).toUpperCase() + split.slice(1))
+										}))}
+										className="w-fit"
+									/>
 								</div>
 							</div>
 							<div class="mt-2 mb-1 text-xs text-gray-400 dark:text-gray-500">
-								{$i18n.t("Control how message text is split for TTS requests. 'Punctuation' splits into sentences, 'paragraphs' splits into paragraphs, and 'none' keeps the message as a single string.")}
+								{$i18n.t(
+									"Control how message text is split for TTS requests. 'Punctuation' splits into sentences, 'paragraphs' splits into paragraphs, and 'none' keeps the message as a single string."
+								)}
 							</div>
 						</div>
 					{/if}
@@ -1030,19 +1502,33 @@
 						>
 							<div class="flex items-center gap-3">
 								<div class="glass-icon-badge bg-green-50 dark:bg-green-950/30">
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-[18px] text-green-500 dark:text-green-400">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 24 24"
+										fill="currentColor"
+										class="size-[18px] text-green-500 dark:text-green-400"
+									>
 										<path d="M8.25 4.5a3.75 3.75 0 117.5 0v8.25a3.75 3.75 0 11-7.5 0V4.5z" />
-										<path d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z" />
+										<path
+											d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z"
+										/>
 									</svg>
 								</div>
 								<div class="text-base font-semibold text-gray-800 dark:text-gray-100">
 									{$i18n.t('STT Settings')}
 									{#if showScopeBadges && scopeLabel}
-										<span class={`ml-2 px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}>{scopeLabel}</span>
+										<span
+											class={`ml-2 px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}
+											>{scopeLabel}</span
+										>
 									{/if}
 								</div>
 							</div>
-							<div class="transform transition-transform duration-200 {expandedSections.stt ? 'rotate-180' : ''}">
+							<div
+								class="transform transition-transform duration-200 {expandedSections.stt
+									? 'rotate-180'
+									: ''}"
+							>
 								<ChevronDown className="size-5 text-gray-400" />
 							</div>
 						</button>
@@ -1085,7 +1571,9 @@
 									</div>
 									<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Base URL')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('API Base URL')}
+											</div>
 											<input
 												class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
 												placeholder={$i18n.t('Enter API Base URL')}
@@ -1094,7 +1582,9 @@
 											/>
 										</div>
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('API Key')}
+											</div>
 											<SensitiveInput
 												placeholder={$i18n.t('Enter API Key')}
 												bind:value={STT_OPENAI_API_KEY}
@@ -1103,7 +1593,9 @@
 									</div>
 
 									<div class="glass-item p-4">
-										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('STT Model')}</div>
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+											{$i18n.t('STT Model')}
+										</div>
 										<input
 											list="model-list"
 											class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
@@ -1121,7 +1613,9 @@
 										{$i18n.t('Engine Credentials')}
 									</div>
 									<div class="glass-item p-4">
-										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+											{$i18n.t('API Key')}
+										</div>
 										<SensitiveInput
 											placeholder={$i18n.t('Enter Deepgram API Key')}
 											bind:value={STT_DEEPGRAM_API_KEY}
@@ -1129,7 +1623,9 @@
 									</div>
 
 									<div class="glass-item p-4">
-										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('STT Model')}</div>
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+											{$i18n.t('STT Model')}
+										</div>
 										<input
 											class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
 											bind:value={STT_MODEL}
@@ -1137,7 +1633,11 @@
 										/>
 										<div class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
 											{$i18n.t('Leave model field empty to use the default model.')}
-											<a class="hover:underline dark:text-gray-200 text-gray-800" href="https://developers.deepgram.com/docs/models" target="_blank">
+											<a
+												class="hover:underline dark:text-gray-200 text-gray-800"
+												href="https://developers.deepgram.com/docs/models"
+												target="_blank"
+											>
 												{$i18n.t('Click here to see available models.')}
 											</a>
 										</div>
@@ -1150,7 +1650,9 @@
 									</div>
 									<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('API Key')}
+											</div>
 											<SensitiveInput
 												placeholder={$i18n.t('Enter Azure API Key')}
 												bind:value={STT_AZURE_API_KEY}
@@ -1158,7 +1660,9 @@
 											/>
 										</div>
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('Azure Region')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('Azure Region')}
+											</div>
 											<input
 												class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
 												placeholder={$i18n.t('Enter Azure Region')}
@@ -1169,7 +1673,9 @@
 									</div>
 
 									<div class="glass-item p-4">
-										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('Language Locales')}</div>
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+											{$i18n.t('Language Locales')}
+										</div>
 										<input
 											class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
 											bind:value={STT_AZURE_LOCALES}
@@ -1183,7 +1689,9 @@
 										{$i18n.t('Model Configuration')}
 									</div>
 									<div class="glass-item p-4">
-										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('STT Model')}</div>
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+											{$i18n.t('STT Model')}
+										</div>
 										<div class="flex w-full gap-2">
 											<input
 												class="flex-1 py-2 px-3 text-sm dark:text-gray-300 glass-input"
@@ -1193,20 +1701,62 @@
 											<button
 												type="button"
 												class="px-2.5 bg-gray-50 hover:bg-gray-200 text-gray-800 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-100 rounded-lg transition"
-												on:click={() => { sttModelUpdateHandler(); }}
+												on:click={() => {
+													sttModelUpdateHandler();
+												}}
 												disabled={STT_WHISPER_MODEL_LOADING}
 											>
 												{#if STT_WHISPER_MODEL_LOADING}
-													<div class="self-center"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><style>.spinner_ajPY{transform-origin:center;animation:spinner_AtaB .75s infinite linear}@keyframes spinner_AtaB{100%{transform:rotate(360deg)}}</style><path d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" opacity=".25"/><path d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z" class="spinner_ajPY"/></svg></div>
+													<div class="self-center">
+														<svg
+															class="w-4 h-4"
+															viewBox="0 0 24 24"
+															fill="currentColor"
+															xmlns="http://www.w3.org/2000/svg"
+															><style>
+																.spinner_ajPY {
+																	transform-origin: center;
+																	animation: spinner_AtaB 0.75s infinite linear;
+																}
+																@keyframes spinner_AtaB {
+																	100% {
+																		transform: rotate(360deg);
+																	}
+																}
+															</style><path
+																d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"
+																opacity=".25"
+															/><path
+																d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z"
+																class="spinner_ajPY"
+															/></svg
+														>
+													</div>
 												{:else}
-													<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4"><path d="M8.75 2.75a.75.75 0 0 0-1.5 0v5.69L5.03 6.22a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.75 8.44V2.75Z"/><path d="M3.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 4.75 14h6.5A2.75 2.75 0 0 0 14 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-6.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z"/></svg>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														viewBox="0 0 16 16"
+														fill="currentColor"
+														class="w-4 h-4"
+														><path
+															d="M8.75 2.75a.75.75 0 0 0-1.5 0v5.69L5.03 6.22a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.75 8.44V2.75Z"
+														/><path
+															d="M3.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 4.75 14h6.5A2.75 2.75 0 0 0 14 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-6.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z"
+														/></svg
+													>
 												{/if}
 											</button>
 										</div>
 										<div class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
 											{$i18n.t(`Open WebUI uses faster-whisper internally.`)}
-											<a class="hover:underline dark:text-gray-200 text-gray-800" href="https://github.com/SYSTRAN/faster-whisper" target="_blank">
-												{$i18n.t(`Click here to learn more about faster-whisper and see the available models.`)}
+											<a
+												class="hover:underline dark:text-gray-200 text-gray-800"
+												href="https://github.com/SYSTRAN/faster-whisper"
+												target="_blank"
+											>
+												{$i18n.t(
+													`Click here to learn more about faster-whisper and see the available models.`
+												)}
 											</a>
 										</div>
 									</div>
@@ -1236,19 +1786,35 @@
 						>
 							<div class="flex items-center gap-3">
 								<div class="glass-icon-badge bg-orange-50 dark:bg-orange-950/30">
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-[18px] text-orange-500 dark:text-orange-400">
-										<path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 001.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06zM18.584 5.106a.75.75 0 011.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 11-1.06-1.06 8.25 8.25 0 000-11.668.75.75 0 010-1.06z" />
-										<path d="M15.932 7.757a.75.75 0 011.061 0 6 6 0 010 8.486.75.75 0 01-1.06-1.061 4.5 4.5 0 000-6.364.75.75 0 010-1.06z" />
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 24 24"
+										fill="currentColor"
+										class="size-[18px] text-orange-500 dark:text-orange-400"
+									>
+										<path
+											d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 001.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06zM18.584 5.106a.75.75 0 011.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 11-1.06-1.06 8.25 8.25 0 000-11.668.75.75 0 010-1.06z"
+										/>
+										<path
+											d="M15.932 7.757a.75.75 0 011.061 0 6 6 0 010 8.486.75.75 0 01-1.06-1.061 4.5 4.5 0 000-6.364.75.75 0 010-1.06z"
+										/>
 									</svg>
 								</div>
 								<div class="text-base font-semibold text-gray-800 dark:text-gray-100">
 									{$i18n.t('TTS Settings')}
 									{#if showScopeBadges && scopeLabel}
-										<span class={`ml-2 px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}>{scopeLabel}</span>
+										<span
+											class={`ml-2 px-1.5 py-0.5 rounded-md text-[10px] font-medium ${scopeBadgeClass}`}
+											>{scopeLabel}</span
+										>
 									{/if}
 								</div>
 							</div>
-							<div class="transform transition-transform duration-200 {expandedSections.tts ? 'rotate-180' : ''}">
+							<div
+								class="transform transition-transform duration-200 {expandedSections.tts
+									? 'rotate-180'
+									: ''}"
+							>
 								<ChevronDown className="size-5 text-gray-400" />
 							</div>
 						</button>
@@ -1273,7 +1839,10 @@
 										placeholder="Select a mode"
 										options={[
 											{ value: '', label: $i18n.t('Web API') },
-											{ value: 'transformers', label: `${$i18n.t('Transformers')} (${$i18n.t('Local')})` },
+											{
+												value: 'transformers',
+												label: `${$i18n.t('Transformers')} (${$i18n.t('Local')})`
+											},
 											{ value: 'openai', label: $i18n.t('OpenAI') },
 											{ value: 'mimo', label: 'Xiaomi MiMo' },
 											{ value: 'elevenlabs', label: $i18n.t('ElevenLabs') },
@@ -1295,7 +1864,9 @@
 									</div>
 									<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Base URL')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('API Base URL')}
+											</div>
 											<input
 												class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
 												placeholder={$i18n.t('Enter API Base URL')}
@@ -1304,7 +1875,9 @@
 											/>
 										</div>
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('API Key')}
+											</div>
 											<SensitiveInput
 												placeholder={$i18n.t('Enter API Key')}
 												bind:value={TTS_OPENAI_API_KEY}
@@ -1318,7 +1891,9 @@
 										{$i18n.t('Engine Credentials')}
 									</div>
 									<div class="glass-item p-4">
-										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+											{$i18n.t('API Key')}
+										</div>
 										<SensitiveInput
 											placeholder={$i18n.t('Enter ElevenLabs API Key')}
 											bind:value={TTS_API_KEY}
@@ -1331,7 +1906,9 @@
 										{$i18n.t('Engine Credentials')}
 									</div>
 									<div class="glass-item p-4">
-										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+											{$i18n.t('API Key')}
+										</div>
 										<SensitiveInput
 											placeholder="Enter Xiaomi MiMo API Key"
 											bind:value={TTS_API_KEY}
@@ -1345,14 +1922,18 @@
 									</div>
 									<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('API Key')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('API Key')}
+											</div>
 											<SensitiveInput
 												placeholder={$i18n.t('Enter Azure API Key')}
 												bind:value={TTS_API_KEY}
 											/>
 										</div>
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('Azure Region')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('Azure Region')}
+											</div>
 											<input
 												class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
 												placeholder={$i18n.t('Enter Azure Region')}
@@ -1372,7 +1953,9 @@
 
 								{#if TTS_ENGINE === ''}
 									<div class="glass-item p-4">
-										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Voice')}</div>
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+											{$i18n.t('TTS Voice')}
+										</div>
 										<div class="w-full max-w-[15rem]">
 											<HaloSelect
 												bind:value={TTS_VOICE}
@@ -1387,7 +1970,9 @@
 									</div>
 								{:else if TTS_ENGINE === 'transformers'}
 									<div class="glass-item p-4">
-										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Model')}</div>
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+											{$i18n.t('TTS Model')}
+										</div>
 										<input
 											list="model-list"
 											class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
@@ -1400,11 +1985,19 @@
 										<div class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
 											{$i18n.t(`Open WebUI uses SpeechT5 and CMU Arctic speaker embeddings.`)}
 											To learn more about SpeechT5,
-											<a class="hover:underline dark:text-gray-200 text-gray-800" href="https://github.com/microsoft/SpeechT5" target="_blank">
+											<a
+												class="hover:underline dark:text-gray-200 text-gray-800"
+												href="https://github.com/microsoft/SpeechT5"
+												target="_blank"
+											>
 												{$i18n.t(`click here`, { name: 'SpeechT5' })}.
 											</a>
 											To see the available CMU Arctic speaker embeddings,
-											<a class="hover:underline dark:text-gray-200 text-gray-800" href="https://huggingface.co/datasets/Matthijs/cmu-arctic-xvectors" target="_blank">
+											<a
+												class="hover:underline dark:text-gray-200 text-gray-800"
+												href="https://huggingface.co/datasets/Matthijs/cmu-arctic-xvectors"
+												target="_blank"
+											>
 												{$i18n.t(`click here`)}.
 											</a>
 										</div>
@@ -1412,7 +2005,9 @@
 								{:else if TTS_ENGINE === 'openai'}
 									<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Voice')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('TTS Voice')}
+											</div>
 											<input
 												list="voice-list"
 												class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
@@ -1426,7 +2021,9 @@
 											</datalist>
 										</div>
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Model')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('TTS Model')}
+											</div>
 											<input
 												list="tts-model-list"
 												class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
@@ -1443,7 +2040,9 @@
 								{:else if TTS_ENGINE === 'elevenlabs'}
 									<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Voice')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('TTS Voice')}
+											</div>
 											<input
 												list="voice-list"
 												class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
@@ -1457,7 +2056,9 @@
 											</datalist>
 										</div>
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Model')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('TTS Model')}
+											</div>
 											<input
 												list="tts-model-list"
 												class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
@@ -1474,7 +2075,9 @@
 								{:else if TTS_ENGINE === 'mimo'}
 									<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Voice')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('TTS Voice')}
+											</div>
 											<HaloSelect
 												bind:value={TTS_VOICE}
 												placeholder="Select a voice"
@@ -1484,7 +2087,9 @@
 											/>
 										</div>
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Model')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('TTS Model')}
+											</div>
 											<HaloSelect
 												bind:value={TTS_MODEL}
 												placeholder="Select a model"
@@ -1497,7 +2102,9 @@
 								{:else if TTS_ENGINE === 'azure'}
 									<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 										<div class="glass-item p-4">
-											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{$i18n.t('TTS Voice')}</div>
+											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+												{$i18n.t('TTS Voice')}
+											</div>
 											<input
 												list="voice-list"
 												class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
@@ -1513,8 +2120,13 @@
 										<div class="glass-item p-4">
 											<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
 												{$i18n.t('Output format')}
-												<a href="https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech?tabs=streaming#audio-outputs" target="_blank">
-													<small class="ml-1 text-gray-400 hover:underline">{$i18n.t('Available list')}</small>
+												<a
+													href="https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech?tabs=streaming#audio-outputs"
+													target="_blank"
+												>
+													<small class="ml-1 text-gray-400 hover:underline"
+														>{$i18n.t('Available list')}</small
+													>
 												</a>
 											</div>
 											<input

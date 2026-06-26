@@ -3,7 +3,12 @@
 	import { createEventDispatcher, getContext, onMount, tick } from 'svelte';
 	import { config as backendConfig, user } from '$lib/stores';
 	import { getBackendConfig } from '$lib/apis';
-	import { getConfig, updateConfig, getImageGenerationConfig, updateImageGenerationConfig } from '$lib/apis/images';
+	import {
+		getConfig,
+		updateConfig,
+		getImageGenerationConfig,
+		updateImageGenerationConfig
+	} from '$lib/apis/images';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import InlineDirtyActions from './InlineDirtyActions.svelte';
@@ -116,7 +121,10 @@
 	const saveHandler = async () => {
 		loading = true;
 
-		const updatedConfig = await updateConfig(localStorage.token, serializeConfigForSave(config)).catch((error) => {
+		const updatedConfig = await updateConfig(
+			localStorage.token,
+			serializeConfigForSave(config)
+		).catch((error) => {
 			toast.error(formatImageSettingsError(error));
 			return null;
 		});
@@ -172,7 +180,9 @@
 							<div>
 								<div class="text-sm font-medium">{$i18n.t('Image Generation')}</div>
 								<div class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-									{$i18n.t('Users can generate images by selecting an image model in chat or in the image workspace.')}
+									{$i18n.t(
+										'Users can generate images by selecting an image model in chat or in the image workspace.'
+									)}
 								</div>
 							</div>
 							<Switch bind:state={config.enabled} />
@@ -180,9 +190,13 @@
 
 						<div class="flex items-center justify-between glass-item px-4 py-3">
 							<div>
-								<div class="text-sm font-medium">{$i18n.t('Allow users to use the workspace shared key')}</div>
+								<div class="text-sm font-medium">
+									{$i18n.t('Allow users to use the workspace shared key')}
+								</div>
 								<div class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-									{$i18n.t('When enabled, users without personal connections can fall back to the workspace shared key.')}
+									{$i18n.t(
+										'When enabled, users without personal connections can fall back to the workspace shared key.'
+									)}
 								</div>
 							</div>
 							<Switch bind:state={config.shared_key_enabled} />
@@ -195,7 +209,10 @@
 						{$i18n.t('Model Filter Regex')}
 					</div>
 					<div class="glass-item p-4">
-						<Tooltip content={$i18n.t('Regex pattern to filter image models (leave empty to show all)')} placement="top-start">
+						<Tooltip
+							content={$i18n.t('Regex pattern to filter image models (leave empty to show all)')}
+							placement="top-start"
+						>
 							<input
 								class="w-full py-2 px-3 text-sm dark:text-gray-300 glass-input"
 								placeholder={$i18n.t('e.g. dall-e|gpt-image')}
