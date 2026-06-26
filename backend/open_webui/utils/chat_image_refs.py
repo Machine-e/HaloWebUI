@@ -299,7 +299,9 @@ def create_chat_image_file(
     file_path = None
 
     try:
-        file_size, file_path = Storage.upload_file(io.BytesIO(data), storage_name)
+        upload_result = Storage.upload_file(io.BytesIO(data), storage_name)
+        file_size, file_path = upload_result
+        upload_storage_meta = getattr(upload_result, "meta", {}) or {}
         file_obj = Files.insert_new_file(
             user_id,
             FileForm(
@@ -311,6 +313,7 @@ def create_chat_image_file(
                     "name": original_name,
                     "content_type": mime_type,
                     "size": file_size,
+                    **upload_storage_meta,
                 },
             ),
         )

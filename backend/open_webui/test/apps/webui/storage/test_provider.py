@@ -1,5 +1,6 @@
 import io
 import os
+from pathlib import Path
 import boto3
 import pytest
 from botocore.exceptions import ClientError
@@ -95,6 +96,97 @@ class TestLocalStorageProvider:
         self.Storage.delete_all_files()
         assert not (upload_dir / self.filename).exists()
         assert not (upload_dir / self.filename_extra).exists()
+
+    def test_upload_file_dedupe_disabled_writes_independent_copies(
+        self, monkeypatch, tmp_path
+    ):
+        upload_dir = mock_upload_dir(monkeypatch, tmp_path)
+        monkeypatch.setattr(provider, "ENABLE_UPLOAD_DEDUPE", False)
+
+        first = self.Storage.upload_file(io.BytesIO(self.file_content), "first.txt")
+        second = self.Storage.upload_file(io.BytesIO(self.file_content), "second.txt")
+
+        assert first.size == len(self.file_content)
+        assert second.size == len(self.file_content)
+        assert first.meta == {}
+        assert second.meta == {}
+        assert (upload_dir / "first.txt").stat().st_ino != (
+            upload_dir / "second.txt"
+        ).stat().st_ino
+
+    def test_upload_file_dedupe_enabled_below_min_size_writes_independent_copies(
+        self, monkeypatch, tmp_path
+    ):
+        upload_dir = mock_upload_dir(monkeypatch, tmp_path)
+        monkeypatch.setattr(provider, "ENABLE_UPLOAD_DEDUPE", True)
+        monkeypatch.setattr(provider, "UPLOAD_DEDUPE_MIN_SIZE", 1024)
+        monkeypatch.setattr(provider, "UPLOAD_DEDUPE_STRATEGY", "hardlink")
+
+        first = self.Storage.upload_file(io.BytesIO(self.file_content), "first.txt")
+        second = self.Storage.upload_file(io.BytesIO(self.file_content), "second.txt")
+
+        assert first.meta["storage_sha256"] == second.meta["storage_sha256"]
+        assert first.meta["dedupe"]["linked"] is False
+        assert second.meta["dedupe"]["linked"] is False
+        assert (upload_dir / "first.txt").stat().st_ino != (
+            upload_dir / "second.txt"
+        ).stat().st_ino
+
+    def test_upload_file_hardlinks_verified_candidate(self, monkeypatch, tmp_path):
+        upload_dir = mock_upload_dir(monkeypatch, tmp_path)
+        monkeypatch.setattr(provider, "ENABLE_UPLOAD_DEDUPE", True)
+        monkeypatch.setattr(provider, "UPLOAD_DEDUPE_MIN_SIZE", 1)
+        monkeypatch.setattr(provider, "UPLOAD_DEDUPE_STRATEGY", "hardlink")
+
+        first = self.Storage.upload_file(io.BytesIO(self.file_content), "first.txt")
+        monkeypatch.setattr(
+            provider,
+            "_find_verified_local_dedupe_candidate",
+            lambda **_kwargs: ("file-1", Path(first.path)),
+        )
+
+        second = self.Storage.upload_file(io.BytesIO(self.file_content), "second.txt")
+
+        assert second.meta["dedupe"]["linked"] is True
+        assert second.meta["dedupe"]["canonical_file_id"] == "file-1"
+        assert (upload_dir / "first.txt").stat().st_ino == (
+            upload_dir / "second.txt"
+        ).stat().st_ino
+
+    def test_upload_file_missing_candidate_falls_back_independent(
+        self, monkeypatch, tmp_path
+    ):
+        upload_dir = mock_upload_dir(monkeypatch, tmp_path)
+        monkeypatch.setattr(provider, "ENABLE_UPLOAD_DEDUPE", True)
+        monkeypatch.setattr(provider, "UPLOAD_DEDUPE_MIN_SIZE", 1)
+        monkeypatch.setattr(provider, "UPLOAD_DEDUPE_STRATEGY", "hardlink")
+        monkeypatch.setattr(
+            provider,
+            "_find_verified_local_dedupe_candidate",
+            lambda **_kwargs: None,
+        )
+
+        result = self.Storage.upload_file(io.BytesIO(self.file_content), "new.txt")
+
+        assert result.meta["dedupe"]["linked"] is False
+        assert (upload_dir / "new.txt").read_bytes() == self.file_content
+
+    def test_upload_file_unsupported_dedupe_strategy_falls_back_independent(
+        self, monkeypatch, tmp_path
+    ):
+        upload_dir = mock_upload_dir(monkeypatch, tmp_path)
+        monkeypatch.setattr(provider, "ENABLE_UPLOAD_DEDUPE", True)
+        monkeypatch.setattr(provider, "UPLOAD_DEDUPE_MIN_SIZE", 1)
+        monkeypatch.setattr(provider, "UPLOAD_DEDUPE_STRATEGY", "copy")
+
+        result = self.Storage.upload_file(io.BytesIO(self.file_content), "new.txt")
+
+        assert result.meta["dedupe"] == {
+            "strategy": "copy",
+            "linked": False,
+            "fallback_reason": "unsupported_strategy",
+        }
+        assert (upload_dir / "new.txt").read_bytes() == self.file_content
 
 
 @mock_aws

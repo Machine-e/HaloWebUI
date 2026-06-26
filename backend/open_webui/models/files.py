@@ -203,6 +203,24 @@ class FilesTable:
             except Exception:
                 return None
 
+    def get_files_by_storage_hash_and_size(
+        self, sha256: str, size: int, limit: int = 20
+    ) -> list[FileModel]:
+        with get_db() as db:
+            try:
+                files = (
+                    db.query(File)
+                    .filter(File.meta["storage_sha256"].as_string() == sha256)
+                    .filter(File.meta["storage_size"].as_integer() == size)
+                    .order_by(File.created_at.asc(), File.id.asc())
+                    .limit(limit)
+                    .all()
+                )
+                return [FileModel.model_validate(file) for file in files]
+            except Exception as exc:
+                log.debug("Error finding upload dedupe candidates: %s", exc)
+                return []
+
     def update_file_hash_by_id(self, id: str, hash: str) -> Optional[FileModel]:
         with get_db() as db:
             try:
