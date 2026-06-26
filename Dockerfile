@@ -30,6 +30,7 @@ FROM --platform=$BUILDPLATFORM node:22-alpine3.20 AS frontend-build
 ARG BUILD_HASH
 ARG ENABLE_PYODIDE=false
 ARG VITE_SOURCEMAP=false
+ARG NODE_OPTIONS="--max-old-space-size=4096"
 
 WORKDIR /app
 
@@ -48,7 +49,8 @@ COPY vite.config.ts ./
 
 ENV APP_BUILD_HASH=${BUILD_HASH} \
     ENABLE_PYODIDE=${ENABLE_PYODIDE} \
-    VITE_SOURCEMAP=${VITE_SOURCEMAP}
+    VITE_SOURCEMAP=${VITE_SOURCEMAP} \
+    NODE_OPTIONS=${NODE_OPTIONS}
 
 RUN npm run build
 
