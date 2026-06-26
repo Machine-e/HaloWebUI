@@ -174,6 +174,7 @@
 	const CHAT_TASK_HARD_TIMEOUT_MS = 10 * 60_000;
 	const CHAT_TASK_WATCHDOG_INTERVAL_MS = 15_000;
 	const CHAT_REQUEST_START_TIMEOUT_MS = 30_000;
+	const EMPTY_ASSISTANT_INTERRUPT_GRACE_MS = 10_000;
 	const SOFT_SAVE_TIMEOUT_MS = 15_000;
 	const SOFT_MEMORY_TIMEOUT_MS = 10_000;
 	const SOFT_LOCATION_TIMEOUT_MS = 5_000;
@@ -4136,8 +4137,16 @@
 
 			if (hasActivePendingResponse && pendingAssistantIds.has(messageId)) {
 				message.done = false;
-			} else if (!hasActivePendingResponse && isUnresolvedEmptyAssistantMessage(message)) {
-				markUnresolvedEmptyAssistantMessage(message);
+			} else if (
+				!hasActivePendingResponse &&
+				isUnresolvedEmptyAssistantMessage(message)
+			) {
+				const ageMs = Date.now() - (Number(message.timestamp) || 0) * 1000;
+				if (ageMs >= EMPTY_ASSISTANT_INTERRUPT_GRACE_MS) {
+					markUnresolvedEmptyAssistantMessage(message);
+				} else {
+					message.done = false;
+				}
 			} else {
 				message.done = true;
 			}
