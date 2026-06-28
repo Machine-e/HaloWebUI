@@ -177,6 +177,12 @@
 	const SOFT_SAVE_TIMEOUT_MS = 15_000;
 	const SOFT_MEMORY_TIMEOUT_MS = 10_000;
 	const SOFT_LOCATION_TIMEOUT_MS = 5_000;
+	const RESPONSE_RECOVERY_GRACE_MS =
+		SOFT_SAVE_TIMEOUT_MS +
+		SOFT_MEMORY_TIMEOUT_MS +
+		SOFT_LOCATION_TIMEOUT_MS * 2 +
+		CHAT_REQUEST_START_TIMEOUT_MS +
+		10_000;
 
 	type ChatTaskInfo = {
 		id: string;
@@ -1101,6 +1107,7 @@
 			hardTimeoutAt: number;
 		}
 	> = {};
+	let responseStartPendingAt: Record<string, number> = {};
 	let recoveryInFlight = false;
 	let taskWatchdogTimer: ReturnType<typeof setInterval> | null = null;
 	let stoppedResponseMessageIds = new Set<string>();
@@ -2858,6 +2865,59 @@
 
 	const getActiveTaskIds = () => (Array.isArray(taskIds) ? taskIds.filter(Boolean) : []);
 
+	const markResponseStartPending = (messageId: string | null | undefined) => {
+		if (!messageId) {
+			return;
+		}
+
+		responseStartPendingAt = {
+			...responseStartPendingAt,
+			[messageId]: Date.now()
+		};
+	};
+
+	const clearResponseStartPending = (messageId: string | null | undefined) => {
+		if (!messageId || !responseStartPendingAt[messageId]) {
+			return;
+		}
+
+		const next = { ...responseStartPendingAt };
+		delete next[messageId];
+		responseStartPendingAt = next;
+	};
+
+	const getMessageAgeMs = (message: any) => {
+		const timestamp = Number(message?.timestamp);
+		if (!Number.isFinite(timestamp) || timestamp <= 0) {
+			return Number.POSITIVE_INFINITY;
+		}
+
+		return Date.now() - timestamp * 1000;
+	};
+
+	const isResponseStartPending = (messageId: string | null | undefined, message: any = null) => {
+		if (messageId) {
+			const pendingAt = responseStartPendingAt[messageId];
+			if (pendingAt && Date.now() - pendingAt < RESPONSE_RECOVERY_GRACE_MS) {
+				return true;
+			}
+		}
+
+		const responseMessage = message ?? getHistoryMessage(messageId);
+		if (
+			responseMessage?.role !== 'assistant' ||
+			responseMessage.done === true ||
+			isResponseStopped(responseMessage) ||
+			`${responseMessage?.content ?? ''}`.trim() ||
+			responseMessage?.error ||
+			responseMessage?.completedAt
+		) {
+			return false;
+		}
+
+		return getMessageAgeMs(responseMessage) < RESPONSE_RECOVERY_GRACE_MS;
+	};
+
 	const normalizeChatTaskInfos = (tasks: unknown, fallbackTaskIds: string[] | null = null) => {
 		if (Array.isArray(tasks)) {
 			return tasks
@@ -2910,7 +2970,10 @@
 	const resetTaskIds = resetTaskTracking;
 
 	const registerResponseTask = (messageId: string, taskId: string | null | undefined) => {
-		if (!messageId || !taskId) return;
+		if (!messageId) return;
+
+		if (!taskId) return;
+		clearResponseStartPending(messageId);
 
 		const currentTaskIds = new Set(taskIdsByMessageId[messageId] ?? []);
 		currentTaskIds.add(taskId);
@@ -2959,6 +3022,7 @@
 		const nextWatchdogs = { ...responseTaskWatchdogs };
 		delete nextWatchdogs[responseMessageId];
 		responseTaskWatchdogs = nextWatchdogs;
+		clearResponseStartPending(responseMessageId);
 
 		if (mappedTaskIds.size > 0) {
 			const nextTaskIds = getActiveTaskIds().filter((id) => !mappedTaskIds.has(id));
@@ -3251,8 +3315,14 @@
 				selectedModels = [assistantScene.id];
 			}
 		});
+		let initialSocketReconnectRevision: number | null = null;
 		socketReconnectUnsubscriber = socketReconnectRevision.subscribe((revision) => {
-			if (revision > 0) {
+			if (initialSocketReconnectRevision === null) {
+				initialSocketReconnectRevision = revision;
+				return;
+			}
+
+			if (revision > initialSocketReconnectRevision) {
 				void recoverActiveChat('socket-reconnect');
 			}
 		});
@@ -4094,6 +4164,8 @@
 
 			if (hasActivePendingResponse && pendingAssistantIds.has(messageId)) {
 				message.done = false;
+			} else if (!hasActivePendingResponse && isResponseStartPending(messageId, message)) {
+				message.done = false;
 			} else if (!hasActivePendingResponse && isUnresolvedEmptyAssistantMessage(message)) {
 				markUnresolvedEmptyAssistantMessage(message);
 			} else {
@@ -4134,9 +4206,12 @@
 	const markResponseRecoveryFailed = async (messageId: string, taskId: string | null, reason: string) => {
 		const message = history.messages?.[messageId];
 		if (!message) {
+			clearResponseStartPending(messageId);
 			clearTaskForCompletedResponse(messageId);
 			return;
 		}
+
+		clearResponseStartPending(messageId);
 
 		if (taskId) {
 			await stopTask(localStorage.token, taskId).catch(() => null);
@@ -4208,6 +4283,12 @@
 			if (!taskIds || taskIds.length === 0) {
 				for (const [messageId, message] of Object.entries(history.messages ?? {}) as [string, any][]) {
 					if (message?.role !== 'assistant' || message.done === true) {
+						continue;
+					}
+
+					if (isResponseStartPending(messageId, message)) {
+						message.done = false;
+						history.messages[messageId] = message;
 						continue;
 					}
 
@@ -5158,6 +5239,7 @@
 			if (!message) continue;
 
 			stoppedResponseMessageIds.add(messageId);
+			clearResponseStartPending(messageId);
 			await releaseResponseAnimationController(messageId);
 			clearPendingGeminiImages(messageId, true);
 
@@ -5604,6 +5686,7 @@
 
 			history.messages[responseMessageId] = responseMessage;
 			history.currentId = responseMessageId;
+			markResponseStartPending(responseMessageId);
 
 			if (parentId !== null && history.messages[parentId]) {
 				history.messages[parentId].childrenIds = [
@@ -5708,6 +5791,7 @@
 				// Add message to history and Set currentId to messageId
 				history.messages[responseMessageId] = responseMessage;
 				history.currentId = responseMessageId;
+				markResponseStartPending(responseMessageId);
 
 				// Append messageId to childrenIds of parent message
 				if (parentId !== null && history.messages[parentId]) {
@@ -5811,6 +5895,7 @@
 	) => {
 		const responseMessage = _history.messages[responseMessageId];
 		const files = structuredClone(chatFiles);
+		markResponseStartPending(responseMessageId);
 
 		resetAutoScrollLock();
 		scrollToBottom();
@@ -6050,6 +6135,7 @@
 			`${WEBUI_BASE_URL}/api`,
 			{ timeoutMs: CHAT_REQUEST_START_TIMEOUT_MS }
 		).catch(async (error) => {
+			clearResponseStartPending(responseMessageId);
 			const resolutionDetail = getModelResolutionDetail(error);
 			if (resolutionDetail) {
 				await promptModelReselection({
@@ -6074,8 +6160,10 @@
 
 		if (res) {
 			if (res.error) {
+				clearResponseStartPending(responseMessageId);
 				await handleOpenAIError(res.error, responseMessage);
 			} else if (stoppedResponseMessageIds.has(responseMessageId) || isResponseStopped(responseMessage)) {
+				clearResponseStartPending(responseMessageId);
 				if (res.task_id) {
 					await stopTask(localStorage.token, res.task_id).catch((error) => {
 						toast.error(`${error}`);
@@ -6087,6 +6175,7 @@
 				const liveResponseMessage =
 					(history.messages as Record<string, any>)[responseMessageId] ?? responseMessage;
 				if (liveResponseMessage?.done === true) {
+					clearResponseStartPending(responseMessageId);
 					clearTaskForCompletedResponse(responseMessageId);
 				} else {
 					registerResponseTask(responseMessageId, taskId);

@@ -104,9 +104,13 @@
 
 	const handleSocketConnect = () => {
 		console.log('connected', currentSocket?.id);
+		const wasDisconnected = $socketLastDisconnectedAt !== null;
 		socketConnectionState.set('connected');
 		socketLastConnectedAt.set(Date.now());
-		socketReconnectRevision.update((value) => value + 1);
+		socketLastDisconnectedAt.set(null);
+		if (wasDisconnected) {
+			socketReconnectRevision.update((value) => value + 1);
+		}
 		if (localStorage.token) {
 			currentSocket?.emit('user-join', { auth: { token: localStorage.token } });
 		}
@@ -594,12 +598,20 @@
 		};
 
 		// Set yourself as the last active tab when this tab is focused
+		let hasSeenHiddenVisibilityState = document.visibilityState === 'hidden';
 		const handleVisibilityChange = async () => {
+			if (document.visibilityState === 'hidden') {
+				hasSeenHiddenVisibilityState = true;
+				return;
+			}
+
 			if (document.visibilityState === 'visible') {
 				isLastActiveTab.set(true); // This tab is now the active tab
 				bc.postMessage('active'); // Notify other tabs that this tab is active
 				await attemptSocketRecovery($config?.features?.enable_websocket ?? true);
-				window.dispatchEvent(new CustomEvent('halo:foreground-resume'));
+				if (hasSeenHiddenVisibilityState) {
+					window.dispatchEvent(new CustomEvent('halo:foreground-resume'));
+				}
 			}
 		};
 		const handleAndroidResume = async () => {
