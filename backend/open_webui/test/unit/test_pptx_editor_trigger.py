@@ -245,3 +245,108 @@ def test_pptx_editor_fallback_skips_when_pptx_already_attached(monkeypatch):
     )
 
     assert files == []
+
+
+def test_pptx_generation_fallback_runs_and_emits_file(monkeypatch):
+    captured = {}
+    emitted = []
+    attachment = {
+        "type": "file",
+        "id": "generated-pptx",
+        "name": "ai-plan.pptx",
+        "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "source": "server_file",
+        "producer": "pptx_generator",
+        "server_generated": True,
+    }
+
+    def fake_create_pptx_file(request, user, args):
+        captured["request"] = request
+        captured["user"] = user
+        captured["args"] = args
+        return {"files": [attachment]}
+
+    async def fake_event_emitter(event):
+        emitted.append(event)
+
+    monkeypatch.setattr(
+        middleware,
+        "create_pptx_file",
+        fake_create_pptx_file,
+    )
+
+    request = SimpleNamespace(base_url="https://example.test/")
+    user = SimpleNamespace(id="user-1", role="user")
+    metadata = {"selected_runnable_skills": {"skill_ids": ["builtin:pptx-generator"]}}
+    files = asyncio.run(
+        middleware._maybe_run_pptx_generation_fallback(
+            request,
+            user,
+            metadata,
+            "帮我生成一份AI产品路线图PPT并发给我",
+            [],
+            fake_event_emitter,
+            "# AI产品路线图\n- 目标用户\n- 核心功能\n- 里程碑",
+        )
+    )
+
+    assert files == [attachment]
+    assert captured["request"] is request
+    assert captured["user"] is user
+    assert captured["args"]["title"] == "帮我生成一份AI产品路线图PPT并发给我"
+    assert captured["args"]["content"] == "# AI产品路线图\n- 目标用户\n- 核心功能\n- 里程碑"
+    assert emitted == [
+        {
+            "type": "chat:message:files",
+            "data": {"files": [attachment]},
+        }
+    ]
+
+
+def test_pptx_generation_fallback_skips_when_existing_pptx_attached(monkeypatch):
+    def fail_create_pptx_file(*_args, **_kwargs):
+        raise AssertionError("fallback should not run")
+
+    monkeypatch.setattr(
+        middleware,
+        "create_pptx_file",
+        fail_create_pptx_file,
+    )
+
+    files = asyncio.run(
+        middleware._maybe_run_pptx_generation_fallback(
+            SimpleNamespace(base_url="https://example.test/"),
+            SimpleNamespace(id="user-1", role="user"),
+            {"selected_runnable_skills": {"skill_ids": ["builtin:pptx-generator"]}},
+            "生成ppt发我",
+            [
+                {
+                    "type": "file",
+                    "id": "already-generated",
+                    "name": "already-generated.pptx",
+                    "source": "server_file",
+                }
+            ],
+            None,
+            "# 已生成",
+        )
+    )
+
+    assert files == []
+
+
+def test_pptx_generation_content_source_uses_visible_text_only():
+    content = middleware._get_visible_text_from_content_blocks(
+        [
+            {"type": "reasoning", "content": "hidden chain"},
+            {"type": "text", "content": "第一部分\n\n<think>隐藏</think>"},
+            {
+                "type": "tool_calls",
+                "content": [],
+                "results": [{"content": "tool output"}],
+            },
+            {"type": "text", "content": "第二部分"},
+        ]
+    )
+
+    assert content == "第一部分\n\n第二部分"

@@ -1039,6 +1039,12 @@ LICENSE_KEY = os.environ.get("LICENSE_KEY", "")
 
 STORAGE_PROVIDER = os.environ.get("STORAGE_PROVIDER", "local")  # defaults to local, s3
 
+ENABLE_UPLOAD_DEDUPE = (
+    os.environ.get("ENABLE_UPLOAD_DEDUPE", "False").lower() == "true"
+)
+UPLOAD_DEDUPE_MIN_SIZE = int(os.environ.get("UPLOAD_DEDUPE_MIN_SIZE", "1048576"))
+UPLOAD_DEDUPE_STRATEGY = os.environ.get("UPLOAD_DEDUPE_STRATEGY", "hardlink").lower()
+
 S3_ACCESS_KEY_ID = os.environ.get("S3_ACCESS_KEY_ID", None)
 S3_SECRET_ACCESS_KEY = os.environ.get("S3_SECRET_ACCESS_KEY", None)
 S3_REGION_NAME = os.environ.get("S3_REGION_NAME", None)

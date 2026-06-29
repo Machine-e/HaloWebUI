@@ -1,10 +1,15 @@
 import contextlib
+import errno
+import hashlib
 import json
 import logging
 import os
 import shutil
+import uuid
 from abc import ABC, abstractmethod
-from typing import BinaryIO, Tuple
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, BinaryIO, Iterator
 
 from open_webui.config import (
     S3_ACCESS_KEY_ID,
@@ -20,7 +25,10 @@ from open_webui.config import (
     AZURE_STORAGE_ENDPOINT,
     AZURE_STORAGE_CONTAINER_NAME,
     AZURE_STORAGE_KEY,
+    ENABLE_UPLOAD_DEDUPE,
     STORAGE_PROVIDER,
+    UPLOAD_DEDUPE_MIN_SIZE,
+    UPLOAD_DEDUPE_STRATEGY,
     UPLOAD_DIR,
 )
 from open_webui.constants import ERROR_MESSAGES
@@ -37,28 +45,136 @@ log.setLevel(SRC_LOG_LEVELS["MAIN"])
 UPLOAD_CHUNK_SIZE = 1024 * 1024
 
 
-def _write_upload_stream(file: BinaryIO, file_path: str) -> int:
+@dataclass(frozen=True)
+class UploadFileResult:
+    size: int
+    path: str
+    meta: dict[str, Any] = field(default_factory=dict)
+
+    def __iter__(self) -> Iterator[int | str]:
+        yield self.size
+        yield self.path
+
+    def __len__(self) -> int:
+        return 2
+
+    def __getitem__(self, index: int) -> int | str:
+        if index == 0:
+            return self.size
+        if index == 1:
+            return self.path
+        raise IndexError(index)
+
+
+def _write_upload_stream(
+    file: BinaryIO, file_path: Path, *, calculate_hash: bool = True
+) -> tuple[int, str | None]:
     file_size = 0
+    digest = hashlib.sha256() if calculate_hash else None
 
     try:
-        with open(file_path, "wb") as output_file:
+        with file_path.open("wb") as output_file:
             while True:
                 chunk = file.read(UPLOAD_CHUNK_SIZE)
                 if not chunk:
                     break
                 output_file.write(chunk)
                 file_size += len(chunk)
+                if digest:
+                    digest.update(chunk)
     except Exception:
         with contextlib.suppress(FileNotFoundError):
-            os.remove(file_path)
+            file_path.unlink()
         raise
 
     if file_size == 0:
         with contextlib.suppress(FileNotFoundError):
-            os.remove(file_path)
+            file_path.unlink()
         raise ValueError(ERROR_MESSAGES.EMPTY_CONTENT)
 
-    return file_size
+    return file_size, digest.hexdigest() if digest else None
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        while True:
+            chunk = file.read(UPLOAD_CHUNK_SIZE)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.resolve(strict=False).relative_to(root.resolve(strict=False))
+        return True
+    except ValueError:
+        return False
+
+
+def _build_storage_meta(
+    *,
+    sha256: str,
+    size: int,
+    dedupe_strategy: str,
+    linked: bool,
+    canonical_file_id: str | None = None,
+    fallback_reason: str | None = None,
+) -> dict[str, Any]:
+    dedupe: dict[str, Any] = {
+        "strategy": dedupe_strategy,
+        "linked": linked,
+    }
+    if canonical_file_id:
+        dedupe["canonical_file_id"] = canonical_file_id
+    if fallback_reason:
+        dedupe["fallback_reason"] = fallback_reason
+
+    return {
+        "storage_sha256": sha256,
+        "storage_size": size,
+        "dedupe": dedupe,
+    }
+
+
+def _find_verified_local_dedupe_candidate(
+    *,
+    sha256: str,
+    size: int,
+    destination: Path,
+    upload_dir: Path,
+) -> tuple[str, Path] | None:
+    from open_webui.models.files import Files
+
+    for file in Files.get_files_by_storage_hash_and_size(sha256, size):
+        if not file.path:
+            continue
+
+        candidate = Path(file.path)
+        if not candidate.is_absolute():
+            candidate = upload_dir / candidate.name
+
+        if candidate == destination:
+            continue
+        if not _is_relative_to(candidate, upload_dir):
+            continue
+        if not candidate.is_file() or candidate.is_symlink():
+            continue
+
+        try:
+            stat = candidate.stat()
+        except OSError:
+            continue
+        if stat.st_size != size:
+            continue
+        if _sha256_file(candidate) != sha256:
+            continue
+
+        return file.id, candidate
+
+    return None
 
 
 class StorageProvider(ABC):
@@ -67,7 +183,7 @@ class StorageProvider(ABC):
         pass
 
     @abstractmethod
-    def upload_file(self, file: BinaryIO, filename: str) -> Tuple[int, str]:
+    def upload_file(self, file: BinaryIO, filename: str) -> UploadFileResult:
         pass
 
     @abstractmethod
@@ -86,7 +202,7 @@ class UnavailableStorageProvider(StorageProvider):
     def get_file(self, file_path: str) -> str:
         raise RuntimeError(self.error)
 
-    def upload_file(self, file: BinaryIO, filename: str) -> Tuple[int, str]:
+    def upload_file(self, file: BinaryIO, filename: str) -> UploadFileResult:
         raise RuntimeError(self.error)
 
     def delete_all_files(self) -> None:
@@ -98,10 +214,99 @@ class UnavailableStorageProvider(StorageProvider):
 
 class LocalStorageProvider(StorageProvider):
     @staticmethod
-    def upload_file(file: BinaryIO, filename: str) -> Tuple[int, str]:
-        file_path = f"{UPLOAD_DIR}/{filename}"
-        file_size = _write_upload_stream(file, file_path)
-        return file_size, file_path
+    def upload_file(
+        file: BinaryIO, filename: str, dedupe: bool | None = None
+    ) -> UploadFileResult:
+        upload_dir = Path(UPLOAD_DIR)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        destination = upload_dir / filename
+        should_dedupe = ENABLE_UPLOAD_DEDUPE if dedupe is None else dedupe
+        if not should_dedupe:
+            file_size, _sha256 = _write_upload_stream(
+                file, destination, calculate_hash=False
+            )
+            return UploadFileResult(file_size, str(destination))
+
+        incoming_dir = upload_dir / ".incoming"
+        incoming_dir.mkdir(parents=True, exist_ok=True)
+        temp_path = incoming_dir / f"{uuid.uuid4().hex}_{filename}"
+
+        file_size, sha256 = _write_upload_stream(file, temp_path)
+        if sha256 is None:
+            with contextlib.suppress(FileNotFoundError):
+                temp_path.unlink()
+            raise RuntimeError("Upload hash calculation failed")
+
+        meta = _build_storage_meta(
+            sha256=sha256,
+            size=file_size,
+            dedupe_strategy=UPLOAD_DEDUPE_STRATEGY,
+            linked=False,
+        )
+
+        if UPLOAD_DEDUPE_STRATEGY != "hardlink":
+            log.warning(
+                "Unsupported upload dedupe strategy %s; storing %s independently.",
+                UPLOAD_DEDUPE_STRATEGY,
+                destination,
+            )
+            meta = _build_storage_meta(
+                sha256=sha256,
+                size=file_size,
+                dedupe_strategy=UPLOAD_DEDUPE_STRATEGY,
+                linked=False,
+                fallback_reason="unsupported_strategy",
+            )
+            should_dedupe = False
+        else:
+            should_dedupe = file_size >= UPLOAD_DEDUPE_MIN_SIZE
+
+        if should_dedupe:
+            candidate = _find_verified_local_dedupe_candidate(
+                sha256=sha256,
+                size=file_size,
+                destination=destination,
+                upload_dir=upload_dir,
+            )
+            if candidate:
+                canonical_file_id, canonical_path = candidate
+                try:
+                    os.link(canonical_path, destination)
+                    temp_path.unlink()
+                    meta = _build_storage_meta(
+                        sha256=sha256,
+                        size=file_size,
+                        dedupe_strategy="hardlink",
+                        linked=True,
+                        canonical_file_id=canonical_file_id,
+                    )
+                    return UploadFileResult(file_size, str(destination), meta)
+                except OSError as exc:
+                    if exc.errno == errno.EXDEV:
+                        log.warning(
+                            "Upload hardlink dedupe crossed filesystems; storing %s independently.",
+                            destination,
+                        )
+                        meta = _build_storage_meta(
+                            sha256=sha256,
+                            size=file_size,
+                            dedupe_strategy="hardlink",
+                            linked=False,
+                            fallback_reason="EXDEV",
+                        )
+                    else:
+                        temp_path.unlink()
+                        raise
+
+        try:
+            os.replace(temp_path, destination)
+        except Exception:
+            with contextlib.suppress(FileNotFoundError):
+                temp_path.unlink()
+            raise
+
+        return UploadFileResult(file_size, str(destination), meta)
 
     @staticmethod
     def get_file(file_path: str) -> str:
@@ -187,15 +392,16 @@ class S3StorageProvider(StorageProvider):
         self.bucket_name = S3_BUCKET_NAME
         self.key_prefix = S3_KEY_PREFIX if S3_KEY_PREFIX else ""
 
-    def upload_file(self, file: BinaryIO, filename: str) -> Tuple[int, str]:
+    def upload_file(self, file: BinaryIO, filename: str) -> UploadFileResult:
         """Handles uploading of the file to S3 storage."""
-        file_size, file_path = LocalStorageProvider.upload_file(file, filename)
+        local_result = LocalStorageProvider.upload_file(file, filename, dedupe=False)
         try:
             s3_key = os.path.join(self.key_prefix, filename)
-            self.s3_client.upload_file(file_path, self.bucket_name, s3_key)
-            return (
-                file_size,
+            self.s3_client.upload_file(local_result.path, self.bucket_name, s3_key)
+            return UploadFileResult(
+                local_result.size,
                 "s3://" + self.bucket_name + "/" + s3_key,
+                local_result.meta,
             )
         except self.client_error as e:
             raise RuntimeError(f"Error uploading file to S3: {e}")
@@ -278,13 +484,17 @@ class GCSStorageProvider(StorageProvider):
             self.gcs_client = google_storage.Client()
         self.bucket = self.gcs_client.bucket(GCS_BUCKET_NAME)
 
-    def upload_file(self, file: BinaryIO, filename: str) -> Tuple[int, str]:
+    def upload_file(self, file: BinaryIO, filename: str) -> UploadFileResult:
         """Handles uploading of the file to GCS storage."""
-        file_size, file_path = LocalStorageProvider.upload_file(file, filename)
+        local_result = LocalStorageProvider.upload_file(file, filename, dedupe=False)
         try:
             blob = self.bucket.blob(filename)
-            blob.upload_from_filename(file_path)
-            return file_size, "gs://" + self.bucket_name + "/" + filename
+            blob.upload_from_filename(local_result.path)
+            return UploadFileResult(
+                local_result.size,
+                "gs://" + self.bucket_name + "/" + filename,
+                local_result.meta,
+            )
         except self.google_cloud_error as e:
             raise RuntimeError(f"Error uploading file to GCS: {e}")
 
@@ -369,14 +579,18 @@ class AzureStorageProvider(StorageProvider):
             self.container_name
         )
 
-    def upload_file(self, file: BinaryIO, filename: str) -> Tuple[int, str]:
+    def upload_file(self, file: BinaryIO, filename: str) -> UploadFileResult:
         """Handles uploading of the file to Azure Blob Storage."""
-        file_size, file_path = LocalStorageProvider.upload_file(file, filename)
+        local_result = LocalStorageProvider.upload_file(file, filename, dedupe=False)
         try:
             blob_client = self.container_client.get_blob_client(filename)
-            with open(file_path, "rb") as upload_file:
+            with open(local_result.path, "rb") as upload_file:
                 blob_client.upload_blob(upload_file, overwrite=True)
-            return file_size, f"{self.endpoint}/{self.container_name}/{filename}"
+            return UploadFileResult(
+                local_result.size,
+                f"{self.endpoint}/{self.container_name}/{filename}",
+                local_result.meta,
+            )
         except Exception as e:
             raise RuntimeError(f"Error uploading file to Azure Blob Storage: {e}")
 

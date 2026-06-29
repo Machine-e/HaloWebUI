@@ -183,10 +183,12 @@ def upload_file(
         id = str(uuid.uuid4())
         name = filename
         filename = f"{id}_{filename}"
-        file_size, file_path = Storage.upload_file(file.file, filename)
+        upload_result = Storage.upload_file(file.file, filename)
+        file_size, file_path = upload_result
         requested_processing_mode = resolve_file_processing_mode_from_config(
             request.app.state.config, processing_mode
         )
+        upload_storage_meta = getattr(upload_result, "meta", {}) or {}
 
         file_item = Files.insert_new_file(
             user.id,
@@ -199,6 +201,7 @@ def upload_file(
                         "name": name,
                         "content_type": file.content_type,
                         "size": file_size,
+                        **upload_storage_meta,
                         "data": file_metadata,
                         "processing_mode": requested_processing_mode,
                         "resolved_processing_mode": requested_processing_mode,
@@ -206,6 +209,13 @@ def upload_file(
                 }
             ),
         )
+        if not file_item:
+            _cleanup_failed_uploaded_file(id, file_path)
+            file_path = None
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ERROR_MESSAGES.DEFAULT("Error uploading file"),
+            )
         if process:
             try:
                 warning_message = None

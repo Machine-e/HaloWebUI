@@ -155,6 +155,7 @@ from open_webui.utils.pptx_skill import (
     BUILTIN_PPTX_EDIT_ENTRYPOINT_ID,
     BUILTIN_PPTX_SKILL_ID,
     PPTX_CONTENT_TYPE,
+    create_pptx_file,
     create_pptx_edit_file,
     is_builtin_pptx_skill_id,
 )
@@ -851,6 +852,25 @@ def _build_pptx_edit_fallback_args(prompt: Any, source_file: dict) -> dict[str, 
     }
 
 
+def _build_pptx_generation_fallback_args(
+    prompt: Any, content_source: Any = None
+) -> dict[str, Any]:
+    prompt_text = _truncate_text(prompt, 4000).strip()
+    content_text = _truncate_text(content_source, 8000).strip() or prompt_text
+    title = prompt_text.splitlines()[0].strip() if prompt_text else "Presentation"
+    title = _truncate_text(title, 120).strip(" #*-") or "Presentation"
+    safe_base_name = re.sub(r"[<>:\"/\\|?*\x00-\x1f]", "_", title).strip(" ._")
+    filename = f"{safe_base_name or 'presentation'}.pptx"
+
+    return {
+        "title": title,
+        "filename": filename,
+        "theme": "blue",
+        "content": content_text,
+        "include_agenda": True,
+    }
+
+
 def _should_run_pptx_editor_fallback(
     metadata: Any,
     prompt: Any,
@@ -864,6 +884,23 @@ def _should_run_pptx_editor_fallback(
         return False
     files = metadata.get("files") if isinstance(metadata, dict) else None
     return _find_current_chat_pptx_file(files) is not None
+
+
+def _should_run_pptx_generation_fallback(
+    metadata: Any,
+    prompt: Any,
+    message_files: Any,
+) -> bool:
+    if not _is_pptx_editor_skill_enabled(metadata):
+        return False
+    if not _has_pptx_generation_intent(prompt):
+        return False
+    if _has_pptx_message_file(message_files):
+        return False
+    files = metadata.get("files") if isinstance(metadata, dict) else None
+    if _find_current_chat_pptx_file(files) is not None:
+        return False
+    return True
 
 
 def _build_pptx_editor_trigger_context(metadata: Any, prompt: Any) -> str:
@@ -916,6 +953,33 @@ async def _maybe_run_pptx_editor_fallback(
         result = await asyncio.to_thread(create_pptx_edit_file, request, user, args)
     except Exception as exc:
         log.warning("[PPTX EDIT FALLBACK] failed: %s", exc)
+        return []
+
+    fallback_files = _normalize_message_files(
+        result.get("files") if isinstance(result, dict) else result
+    )
+    if fallback_files and event_emitter:
+        await emit_server_files(event_emitter, fallback_files)
+    return fallback_files
+
+
+async def _maybe_run_pptx_generation_fallback(
+    request: Request,
+    user: UserModel,
+    metadata: dict,
+    prompt: Any,
+    message_files: Any,
+    event_emitter: Any = None,
+    content_source: Any = None,
+) -> list[dict]:
+    if not _should_run_pptx_generation_fallback(metadata, prompt, message_files):
+        return []
+
+    args = _build_pptx_generation_fallback_args(prompt, content_source)
+    try:
+        result = await asyncio.to_thread(create_pptx_file, request, user, args)
+    except Exception as exc:
+        log.warning("[PPTX GENERATION FALLBACK] failed: %s", exc)
         return []
 
     fallback_files = _normalize_message_files(
@@ -1152,9 +1216,9 @@ def _register_code_interpreter_generated_files(
 
         file_path = None
         try:
-            file_size, file_path = Storage.upload_file(
-                BytesIO(content), storage_filename
-            )
+            upload_result = Storage.upload_file(BytesIO(content), storage_filename)
+            file_size, file_path = upload_result
+            upload_storage_meta = getattr(upload_result, "meta", {}) or {}
             file_item = Files.insert_new_file(
                 user.id,
                 FileForm(
@@ -1166,6 +1230,7 @@ def _register_code_interpreter_generated_files(
                             "name": name,
                             "content_type": content_type,
                             "size": file_size,
+                            **upload_storage_meta,
                             "data": {
                                 "source": "code_interpreter",
                                 "path": relative_path or name,
@@ -1554,6 +1619,23 @@ def _has_reasoning_output(content_blocks: Any) -> bool:
             return True
 
     return False
+
+
+def _get_visible_text_from_content_blocks(content_blocks: Any) -> str:
+    if not isinstance(content_blocks, list):
+        return ""
+
+    parts = []
+    for block in content_blocks:
+        if not isinstance(block, dict):
+            continue
+        if str(block.get("type") or "").strip().lower() != "text":
+            continue
+        text = strip_reasoning_details(str(block.get("content") or "")).strip()
+        if text:
+            parts.append(text)
+
+    return "\n\n".join(parts).strip()
 
 
 def _has_retry_blocking_output(content_blocks: Any, message_files: Any) -> bool:
@@ -6326,6 +6408,18 @@ async def process_chat_response(
                 if fallback_files:
                     message_files = _merge_message_files(message_files, fallback_files)
 
+                fallback_files = await _maybe_run_pptx_generation_fallback(
+                    request,
+                    user,
+                    metadata,
+                    get_last_user_message(form_data.get("messages", [])),
+                    message_files,
+                    None,
+                    content,
+                )
+                if fallback_files:
+                    message_files = _merge_message_files(message_files, fallback_files)
+
                 if message_files:
                     await emit_server_files(event_emitter, message_files)
 
@@ -10500,6 +10594,25 @@ async def process_chat_response(
                         except Exception as e:
                             log.warning(
                                 "Failed to persist PPTX fallback files: %s", e
+                            )
+
+                fallback_files = await _maybe_run_pptx_generation_fallback(
+                    request,
+                    user,
+                    metadata,
+                    get_last_user_message(form_data.get("messages", [])),
+                    message_files,
+                    event_emitter,
+                    _get_visible_text_from_content_blocks(content_blocks),
+                )
+                if fallback_files:
+                    message_files = _merge_message_files(message_files, fallback_files)
+                    if ENABLE_REALTIME_CHAT_SAVE:
+                        try:
+                            upsert_response_message({"files": message_files})
+                        except Exception as e:
+                            log.warning(
+                                "Failed to persist PPTX generation fallback files: %s", e
                             )
 
                 title = Chats.get_chat_title_by_id(metadata["chat_id"])

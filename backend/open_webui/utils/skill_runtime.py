@@ -457,26 +457,38 @@ def _save_private_archive_file(
     archive_id = str(uuid.uuid4())
     safe_name = os.path.basename(archive_name or f"{skill_id}.zip")
     stored_name = f"{archive_id}_{safe_name}"
-    file_size, file_path = Storage.upload_file(io.BytesIO(archive_bytes), stored_name)
-    file_item = Files.insert_new_file(
-        user_id,
-        FileForm(
-            id=archive_id,
-            filename=safe_name,
-            path=file_path,
-            meta={
-                "name": safe_name,
-                "content_type": "application/zip",
-                "size": file_size,
-                "data": {
-                    "source": "skill_package",
-                    "skill_id": skill_id,
+    file_path = None
+    try:
+        upload_result = Storage.upload_file(io.BytesIO(archive_bytes), stored_name)
+        file_size, file_path = upload_result
+        upload_storage_meta = getattr(upload_result, "meta", {}) or {}
+        file_item = Files.insert_new_file(
+            user_id,
+            FileForm(
+                id=archive_id,
+                filename=safe_name,
+                path=file_path,
+                meta={
+                    "name": safe_name,
+                    "content_type": "application/zip",
+                    "size": file_size,
+                    **upload_storage_meta,
+                    "data": {
+                        "source": "skill_package",
+                        "skill_id": skill_id,
+                    },
                 },
-            },
-            access_control={},
-        ),
-    )
+                access_control={},
+            ),
+        )
+    except Exception:
+        if file_path:
+            Storage.delete_file(file_path)
+        raise
+
     if not file_item:
+        if file_path:
+            Storage.delete_file(file_path)
         raise SkillRuntimeError("Failed to save the imported skill archive.")
 
     return {
