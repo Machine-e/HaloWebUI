@@ -7535,14 +7535,6 @@ async def process_chat_response(
                                     error = data.get("error", {})
                                     if error:
                                         _stream_api_error = error
-                                        await event_emitter(
-                                            {
-                                                "type": "chat:completion",
-                                                "data": {
-                                                    "error": error,
-                                                },
-                                            }
-                                        )
                                     if _raw_usage:
                                         await event_emitter(
                                             {
@@ -10617,6 +10609,20 @@ async def process_chat_response(
 
                 title = Chats.get_chat_title_by_id(metadata["chat_id"])
 
+                if not finalize_error_payload and _stream_api_error:
+                    model_id_display = form_data.get("model", "unknown")
+                    log.warning(
+                        "[API ERROR] Model %s returned error: code=%s message=%s",
+                        model_id_display,
+                        _stream_api_error.get("code", "unknown"),
+                        str(_stream_api_error.get("message", ""))[:200],
+                    )
+                    finalize_error_payload = _build_api_error_payload(
+                        _stream_api_error,
+                        model_id_display,
+                        status_override=_stream_response_status,
+                    )
+
                 # Detect empty response (model returned 200 but no content).
                 # Common with reverse proxies / relay services that swallow errors.
                 if (
@@ -10625,20 +10631,7 @@ async def process_chat_response(
                     and not _has_reasoning_output(content_blocks)
                 ):
                     model_id_display = form_data.get("model", "unknown")
-                    if _stream_api_error:
-                        # Real API error caused the empty content — show truthful error
-                        log.warning(
-                            "[API ERROR] Model %s returned error: code=%s message=%s",
-                            model_id_display,
-                            _stream_api_error.get("code", "unknown"),
-                            str(_stream_api_error.get("message", ""))[:200],
-                        )
-                        finalize_error_payload = _build_api_error_payload(
-                            _stream_api_error,
-                            model_id_display,
-                            status_override=_stream_response_status,
-                        )
-                    elif _stream_response_status and _stream_response_status >= 400:
+                    if _stream_response_status and _stream_response_status >= 400:
                         log.warning(
                             "[API ERROR] Model %s returned HTTP %s without a structured SSE error payload",
                             model_id_display,
